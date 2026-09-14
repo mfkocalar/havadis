@@ -20,6 +20,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
 - [ ] Articles are aggregated from 13 fixed RSS sources, normalized to a common shape
 - [ ] Articles are deduplicated (same story from multiple sources shown once)
 - [ ] Articles are classified into sections via keyword rules (ported from reference repo taxonomy)
+- [ ] Sections are rendered in SOC/CISO triage-urgency order (Vulnerabilities/Threat Intel/Breaches/Ransomware first, Tools/Advisories/Industry-Policy after), not alphabetical or config-declaration order
 - [ ] Articles are ranked within each section (recency + source weight)
 - [ ] Front page is served from a short-lived cache — sources are not refetched on every request, only on a ~15 min revalidation window
 - [ ] Each article shows source name, source tier badge, title, summary, relative published time, and links out to the original article
@@ -51,7 +52,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
   | Enterprise Security | Dark Reading | https://www.darkreading.com/rss.xml |
   | Enterprise Security | CrowdStrike Blog | https://www.crowdstrike.com/blog/feed/ |
   | Threat Intelligence | Bleeping Computer | https://www.bleepingcomputer.com/feed/ |
-  | Threat Intelligence | Threatpost | https://threatpost.com/feed/ |
+  | Threat Intelligence | The Hacker News | https://feeds.feedburner.com/TheHackersNews |
   | Threat Intelligence | Help Net Security | https://www.helpnetsecurity.com/feed/ |
   | Tech & General | TechCrunch Security | https://techcrunch.com/category/security/feed/ |
   | Tech & General | Ars Technica | https://feeds.arstechnica.com/arstechnica/index |
@@ -85,6 +86,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
 | Next.js + Tailwind on Vercel, no DB | Simplest architecture that is fast, serverless, mobile-friendly, and free-tier friendly; Next's fetch-cache gives "don't refetch every load" for free | — Pending |
 | Cache via `fetch` + `revalidate`, not cron+KV/Blob | Avoids all persistent infra; matches "essentially stateless" requirement; optional cron pre-warm can be added later without architecture change | — Pending |
 | Port sources + section taxonomy from mfksec/SecureNewspaper | Reference repo already has a vetted 13-source list and a working keyword-classification scheme — no need to redesign either from scratch for v1 | — Pending |
+| Replaced Threatpost with The Hacker News | Research found Threatpost has been dead (no new posts) since Sept 2022; The Hacker News verified live (HTTP 200) and covers the same Threat Intelligence tier | ✓ Good |
 | Rule-based (regex/keyword) categorization, not LLM | Free, instant, deterministic; matches free-tier constraint; LLM categorization deferred to v2 as a quality upgrade | — Pending |
 | 24h lookback, 15min cache revalidation | User-confirmed values; balances "daily paper" feel with freshness | — Pending |
 | No archive, no accounts, no dark-mode toggle in v1 | User-confirmed scope cuts to keep v1 small, stateless, and shippable fast | — Pending |
