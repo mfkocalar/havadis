@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Revisiting the page within ~15 minutes serves the identical cached snapshot (no new network fetch to the source); once the window elapses, the next visit triggers a background refetch.
   5. A deliberately slow or redirecting test fetch is aborted by the per-source timeout (~8s), and any redirect target is validated (HTTPS, same host) before being followed — it never hangs the page or blindly follows to an arbitrary host.
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -43,7 +43,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Complete the UI-02 article card, source-tier pill, masthead, and the quiet D-03 empty state in the Modern editorial direction
+- [x] 01-02-PLAN.md — Complete the UI-02 article card, source-tier pill, masthead, and the quiet D-03 empty state in the Modern editorial direction
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Single-Source Pipeline (Vertical Slice) | 1/3 | In Progress|  |
+| 1. Single-Source Pipeline (Vertical Slice) | 2/3 | In Progress|  |
 | 2. Full Ingestion & Failure Isolation | 0/TBD | Not started | - |
 | 3. Deduplication, Classification & Ranking | 0/TBD | Not started | - |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |
