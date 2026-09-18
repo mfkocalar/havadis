@@ -9,13 +9,13 @@
 
 - [ ] **INGEST-01**: System fetches all 13 configured RSS/Atom sources server-side, in parallel, on each cache revalidation cycle
 - [ ] **INGEST-02**: A failure in one source (timeout, malformed XML, HTTP error, dead feed) does not prevent the page from rendering with the remaining sources' articles
-- [ ] **INGEST-03**: Each source fetch enforces a per-source timeout (~8s) and validates any redirect target (HTTPS only, same host) before following it
-- [ ] **INGEST-04**: Only articles published within the last 24 hours (per source, at fetch time) are considered
-- [ ] **INGEST-05**: The front page is served from Next.js's per-URL fetch cache with a ~15 minute revalidation window — the 13 sources are not refetched on every visitor request, only in the background once the window expires
+- [x] **INGEST-03**: Each source fetch enforces a per-source timeout (~8s) and validates any redirect target (HTTPS only, same host) before following it
+- [x] **INGEST-04**: Only articles published within the last 24 hours (per source, at fetch time) are considered
+- [x] **INGEST-05**: The front page is served from Next.js's per-URL fetch cache with a ~15 minute revalidation window — the 13 sources are not refetched on every visitor request, only in the background once the window expires
 
 ### Normalization & Deduplication
 
-- [ ] **NORM-01**: Each article, regardless of source feed dialect (RSS 2.0 or Atom), is normalized to a common shape: title, url, source, source tier, published time, summary
+- [x] **NORM-01**: Each article, regardless of source feed dialect (RSS 2.0 or Atom), is normalized to a common shape: title, url, source, source tier, published time, summary
 - [ ] **NORM-02**: Duplicate articles — same normalized (title, url) pair appearing from more than one source — are shown once
 
 ### Classification & Ranking
@@ -31,7 +31,7 @@
 - [ ] **UI-03**: An article card shows a visible CVE-ID chip whenever a CVE identifier (pattern `CVE-\d{4}-\d{4,7}`) is detected in its title or summary
 - [ ] **UI-04**: The page shows a "last updated" timestamp for the current cached snapshot and an article count per section
 - [ ] **UI-05**: The layout is readable and usable on narrow mobile viewports (~360–390px wide) as well as desktop, verified on both, not just a resized desktop browser
-- [ ] **UI-06**: The site is fully public — no login, no authentication anywhere
+- [x] **UI-06**: The site is fully public — no login, no authentication anywhere
 
 ### Filtering
 
@@ -84,10 +84,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | INGEST-01 | Phase 2 | Pending |
 | INGEST-02 | Phase 2 | Pending |
-| INGEST-03 | Phase 1 | Pending |
-| INGEST-04 | Phase 1 | Pending |
-| INGEST-05 | Phase 1 | Pending |
-| NORM-01 | Phase 1 | Pending |
+| INGEST-03 | Phase 1 | Complete |
+| INGEST-04 | Phase 1 | Complete |
+| INGEST-05 | Phase 1 | Complete |
+| NORM-01 | Phase 1 | Complete |
 | NORM-02 | Phase 3 | Pending |
 | CLASSIFY-01 | Phase 3 | Pending |
 | CLASSIFY-02 | Phase 3 | Pending |
@@ -97,10 +97,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-03 | Phase 3 | Pending |
 | UI-04 | Phase 4 | Pending |
 | UI-05 | Phase 4 | Pending |
-| UI-06 | Phase 1 | Pending |
+| UI-06 | Phase 1 | Complete |
 | FILTER-01 | Phase 4 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 17 total
 - Mapped to phases: 17
 - Unmapped: 0 ✓
