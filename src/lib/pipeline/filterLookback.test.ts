@@ -51,3 +51,44 @@ test("respects a custom hours parameter", () => {
   const result = filterLookback([withinOneHour, overOneHour], 1);
   assert.deepEqual(result, [withinOneHour]);
 });
+
+test("an article published a few minutes ago survives the 24h window", () => {
+  const fewMinutesAgo = article(new Date(Date.now() - 5 * 60 * 1000).toISOString());
+  assert.deepEqual(filterLookback([fewMinutesAgo]), [fewMinutesAgo]);
+});
+
+test("an article exactly 23 hours old survives (inside the boundary)", () => {
+  const twentyThreeHoursAgo = article(
+    new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString()
+  );
+  assert.deepEqual(filterLookback([twentyThreeHoursAgo]), [twentyThreeHoursAgo]);
+});
+
+test("an article exactly 25 hours old is dropped (outside the boundary)", () => {
+  const twentyFiveHoursAgo = article(
+    new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString()
+  );
+  assert.deepEqual(filterLookback([twentyFiveHoursAgo]), []);
+});
+
+test("a single-element array survives when within the window", () => {
+  const recent = article(new Date(Date.now() - 60 * 60 * 1000).toISOString());
+  assert.deepEqual(filterLookback([recent]), [recent]);
+});
+
+test("a single-element array is dropped when outside the window", () => {
+  const stale = article(new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
+  assert.deepEqual(filterLookback([stale]), []);
+});
+
+test("a batch straddling the 23h/25h boundary is partitioned by one consistent cutoff instant", () => {
+  const now = Date.now();
+  const justInside = article(new Date(now - 23 * 60 * 60 * 1000).toISOString());
+  const justOutside = article(new Date(now - 25 * 60 * 60 * 1000).toISOString());
+  const result = filterLookback([justOutside, justInside]);
+  assert.deepEqual(
+    result,
+    [justInside],
+    "a single sampled cutoff must consistently keep the 23h article and drop the 25h one, in either input order"
+  );
+});
