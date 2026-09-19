@@ -27,6 +27,38 @@ function item(overrides: Partial<Parser.Item>): Parser.Item {
   };
 }
 
+test("a well-formed item normalizes to an Article with every field populated and the title trimmed", () => {
+  const article = normalize(
+    item({
+      title: "  Microsoft Plugs Nearly 1,000 Security Holes  ",
+      link: "https://krebsonsecurity.com/2026/09/microsoft-plugs-nearly-1000-security-holes/",
+      isoDate: "2026-09-08T21:44:22.000Z",
+      contentSnippet: "Microsoft Corp. today issued updates to plug at least 974 security holes.",
+    }),
+    source
+  );
+  assert.deepEqual(article, {
+    title: "Microsoft Plugs Nearly 1,000 Security Holes",
+    url: "https://krebsonsecurity.com/2026/09/microsoft-plugs-nearly-1000-security-holes/",
+    source: "Krebs on Security",
+    sourceTier: "Security Research",
+    publishedAt: "2026-09-08T21:44:22.000Z",
+    summary: "Microsoft Corp. today issued updates to plug at least 974 security holes.",
+  });
+});
+
+test("title containing markup and an ampersand entity survives verbatim (escaping is the render layer's job)", () => {
+  const article = normalize(
+    item({ title: "R&amp;D team ships <patch> for CVE-2026-0001" }),
+    source
+  );
+  assert.equal(
+    article?.title,
+    "R&amp;D team ships <patch> for CVE-2026-0001",
+    "normalize must not strip, unescape, or rewrite feed-supplied markup/entities"
+  );
+});
+
 test("returns null when title is missing", () => {
   assert.equal(normalize(item({ title: undefined }), source), null);
 });
