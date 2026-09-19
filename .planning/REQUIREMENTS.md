@@ -27,7 +27,7 @@
 ### Front Page UI
 
 - [ ] **UI-01**: User can view a responsive, newspaper-style front page with articles grouped under their 7 sections, in urgency order
-- [ ] **UI-02**: Each article card shows the source name, a source-tier badge, the verbatim (non-editorialized) title, a summary, a relative published time with the absolute time available on hover, and a link that opens the original article at the source's own URL
+- [x] **UI-02**: Each article card shows the source name, a source-tier badge, the verbatim (non-editorialized) title, a summary, a relative published time with the absolute time available on hover, and a link that opens the original article at the source's own URL
 - [ ] **UI-03**: An article card shows a visible CVE-ID chip whenever a CVE identifier (pattern `CVE-\d{4}-\d{4,7}`) is detected in its title or summary
 - [ ] **UI-04**: The page shows a "last updated" timestamp for the current cached snapshot and an article count per section
 - [ ] **UI-05**: The layout is readable and usable on narrow mobile viewports (~360–390px wide) as well as desktop, verified on both, not just a resized desktop browser
@@ -93,7 +93,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLASSIFY-02 | Phase 3 | Pending |
 | CLASSIFY-03 | Phase 3 | Pending |
 | UI-01 | Phase 4 | Pending |
-| UI-02 | Phase 1 | Pending |
+| UI-02 | Phase 1 | Complete |
 | UI-03 | Phase 3 | Pending |
 | UI-04 | Phase 4 | Pending |
 | UI-05 | Phase 4 | Pending |
