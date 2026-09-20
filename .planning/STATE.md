@@ -7,7 +7,7 @@ stopped_at: Completed 01-04-PLAN.md — Phase 01 all 4 plans complete, ready for
 last_updated: "2026-09-20T12:51:46.485Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 01 execution started
-state_head: eacea9934f7f5a5bb06ff6f6bed83ffc1e65bcfe
+state_head: 9b880e4a1f269ed209f387c8607cc640ea35a012
 progress:
   total_phases: 4
   completed_phases: 0
@@ -75,6 +75,7 @@ Recent decisions affecting current work:
 - MVP mode: phases are vertical slices (single-source proof before full 13-source fan-out), not horizontal layers
 - [Phase 01]: Composed caller's AbortSignal into fetchWithValidatedRedirect's per-hop signal via AbortSignal.any, rather than restructuring the per-hop timer, so a wider caller-owned budget (fetchSource's continuous per-source budget) survives past the per-hop timer's boundary into the body read
 - [Phase 01]: Named the 8s per-source timeout value in prose in only one file (fetchSource.ts) so the two files' doc comments cannot drift apart on the number itself
+- [Phase 01 post-merge]: `fetchSource.ts`'s content-type gate now accepts "html" alongside "xml" — Krebs on Security's live `/feed` began serving genuinely valid RSS under `text/html`, which the old gate rejected outright, silently emptying the one live source Phase 1 proves. The `rss-parser` step remains the real authority on feed validity; the gate only fast-fails content-types that could never be a feed (images, JSON, binary). Discovered and fixed during 01-04's post-merge regression sweep — unrelated to 01-04's own timeout/redirect scope. Commit `9b880e4`.
 
 ### Pending Todos
 
