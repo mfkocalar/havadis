@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Revisiting the page within ~15 minutes serves the identical cached snapshot (no new network fetch to the source); once the window elapses, the next visit triggers a background refetch.
   5. A deliberately slow or redirecting test fetch is aborted by the per-source timeout (~8s), and any redirect target is validated (HTTPS, same host) before being followed — it never hangs the page or blindly follows to an arbitrary host.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 
 Plans:
 **Wave 1**
@@ -51,7 +51,7 @@ Plans:
 
 **Wave 4** *(gap closure — blocked on Wave 3 completion)*
 
-- [ ] 01-04-PLAN.md — Close the Success Criterion 5 timeout gap: one continuous per-source budget spanning connect, headers and body, proven against a headers-then-stalled-body origin
+- [x] 01-04-PLAN.md — Close the Success Criterion 5 timeout gap: one continuous per-source budget spanning connect, headers and body, proven against a headers-then-stalled-body origin
 
 **UI hint**: yes
 
@@ -109,7 +109,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Single-Source Pipeline (Vertical Slice) | 3/4 | In Progress|  |
+| 1. Single-Source Pipeline (Vertical Slice) | 4/4 | In Progress|  |
 | 2. Full Ingestion & Failure Isolation | 0/TBD | Not started | - |
 | 3. Deduplication, Classification & Ranking | 0/TBD | Not started | - |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |

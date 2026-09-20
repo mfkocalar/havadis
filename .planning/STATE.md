@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
 current_phase: 01
-current_phase_name: single-source-pipeline-vertical-slice
-status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-09-19T14:44:51.679Z"
-last_activity: 2026-09-18
+current_phase_name: Single-Source Pipeline (Vertical Slice)
+status: verifying
+stopped_at: Completed 01-04-PLAN.md — Phase 01 all 4 plans complete, ready for verification
+last_updated: "2026-09-20T12:51:46.485Z"
+last_activity: 2026-09-20
 last_activity_desc: Phase 01 execution started
-state_head: f48ba28076f421c001044201b1700cdef26b75e6
+state_head: eacea9934f7f5a5bb06ff6f6bed83ffc1e65bcfe
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 4
   percent: 0
 ---
 
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-09-14)
 
 ## Current Position
 
-Phase: 01 (single-source-pipeline-vertical-slice) — READY TO EXECUTE
-Plan: 1 of 3
-Status: Ready to execute
-Last activity: 2026-09-18 — Phase 01 execution started
+Phase: 01 (Single-Source Pipeline (Vertical Slice)) — EXECUTING
+Plan: 4 of 4
+Status: Phase complete — ready for verification
+Last activity: 2026-09-20 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -54,6 +54,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P04 | 28min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -68,6 +73,8 @@ Recent decisions affecting current work:
 - Threatpost replaced with The Hacker News (Threatpost confirmed dead since Sept 2022)
 - Rule-based (keyword/regex) categorization, not LLM, for v1
 - MVP mode: phases are vertical slices (single-source proof before full 13-source fan-out), not horizontal layers
+- [Phase 01]: Composed caller's AbortSignal into fetchWithValidatedRedirect's per-hop signal via AbortSignal.any, rather than restructuring the per-hop timer, so a wider caller-owned budget (fetchSource's continuous per-source budget) survives past the per-hop timer's boundary into the body read
+- [Phase 01]: Named the 8s per-source timeout value in prose in only one file (fetchSource.ts) so the two files' doc comments cannot drift apart on the number itself
 
 ### Pending Todos
 
@@ -87,6 +94,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-18T00:00:00.000Z
-Stopped at: Session resumed, proceeding to execute Phase 1 (plans 01-01, 01-02, 01-03)
-Resume file: .planning/phases/01-single-source-pipeline-vertical-slice/01-01-PLAN.md
+Last session: 2026-09-20T12:51:46.471Z
+Stopped at: Completed 01-04-PLAN.md — Phase 01 all 4 plans complete, ready for verification
+Resume file: None
