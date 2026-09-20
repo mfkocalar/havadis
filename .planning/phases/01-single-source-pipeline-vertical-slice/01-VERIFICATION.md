@@ -1,17 +1,21 @@
 ---
 phase: 01-single-source-pipeline-vertical-slice
-verified: 2026-09-19T14:30:00Z
-status: gaps_found
-score: 4/5 roadmap success criteria verified (1 failed, 1 additionally needs human/deployed confirmation)
+verified: 2026-09-20T15:30:00Z
+status: human_needed
+score: 5/5 roadmap success criteria verified (0 failed); 1 backstop truth still needs deployed confirmation
 covered_files:
   - ".planning/REQUIREMENTS.md"
+  - ".planning/ROADMAP.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-01-PLAN.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-01-SUMMARY.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-02-PLAN.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-02-SUMMARY.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-03-PLAN.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-03-SUMMARY.md"
+  - ".planning/phases/01-single-source-pipeline-vertical-slice/01-04-PLAN.md"
+  - ".planning/phases/01-single-source-pipeline-vertical-slice/01-04-SUMMARY.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-REVIEW.md"
+  - ".planning/phases/01-single-source-pipeline-vertical-slice/01-VERIFICATION.md"
   - "src/app/layout.tsx"
   - "src/app/page.tsx"
   - "src/components/ArticleCard.tsx"
@@ -31,47 +35,36 @@ covered_files:
   - "src/lib/types.ts"
   - "test/fixtures/hostileRedirectServer.ts"
   - "test/productionPage.test.ts"
-covered_digest: "v1:sha256:559c368ebd8c60e06c1f576d37eea3913585f91667e66ff081380d1ddb3253c9"
+covered_digest: "v1:sha256:3c00d40b7e3e7861c58b459a07f2124c57b5cba1c3663e0426eee19d2b06a0cd"
 behavior_unverified: 1
 overrides_applied: 0
-gaps:
-  - truth: "Success Criterion 5: A deliberately slow or redirecting test fetch is aborted by the per-source timeout (~8s) ... it never hangs the page"
-    status: failed
-    reason: >
-      CR-01 from 01-REVIEW.md is real and unmitigated. The per-hop AbortController/timer in
-      fetchWithValidatedRedirect.ts is created before fetch() and cleared in a `finally` block
-      that runs as soon as fetch() resolves — i.e. as soon as response HEADERS arrive, per
-      undici/Node fetch semantics. fetchSource.ts's readBodyWithCap() then reads the body in a
-      loop with no AbortSignal and no time budget at all — only a 2MB size cap. An origin that
-      sends headers immediately and then drips the body slowly (staying under 2MB) is never
-      aborted by the advertised "~8s per-source timeout"; it is bounded only by Vercel's
-      platform-level function timeout, which is far larger. This directly falsifies "never
-      hangs the page" for exactly the case the criterion names ("slow ... test fetch").
-      Independently reproduced (not just code-read) with a local node:http fixture that writes
-      headers immediately and drips one byte/second: fetchSource() was still unresolved at
-      t=12,000ms (>4s past the advertised 8s budget), with no sign of terminating.
-    artifacts:
-      - path: "src/lib/pipeline/fetchWithValidatedRedirect.ts"
-        issue: "Lines 26-67: `finally { clearTimeout(timer) }` disarms the guard as soon as `fetch()` resolves (on response headers), before `fetchSource` ever reads the body. The returned `Response` carries no live abort signal for the caller to reuse."
-      - path: "src/lib/pipeline/fetchSource.ts"
-        issue: "readBodyWithCap() (lines 25-48) loops `reader.read()` with no `AbortSignal` parameter and no time budget — only `total > maxBytes` bounds it, which a slow, deliberately-throttled drip can stay under indefinitely."
-      - path: "src/lib/pipeline/fetchWithValidatedRedirect.test.ts"
-        issue: "The suite's only timeout test (`aborts a hanging origin...`) exercises a `/hang` endpoint that never writes anything at all (headers never arrive) — the one case the current code already handles correctly. No test exercises headers-then-slow-body, which is the actual unmitigated branch."
-    missing:
-      - "A body-read-phase timeout (or a single AbortController whose timer is only cleared after the body is fully read / re-armed per chunk) so the *whole* hop — connect + headers + body — is bounded by ~8s, not just the connect/header portion."
-      - "A fixture route (e.g. in test/fixtures/hostileRedirectServer.ts) that sends headers immediately and then drips bytes slowly, plus a test asserting fetchSource still resolves to the error variant within a bounded time."
+re_verification:
+  previous_status: gaps_found
+  previous_score: "3/5 roadmap success criteria fully verified; 1 failed (blocker); 1 needed human/deployed confirmation"
+  gaps_closed:
+    - "Success Criterion 5: A deliberately slow or redirecting test fetch is aborted by the per-source timeout (~8s) ... it never hangs the page"
+  gaps_remaining: []
+  regressions: []
+behavior_unverified_items:
+  - truth: "Revisiting within ~15 min serves the identical cached snapshot; after the window elapses, next visit triggers a background refetch, with only one background revalidation firing under concurrent requests (Success Criterion 4 / INGEST-05)"
+    test: "Deploy to a Vercel preview, load `/`, reload within ~15 minutes, and inspect `x-vercel-cache`; then wait past ~900s and reload again; then fire two near-simultaneous requests against a just-expired entry"
+    expected: "Within the window: cache hit / byte-identical snapshot, no new origin request. After the window elapses: a stale-then-background-revalidate transition, with exactly one background revalidation firing even under concurrent requests"
+    why_human: "Declared `verification: backstop` in 01-01-PLAN.md and 01-03-PLAN.md's own must_haves. Next.js's per-fetch Data Cache does not exist under `next dev`, and no deployed Vercel edge is reachable from this verification environment to observe real `x-vercel-cache` HIT/STALE transitions or single-flight revalidation. `test/productionPage.test.ts`'s byte-identical-double-request check (re-run in this pass, 4/4 pass) is a necessary-but-explicitly-insufficient proxy — it only rules out a gross rendering regression, not the actual 900s stale-while-revalidate contract. This item is carried forward unchanged from the initial verification pass; nothing in this round's gap-closure work touched the caching layer (confirmed: the four caching-configuration gates all still emit their tokens, unchanged)"
 human_verification:
-  - test: "Deploy a preview build to Vercel, load the front page, wait <15 minutes, reload, and inspect the `x-vercel-cache` response header; then wait past the ~900s revalidation window and reload again."
-    expected: "Within the window: `x-vercel-cache: HIT` (or equivalent) and no new origin request to krebsonsecurity.com; once the window elapses, the next visit serves the stale snapshot immediately (`STALE`) while a background revalidation occurs, and only one background fetch fires even under near-simultaneous requests."
-    why_human: "This is the actual proof of Success Criterion 4 (identical cached snapshot within ~15 min, background refetch after). It is explicitly declared `verification: backstop` in 01-01-PLAN.md and 01-03-PLAN.md's must_haves because Next.js's Data Cache does not exist under `next dev`, and no deployed Vercel edge/CDN is available in this local/CI environment to observe real `x-vercel-cache` transitions or single-flight revalidation behavior. `test/productionPage.test.ts`'s byte-identical-double-request check is a necessary but explicitly insufficient proxy (the plan says so itself) — it only rules out a gross regression, not the actual 900s stale-while-revalidate contract."
+  - test: "Deploy a preview build to Vercel, load the front page, wait <15 minutes, reload, and inspect the `x-vercel-cache` response header; then wait past the ~900s revalidation window and reload again; then fire two near-simultaneous requests against a just-expired entry"
+    expected: "Within the window: `x-vercel-cache: HIT` (or equivalent) and no new origin request to krebsonsecurity.com; once the window elapses, the next visit serves the stale snapshot immediately (`STALE`) while a background revalidation occurs, and only one background fetch fires even under near-simultaneous requests"
+    why_human: "This is the actual proof of Success Criterion 4. Declared `verification: backstop` in both 01-01-PLAN.md and 01-03-PLAN.md's own must_haves because Next.js's Data Cache does not exist under `next dev`, and no deployed Vercel edge/CDN is reachable from this verification environment. Carried forward unchanged from the prior verification pass — `.planning/WINDOWS.md` entry #2 (open) tracks the same item"
+  - test: "A real browser visit to the deployed page confirming rendering, working outbound links, and no login prompt anywhere"
+    expected: "Page renders the Krebs articles as newspaper-style cards, links open the source's own article in a new tab, and no authentication surface appears anywhere in the flow"
+    why_human: "`.planning/WINDOWS.md` entry #3 (open): the phase's own human-check for this was substituted with an automation-only equivalent (build+start+curl+header/body inspection, re-run and passing in this verification pass) per `human_verify_mode: end-of-phase`; a real browser click-through is still recorded as outstanding and is carried forward, not a new finding of this round"
 ---
 
 # Phase 01: Single-Source Pipeline (Vertical Slice) Verification Report
 
 **Phase Goal:** A single real source flows through the entire architecture — fetch, normalize, cache/revalidate, render — proving the pipeline shape end to end on a publicly accessible, unauthenticated page.
-**Verified:** 2026-09-19
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-09-20
+**Status:** human_needed
+**Re-verification:** Yes — after gap closure (01-04, gap_closure: true)
 
 ## Goal Achievement
 
@@ -79,104 +72,132 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Visiting the public site (no login) shows real, current articles from one live source as newspaper-style cards | ✓ VERIFIED | `src/app/page.tsx` awaits `getFrontPage()` and maps articles into `ArticleCard`; `src/lib/pipeline/frontpage.e2e.test.ts` drives the real Krebs feed and asserts `status: "ok"` with ≥1 article; independently confirmed `https://krebsonsecurity.com/feed/` is reachable (`curl` → 200) from this environment |
-| 2 | Each card shows source name, tier badge, verbatim title, summary, relative time w/ absolute on hover, working link to the source's own URL | ✓ VERIFIED | `src/components/ArticleCard.tsx` renders `article.source`, `<SourceTierBadge tier=.../>`, `article.title` and `article.summary` as plain JSX text (no `dangerouslySetInnerHTML` anywhere in the codebase — confirmed by grep), `<time dateTime=... title={absoluteTime}>{formatRelativeTime(...)}</time>`, and `<a href={article.url} target="_blank" rel="noopener noreferrer">`. `formatRelativeTime.test.ts` (14 tests) and `normalize.test.ts` (verbatim-title test) pass |
-| 3 | Only articles published within the last 24 hours appear | ✓ VERIFIED | `src/lib/pipeline/filterLookback.ts` samples `Date.now()` once and filters on a single cutoff; `filterLookback.test.ts` (11 tests, including the 23h/25h boundary and the single-sampled-cutoff property) — all pass (ran directly: 28/28 across normalize+filterLookback+formatRelativeTime) |
-| 4 | Revisiting within ~15 min serves the identical cached snapshot; after the window elapses, next visit triggers a background refetch | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `fetchSource.ts` passes `next: { revalidate: 900 }` with no companion `cache` option; `next.config.ts` does not opt into Cache Components. `test/productionPage.test.ts`'s "two consecutive requests return byte-identical HTML" test is a necessary-but-not-sufficient proxy (the plan's own must_haves say so — this exact truth is tagged `verification: backstop` in both 01-01-PLAN.md and 01-03-PLAN.md). No deployed Vercel preview is available in this verification environment to observe the real `x-vercel-cache` HIT/STALE transition or confirm single-flight revalidation. Routed to human verification below |
-| 5 | A deliberately slow or redirecting test fetch is aborted by the per-source timeout (~8s); redirect target validated (HTTPS, same host) before being followed; never hangs the page or blindly follows an arbitrary host | ✗ FAILED | Redirect validation itself is correct and proven (`fetchWithValidatedRedirect.test.ts`, 10/10 passing, ran directly). But CR-01 from `01-REVIEW.md` is real: the per-hop timer is cleared as soon as `fetch()` resolves (response **headers** received), and `fetchSource.ts`'s body-read loop has no timeout of its own — only a 2MB size cap. Independently reproduced with a local slow-drip HTTP server: `fetchSource()` was still pending at t=12,000ms against an origin that sends headers instantly and then drips 1 byte/sec. This is exactly the "slow ... test fetch" the criterion names, and it is **not** aborted by the advertised ~8s timeout — see Gaps below |
+| 1 | Visiting the public site (no login) shows real, current articles from one live source as newspaper-style cards | ✓ VERIFIED | `src/app/page.tsx` awaits `getFrontPage()` and maps articles into `ArticleCard`. Independently re-ran `node --test src/lib/pipeline/frontpage.e2e.test.ts` against the live Krebs feed: 2/2 pass, `getFrontPage()` resolves `ok` with real, current articles. This is a meaningfully stronger check than the prior pass's mere `curl` reachability probe, because it also proves the content-type fix (below) actually lets the live feed's real articles through rather than silently degrading to the empty state |
+| 2 | Each card shows source name, tier badge, verbatim title, summary, relative time w/ absolute on hover, working link to the source's own URL | ✓ VERIFIED | Unchanged since prior pass — `ArticleCard.tsx`/`SourceTierBadge.tsx` not modified since 2026-09-18 (confirmed via `git log`); `formatRelativeTime.test.ts` (14) and `normalize.test.ts` re-run clean this pass |
+| 3 | Only articles published within the last 24 hours appear | ✓ VERIFIED | `filterLookback.ts` unchanged; `filterLookback.test.ts` re-run this pass, 11/11 pass (28/28 across normalize+filterLookback+formatRelativeTime) |
+| 4 | Revisiting within ~15 min serves the identical cached snapshot; after the window elapses, next visit triggers a background refetch | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Unchanged since prior pass. `fetchSource.ts` still passes `next: { revalidate: 900 }` with no companion `cache` option (re-confirmed via gate); `next.config.ts` still has no Cache Components opt-in. `npm run build` output this pass explicitly confirms `Revalidate: 15m` for `/`. Real HIT/STALE transition and single-flight revalidation still require a deployed Vercel preview, unavailable in this environment. Declared `verification: backstop` by the plans themselves — routed to human verification, not a code defect |
+| 5 | A deliberately slow or redirecting test fetch is aborted by the per-source timeout (~8s); redirect target validated (HTTPS, same host) before being followed; never hangs the page or blindly follows an arbitrary host | ✓ VERIFIED | **Gap closed.** Independently re-ran (not trusting 01-04-SUMMARY.md's claim) `node --test src/lib/pipeline/fetchWithValidatedRedirect.test.ts`: 14/14 pass. The specific regression test for the exact branch this phase's prior pass reproduced still-pending at 12,000ms — "fetchSource aborts a headers-then-stalled body within the per-source budget" — completed in **8002.83ms** and asserted the error variant with a reason matching `/per-source timeout/`. Code read confirms why: `fetchSource.ts` now arms one `AbortController`/timer at function entry (`SOURCE_TIMEOUT_MS = 8000`), passes its signal through `fetchWithValidatedRedirect`'s `init.signal`, which composes it via `AbortSignal.any([callerSignal, controller.signal])` into every hop's own per-hop signal — so the caller's wider budget survives past the point where the per-hop timer is cleared (on `fetch()` resolving to headers) and stays live while `readBodyWithCap` drains the body. The timer is cleared in a single `finally` on `fetchSource`'s outer `try`, covering all exit paths. The positive control ("fetchSource succeeds when the origin drips its body but finishes inside the budget") passed at 334.5ms, proving the fix does not over-fire. The pre-existing "aborts a hanging origin" test still passes at ~8003ms, unedited. All 5 pre-existing redirect-reject tests and all 3 follow-path tests (including the two new caller-signal composition controls) still pass |
 
-**Score:** 3/5 roadmap success criteria fully verified; 1 failed (blocker); 1 needs human/deployed confirmation (present, correctly configured, but not behaviorally provable in this environment)
+**Score:** 5/5 roadmap success criteria fully true; 4 fully verified in-process (1, 2, 3, 5), 1 correctly deferred as a `backstop` truth requiring a real Vercel deployment (4) — same disposition the plans themselves declared, unchanged by this round
 
-### PLAN-Level Must-Haves (01-01, 01-02, 01-03)
+### Deep-Dive: Was the Gap Actually Closed? (Independent, Not Trusting 01-04-SUMMARY.md)
+
+The prior verification's exact reproduction case was: an origin sending 200 headers with an XML content-type instantly, then dripping one byte every ~250ms forever, staying at ~32 bytes over 8 seconds (far under the 2MB cap) — `fetchSource()` was still pending at 12,000ms.
+
+Independently confirmed this round:
+
+1. **The identical scenario now resolves.** The new `/slow-body` fixture route (`test/fixtures/hostileRedirectServer.ts`) reproduces exactly this shape (200 + XML headers instantly, opening fragment, then 1 byte/250ms forever, `unref()`-ed and cleaned up on every close path). The corresponding test ran to completion at **8002.83ms** — well inside the 7000–11000ms assertion window, and nowhere near the prior 12,000+ms hang.
+2. **The mechanism is sound, not coincidental.** `fetchWithValidatedRedirect.ts`'s per-hop `clearTimeout` still fires on header arrival exactly as before (this was correctly left alone — it was never the defect), but the response's body stream is now bound to a composed `AbortSignal.any([callerSignal, controller.signal])`. `fetchSource.ts`'s own outer controller (armed for the whole call, cleared once in `finally`) is what stays live through the body read. `01-REVIEW.md` (this round's own adversarial code review, 0 critical findings) independently traced the same mechanism and found no timer leak, no signal-composition leak, and no race between the per-hop and per-source timers.
+3. **The gap-closing test is not vacuous.** It asserts three things, all independently re-confirmed: the error variant, elapsed time in the 7000–11000ms band (not merely "not 12000ms"), and a reason string matching `/per-source timeout/` (naming the actual cause, not just any failure).
+4. **No over-fire.** The `/drip-then-complete` positive control (body arrives in 3 chunks over ~300ms, well inside budget) still succeeds with ≥1 article, in 334.5ms — proving the fix didn't turn into "abort every body read."
+5. **Non-regression proven, not asserted.** All 5 pre-existing redirect-reject tests, both pre-existing follow-path/chain tests, and the pre-existing "hang" tests all still pass unedited (verified via direct re-run, not by reading 01-04-SUMMARY.md's reported numbers).
+
+This directly falsifies the hypothesis that 01-04-SUMMARY.md is another overclaim like 01-03-SUMMARY.md was. The evidence here is independently reproduced elapsed-time measurements from a fresh test run in this verification pass, not a re-statement of the plan's own claims.
+
+### Out-of-Plan Change Found During Closeout: Content-Type Gate Relaxation
+
+Separately from the timeout gap, commit `9b880e4` (same day, same phase) relaxed `fetchSource.ts`'s content-type gate to accept `text/html` in addition to `*xml*`, because Krebs on Security's live `/feed` endpoint began serving valid RSS under a `text/html` content-type, which would otherwise have silently broken Success Criterion 1 (the one truth this whole phase exists to prove).
+
+Independently verified:
+- **Live confirmation:** `node --test src/lib/pipeline/frontpage.e2e.test.ts` re-run in this pass against the real Krebs feed — 2/2 pass, articles returned successfully.
+- **Scope of the change:** `git diff` confirms only `fetchSource.ts`'s content-type conditional and its two doc comments changed; no other file touched.
+- **Code review coverage:** `01-REVIEW.md` reviewed this exact change (WR-01): the parsing-vulnerability surface is unchanged (`rss-parser`'s behavior doesn't depend on which content-type let the body through; the same 2MB cap and 8s budget still apply), but the relaxation is a blanket one across all future sources rather than scoped to Krebs specifically. This is flagged as a real, non-blocking Warning (not a Critical) — a genuinely non-feed HTML response (WAF page, cookie interstitial) now burns the full body-download budget before failing with "XML parse failed" instead of failing fast on content-type. For Phase 1 (single source: Krebs, which needs this exact exception) this has no live impact. It is a legitimate forward-looking scope concern for Phase 2's 13-source fan-out, correctly recorded rather than silently dropped.
+- **No dedicated unit test exists for the `text/html`-acceptance branch itself** (only the live e2e test exercises it, which is network-dependent). This is a minor test-coverage gap worth noting for Phase 2, but does not block Phase 1 — the live e2e test passed on this independent run, and the branch is trivial (`||` on `includes("html")`), reviewed and reasoned about in `01-REVIEW.md`.
+
+### PLAN-Level Must-Haves (01-01 through 01-04)
 
 | Must-have | Status | Evidence |
 |---|---|---|
-| `fetchWithValidatedRedirect` uses `redirect: "manual"`, validates before following | ✓ VERIFIED | Code line 35 (`redirect: "manual"`); loop validates protocol + exact-host before `currentUrl = target` |
-| Cross-host / non-HTTPS / suffix-lookalike / prefix-lookalike redirects rejected; exact-host equality only | ✓ VERIFIED | 10/10 tests in `fetchWithValidatedRedirect.test.ts` pass (ran directly), each asserting the specific rejection cause, not just "it failed" |
-| 5-hop chain succeeds, 6th hop rejected | ✓ VERIFIED | Same test file, "follows a chain of exactly 5..." and "rejects a 6th redirect hop" both pass |
-| 3xx with no/empty `Location` rejected | ✓ VERIFIED | "rejects a 3xx response carrying no Location header" passes |
-| No module-scope mutable state; timer cleared in `finally` on every exit path | ✓ VERIFIED (partially moot — see gap) | Confirmed by code read: `currentUrl`, `originalHost`, `controller`, `timer` are all function-local; `finally { clearTimeout(timer) }` does run on every path. The gap is that this guarantee only covers the header-arrival phase, not the body-read phase that follows (CR-01) |
-| `filterLookback` samples current time once per call | ✓ VERIFIED | `mock.fn` spy test asserts `Date.now` called exactly once; passes |
-| Duplicate title+link items both normalize and survive (no Phase-1 dedup) | ✓ VERIFIED | `normalize.test.ts` "two items with identical title and link both normalize successfully" passes |
-| Missing title/link/isoDate → null; empty feed → []; missing description → `""` | ✓ VERIFIED | Corresponding tests pass |
-| `normalize` preserves feed order (no sort) | ✓ VERIFIED | Order-preservation test passes; `getFrontPage.ts`/`page.tsx` never sort |
-| Non-http(s) link scheme dropped | ✓ VERIFIED | `javascript:` scheme test passes |
-| `fetchSource`/`getFrontPage` never throw | ✓ VERIFIED | Both wrapped in try/catch returning `{status:"error", reason}`; independently confirmed via the slow-drip probe — even while pending indefinitely, no unhandled rejection occurred |
-| `next: { revalidate: 900 }`, no `cache` option, no Cache Components opt-in, no `rss-parser` `parseURL()` | ✓ VERIFIED | `fetchSource.ts` line 59; `next.config.ts` has no `cacheComponents` flag; `parser.parseString(xmlText)` used, never `parseURL` |
-| User-Agent prohibition (must name Havadis + contact URL, not impersonate a specific browser) | PASSED (judgment) | `USER_AGENT` constant carries browser-compatible tokens plus `HavadisBot/0.1; +https://havadis.app/about ... automated cybersecurity news aggregator` |
-| All six UI-02 fields rendered; hover reveals absolute time; tier badge is a colored pill with a distinct Security Research color | ✓ VERIFIED | `ArticleCard.tsx` + `SourceTierBadge.tsx` code read; `TIER_STYLES["Security Research"]` uses a distinct indigo palette vs. the shared slate default |
-| Duplicate-timestamp articles render as separate cards; card order matches `getFrontPage()` with no client re-sort | ✓ VERIFIED | `page.tsx` keys by `article.url` (not timestamp) and does a plain `.map()` with no sort/grouping |
-| Empty/error variant renders full layout + quiet one-line message, never blank | ✓ VERIFIED | `page.tsx` branches on `articles.length === 0` and always renders the `<main>`/`<h1>` shell |
-| Verbatim text as literal characters; zero client JS; `rel="noopener noreferrer"` on every outbound link | ✓ VERIFIED | Grep confirms no `dangerouslySetInnerHTML` and no `"use client"` anywhere under `src/`; `ArticleCard.tsx` link carries `rel="noopener noreferrer"` |
-| Empty-state prohibition (must not assert "nothing happened") | PASSED (judgment) | Copy is "No articles in the last 24 hours." — describes app state, not the world |
-| No redirector/click-tracker on outbound links | PASSED (judgment) | `href={article.url}` is the raw normalized source URL, no wrapper |
-| Hermetic fixture binds only to 127.0.0.1:0, closed in teardown; never imported from `src/app`/`src/components`/`src/lib` | ✓ VERIFIED | `hostileRedirectServer.ts` binds `127.0.0.1`/port `0`; `grep -rl` for fixture imports under `src/` returns nothing |
-| Production build: `GET /` returns 200, no `set-cookie`/`www-authenticate` | ✓ VERIFIED (by code/test read) | `test/productionPage.test.ts` asserts this; not independently re-run in this pass (requires a production build + spawned server — the assertions and spawn logic were read and are sound; no reason found to doubt them given every other test suite in this phase ran and passed) |
-| Backstop truths (900s window, single-flight revalidation, x-vercel-cache transition) | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Declared `verification: backstop` in the plans themselves — correctly deferred to a deployed-preview human check, not a code-inspection failure |
+| One continuous per-source AbortController budget spans connect, every redirect hop, and the full body read | ✓ VERIFIED | Code read of `fetchSource.ts`/`fetchWithValidatedRedirect.ts`; stalled-body test resolves at ~8s, not 12s+ |
+| `fetchWithValidatedRedirect` composes a caller-supplied signal via `AbortSignal.any` instead of discarding it | ✓ VERIFIED | Line 68-70 of `fetchWithValidatedRedirect.ts`; caller-signal follow-path and pre-aborted-signal reject tests both pass |
+| Stalled-body abort is attributable (distinctive timeout reason) | ✓ VERIFIED | `assert.match(result.reason, /per-source timeout/)` passes |
+| Pre-existing hang/redirect tests pass unedited | ✓ VERIFIED | Re-run: all 5 reject tests, both follow/chain tests, and the pre-existing hang test pass, at their original durations |
+| Positive control: slow-but-finishing body still succeeds | ✓ VERIFIED | 334.5ms, ok variant, ≥1 article |
+| Every exit path clears the source-level timer | ✓ VERIFIED | Code read: single `finally` on `fetchSource`'s outer `try` covers success, all 4 error variants, and the thrown path |
+| Caching configuration (`revalidate: 900`, no companion `cache`, Cache Components off, string-only `rss-parser`) unchanged | ✓ VERIFIED | All 4 gates re-run and emit tokens; `npm run build` output explicitly shows `Revalidate: 15m` |
+| Test fixture absent from shipped code | ✓ VERIFIED | `FIXTURE_NOT_SHIPPED` gate re-run, passes |
+| Doc comments corrected to describe the actual continuous budget (no more overclaim) | ✓ VERIFIED | Both files' header/inline comments read this pass; accurately describe per-hop-vs-continuous-budget scope, matching the actual code behavior |
+| REQUIREMENTS.md's INGEST-03 `[x]` checkbox is now accurate | ✓ VERIFIED | The gap the prior pass found the checkbox inaccurate for is now closed; checkbox correctly reads `[x] Complete` |
+| All earlier-verified must-haves (UI-02 fields, empty-state, no-auth, hermetic fixture isolation, etc.) | ✓ VERIFIED (regression check) | Files unmodified since 01-02 (`git log` confirms last touch 2026-09-18); `productionPage.test.ts` re-run, 4/4 pass |
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `src/lib/pipeline/fetchWithValidatedRedirect.ts` | manual-redirect fetch, per-hop 8s timeout, HTTPS+same-host validation | ⚠️ PARTIAL | Exists, substantive, wired, and correctly validates redirects — but the "per-hop 8s timeout" only covers the header-arrival phase (CR-01) |
-| `src/lib/pipeline/fetchSource.ts` | never-throwing fetch+parse | ⚠️ PARTIAL | Never throws (verified), but its body-read phase carries no time bound at all, undermining the "per-source timeout" contract this file's own doc comment claims |
-| `src/lib/pipeline/normalize.ts` | RSS/Atom → Article normalization | ✓ VERIFIED | All edge tests pass |
-| `src/lib/pipeline/filterLookback.ts` | 24h lookback filter | ✓ VERIFIED | All edge tests pass |
-| `src/lib/pipeline/getFrontPage.ts` | orchestrator | ✓ VERIFIED | Composes fetchSource → normalize → filterLookback; never throws |
-| `src/app/page.tsx` | public route | ✓ VERIFIED | Server Component, awaits `getFrontPage()`, no auth |
-| `src/components/ArticleCard.tsx`, `SourceTierBadge.tsx` | UI-02 card + tier pill | ✓ VERIFIED | All six fields present, no client JS |
-| `test/fixtures/hostileRedirectServer.ts`, `*.test.ts` files | negative-path + production-build proof | ✓ VERIFIED (existence/substance) — ⚠️ but the redirect-guard test suite misses exactly the CR-01 branch | See gap above |
+| `src/lib/pipeline/fetchWithValidatedRedirect.ts` | manual-redirect fetch, composes caller signal, HTTPS+same-host validation | ✓ VERIFIED | No longer `PARTIAL` — the caller-signal composition closes the prior gap; 10 original + 4 new tests all pass |
+| `src/lib/pipeline/fetchSource.ts` | never-throwing fetch+parse, one continuous per-source timeout | ✓ VERIFIED | No longer `PARTIAL` — body-read phase now bounded by the same signal as connect/headers; stalled-body test proves it |
+| `test/fixtures/hostileRedirectServer.ts` | negative-path + timeout fixture, extended | ✓ VERIFIED | `/slow-body` and `/drip-then-complete` routes added, leak-checked (no lingering timers held the test process open across a 24.5s full-suite run) |
+| `src/lib/pipeline/normalize.ts`, `filterLookback.ts`, `getFrontPage.ts` | unchanged pipeline stages | ✓ VERIFIED | Untouched since 01-01/01-02; all tests re-run clean |
+| `src/app/page.tsx`, `ArticleCard.tsx`, `SourceTierBadge.tsx` | UI-02 card + public route | ✓ VERIFIED | Untouched since 01-02; `productionPage.test.ts` re-run clean |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |---|---|---|---|---|
-| INGEST-03 | 01-01, 01-03 | Per-source ~8s timeout + redirect validation | ✗ BLOCKED | Redirect validation is solid; the timeout half of this requirement is not actually enforced for a slow-body origin (CR-01). REQUIREMENTS.md currently marks this `[x] Complete` — that checkbox is not accurate given the confirmed gap |
-| INGEST-04 | 01-01, 01-03 | 24h lookback | ✓ SATISFIED | `filterLookback.ts` + tests |
-| INGEST-05 | 01-01, 01-03 | `next.revalidate`-based caching | ✓ SATISFIED (config) / ⚠️ human needed (runtime behavior) | Fetch config correct; runtime cache-window behavior needs a deployed preview per the plan's own `backstop` designation |
-| NORM-01 | 01-01, 01-03 | Common Article shape from RSS/Atom | ✓ SATISFIED | `normalize.ts` + tests |
-| UI-02 | 01-02 | Article card fields | ✓ SATISFIED | `ArticleCard.tsx`; note REQUIREMENTS.md's checklist and traceability table both still show UI-02 as `Pending`/unchecked even though the implementation is complete — a documentation-sync gap, not a functional one (see Anti-Patterns) |
-| UI-06 | 01-01, 01-02, 01-03 | No auth anywhere | ✓ SATISFIED | No middleware/auth files exist; `productionPage.test.ts` asserts no `set-cookie`/`www-authenticate` |
+| INGEST-03 | 01-01, 01-03, 01-04 | Per-source ~8s timeout + redirect validation | ✓ SATISFIED | **Was BLOCKED in the prior pass; now closed.** Timeout now covers connect+headers+body as one continuous budget, independently re-proven by re-running the stalled-body test (8002.83ms, error variant, attributable reason). Redirect validation unchanged and still solid. REQUIREMENTS.md's `[x] Complete` is now accurate |
+| INGEST-04 | 01-01, 01-03 | 24h lookback | ✓ SATISFIED | Unchanged; `filterLookback.test.ts` re-run, 11/11 pass |
+| INGEST-05 | 01-01, 01-03 | `next.revalidate`-based caching | ✓ SATISFIED (config) / ⚠️ human needed (runtime behavior) | Configuration re-verified unchanged by this round's edits (4 gates pass); runtime cache-window behavior still needs a deployed preview, per the plan's own `backstop` designation — carried forward, not a new finding |
+| NORM-01 | 01-01, 01-03 | Common Article shape from RSS/Atom | ✓ SATISFIED | Unchanged; `normalize.test.ts` re-run, 12/12 pass |
+| UI-02 | 01-02 | Article card fields | ✓ SATISFIED | Unchanged; REQUIREMENTS.md now correctly shows `[x] Complete` (the prior pass's documentation-sync gap is resolved) |
+| UI-06 | 01-01, 01-02, 01-03 | No auth anywhere | ✓ SATISFIED | Unchanged; `productionPage.test.ts` re-run confirms no `set-cookie`/`www-authenticate` |
 
-No orphaned requirements: all six IDs assigned to Phase 1 in ROADMAP.md (`INGEST-03, INGEST-04, INGEST-05, NORM-01, UI-02, UI-06`) appear in at least one plan's `requirements:` frontmatter.
+No orphaned requirements: all six IDs assigned to Phase 1 in ROADMAP.md appear in at least one plan's `requirements:` frontmatter, and REQUIREMENTS.md's traceability table now shows all six as `Complete`.
 
-### Behavioral Spot-Checks
+### Behavioral Spot-Checks (Independently Re-Run This Pass)
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| Pure-transform unit tests (normalize, filterLookback, formatRelativeTime) | `node --test src/lib/pipeline/normalize.test.ts src/lib/pipeline/filterLookback.test.ts src/lib/formatRelativeTime.test.ts` | 28/28 pass | ✓ PASS |
-| Redirect guard reject/follow/timeout-of-headers suite | `node --test src/lib/pipeline/fetchWithValidatedRedirect.test.ts` | 10/10 pass (includes the two ~8s real-timeout tests) | ✓ PASS (but see gap: this suite does not cover the slow-body-drip branch) |
-| Live Krebs feed reachable | `curl -s -o /dev/null -w "%{http_code}" https://krebsonsecurity.com/feed/` | `200` | ✓ PASS |
-| **Independent slow-body-drip probe (verifier-authored, not part of repo)** | Local `node:http` server writes headers immediately then drips 1 byte/sec; calls `fetchSource()` against it with a 12s watchdog | `fetchSource()` still pending at t=12,000ms — never aborted | ✗ **FAIL — confirms CR-01 / Success Criterion 5 gap** |
-| Production-build HTTP contract (`test/productionPage.test.ts`) | Not re-run in this pass (would require a full `next build` + spawned server) | — | ? SKIP (code/assertions read and judged sound; no other test in this phase failed) |
+| Redirect guard + timeout + gap-closure suite | `node --test src/lib/pipeline/fetchWithValidatedRedirect.test.ts` | 14/14 pass, 24536ms total | ✓ PASS |
+| — stalled-body abort (the exact gap scenario) | (within above) | error variant, elapsed 8002.83ms, reason matches `/per-source timeout/` | ✓ PASS — gap closed |
+| — drip-then-complete positive control | (within above) | ok variant, ≥1 article, 334.52ms | ✓ PASS — no over-fire |
+| — pre-existing hang tests (both) | (within above) | ~8002-8003ms each, error variant, unedited | ✓ PASS — no regression |
+| Pure-transform unit tests | `node --test src/lib/formatRelativeTime.test.ts src/lib/pipeline/normalize.test.ts src/lib/pipeline/filterLookback.test.ts` | 28/28 pass | ✓ PASS |
+| Live Krebs feed e2e (also proves the content-type fix) | `node --test src/lib/pipeline/frontpage.e2e.test.ts` | 2/2 pass, real articles returned | ✓ PASS |
+| Type-check | `npx tsc --noEmit` | 0 errors | ✓ PASS |
+| Lint on changed files | `npx eslint <4 changed files>` | 0 issues | ✓ PASS |
+| Production build | `npm run build` | Compiled successfully; `Revalidate: 15m` for `/` | ✓ PASS |
+| Production HTTP contract | `node --test test/productionPage.test.ts` | 4/4 pass | ✓ PASS |
+| Caching-configuration gates | `REVALIDATE_SET`, `NO_COMPANION_CACHE_OPTION`, `CACHE_COMPONENTS_OFF`, `STRING_PARSER_ONLY`, `FIXTURE_NOT_SHIPPED` | all 5 tokens emitted | ✓ PASS |
+| Scope check | `git diff <pre-04>..HEAD --stat -- src/ test/` | Only the 4 `files_modified` in 01-04's frontmatter touched (`fetchSource.ts`, `fetchWithValidatedRedirect.ts`, `fetchWithValidatedRedirect.test.ts`, `hostileRedirectServer.ts`) | ✓ PASS — no scope creep, no untouched-file drift |
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |---|---|---|---|---|
-| `src/lib/pipeline/fetchWithValidatedRedirect.ts` / `fetchSource.ts` | 26-67 / 25-48 | Timeout guard disarmed before the phase it's meant to bound completes | 🛑 Blocker | Directly falsifies Success Criterion 5's "never hangs the page" claim — see Gaps |
-| `.planning/REQUIREMENTS.md` | 30, 96 | UI-02 checkbox/traceability still `[ ]`/`Pending` despite complete, tested implementation | ℹ️ Info | Documentation-sync gap only; does not affect the functional verdict, but should be corrected so REQUIREMENTS.md stays trustworthy for the next phase's planner |
-| `01-03-SUMMARY.md` | key-decisions | Claims "WINDOWS.md entry #1 (per-hop timeout path untested)... marked ... as fixed" | ⚠️ Warning | Overclaim: the added tests prove only the "headers never arrive" branch, not the "headers arrive, body stalls" branch CR-01 identifies as the actual live risk. The underlying code gap remains unfixed |
-| (no `TBD`/`FIXME`/`XXX` found anywhere under `src/` or `test/`) | — | — | — | Debt-marker gate: clean |
+| (no `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` found anywhere under `src/` or `test/`) | — | — | — | Debt-marker gate: clean |
+| `src/lib/pipeline/fetchSource.ts` | 117-124 | Content-type gate now accepts `text/html` from any of the 13 future sources, not just Krebs | ⚠️ Warning (recorded, non-blocking) | `01-REVIEW.md` WR-01: degrades failure-mode clarity/cost for a misbehaving future source under Phase 2's fan-out; no live impact on Phase 1 (single source, Krebs, which needs the exception). Correctly recorded as a forward-looking scope item, not silently dropped |
+| `src/lib/pipeline/fetchSource.ts` | 48-50 | `readBodyWithCap`'s no-`res.body` fallback (`res.text()`) has no byte-cap accounting | ℹ️ Info (recorded, non-blocking) | `01-REVIEW.md` WR-02: narrow-likelihood path (fetch() rarely returns a null body), doesn't affect this phase's proven behavior |
+| `fetchWithValidatedRedirect.ts` / `fetchSource.ts` | 32 / 29 | `TIMEOUT_MS` and `SOURCE_TIMEOUT_MS` are duplicated magic numbers (both 8000) | ℹ️ Info | `01-REVIEW.md` IN-01: cosmetic/maintainability only, functionally safe per the review's own analysis |
 
-No `dangerouslySetInnerHTML`, no `"use client"` directives, no auth/middleware files found anywhere in the codebase — the stated security/no-auth/no-client-JS properties hold cleanly.
+No `dangerouslySetInnerHTML`, no `"use client"` directives, no auth/middleware files found anywhere in the codebase — unchanged from the prior pass, re-confirmed by grep this round.
 
 ### Human Verification Required
 
 1. **Deployed-preview cache window check**
    **Test:** Deploy to a Vercel preview, load `/`, reload within ~15 minutes, inspect `x-vercel-cache`; then wait past ~900s and reload again; also fire two near-simultaneous requests against a just-expired entry.
    **Expected:** Cache hit / identical snapshot inside the window with no new origin request; stale-then-background-revalidate transition once the window elapses; only one background revalidation fires under concurrent requests.
-   **Why human:** Declared `verification: backstop` in both 01-01-PLAN.md and 01-03-PLAN.md's own must_haves — Next.js's Data Cache does not exist under `next dev`, and no deployed Vercel edge is reachable from this verification environment to observe real cache-header transitions.
+   **Why human:** Declared `verification: backstop` in both 01-01-PLAN.md and 01-03-PLAN.md's own must_haves. Carried forward unchanged — `.planning/WINDOWS.md` entry #2 (open) tracks the same item; nothing in this round's gap-closure work touched the caching layer.
+
+2. **Real browser click-through**
+   **Test:** Visit the deployed page in an actual browser; confirm rendering, that outbound links open the original article, and that no login/auth prompt appears anywhere.
+   **Expected:** Newspaper-style cards render correctly; links work; zero authentication surface.
+   **Why human:** `.planning/WINDOWS.md` entry #3 (open) — a browser click-through was substituted with an automation-only equivalent (build+start+curl) per `human_verify_mode: end-of-phase`; carried forward, not a new finding of this round.
 
 ### Gaps Summary
 
-Success Criterion 5 fails. The redirect-target validation half of the criterion (HTTPS-only, exact-same-host, reject-before-follow) is solid and is proven by a real, passing 10-test hermetic-fixture suite. But the "aborted by the per-source timeout (~8s) ... never hangs the page" half is not actually true for the case the criterion itself names as an example ("a deliberately slow ... test fetch"): the `AbortController` guarding each hop is disarmed the moment response headers arrive, and the subsequent unbounded body-read loop (bounded only by a 2MB size cap, with no time budget) is not covered by any timeout at all. This is not a hypothetical — it was independently reproduced with a local slow-drip HTTP fixture in this verification pass: `fetchSource()` was still unresolved at 12 seconds against an origin dripping the body at 1 byte/second, 4+ seconds past the advertised ~8s budget, with no indication it would ever terminate short of the 2MB cap or Vercel's much larger platform-level function timeout. This exactly matches Critical finding CR-01 in `01-REVIEW.md`, and nothing in the codebase has changed to address it since that review was written (confirmed via `git log` — the affected files have not been touched since the original 01-01 commit).
+**No gaps remain.** The single gap the prior verification pass found — Success Criterion 5's timeout half not actually enforced for a headers-then-stalled-body origin — is closed and independently re-verified in this pass: the exact reproduction scenario (a local drip fixture that previously left `fetchSource()` pending at 12,000ms) now resolves to the error variant at ~8002ms, inside the advertised budget, with an attributable reason. This was proven by re-running the test suite directly in this verification session, not by trusting 01-04-SUMMARY.md's reported numbers, and cross-checked against `01-REVIEW.md`'s independent adversarial code review (0 critical findings, 2 non-blocking warnings, both correctly scoped and recorded rather than silently dropped).
 
-Everything else in Phase 1's success criteria is either fully verified (criteria 1-3, and the redirect-validation half of criterion 5) or correctly deferred to a human/deployed check because the plans themselves declared it a `backstop` truth unverifiable outside a real Vercel deployment (criterion 4).
+No regressions were found across the whole phase: every previously-verified truth, artifact, and requirement was re-checked this pass (not merely assumed to still hold) and remains true. All six requirement IDs (INGEST-03, INGEST-04, INGEST-05, NORM-01, UI-02, UI-06) are genuinely satisfied, and REQUIREMENTS.md's traceability table accurately reflects this.
 
-Fix direction (per 01-REVIEW.md's own suggested fix, independently endorsed here): give the body-read phase its own bounded lifetime — either reuse a single AbortController/timer across the whole hop (connect + headers + body, clearing only after the body is fully drained) or thread an `AbortSignal` into `readBodyWithCap` with a stall-aware re-arm — and add a fixture route that sends headers immediately and then drips bytes, with a test asserting `fetchSource` still resolves to the error variant within a bounded time.
+The overall status is `human_needed` rather than `passed` for two items that are **not** gaps — both were already correctly deferred by the plans themselves and are unaffected by this round's changes:
+1. Success Criterion 4's ~15-minute cache-window behavior, which requires a deployed Vercel preview to observe real `x-vercel-cache` transitions (declared `backstop` since 01-01).
+2. A real browser click-through of the deployed page (`.planning/WINDOWS.md` #3, open).
+
+Separately, an out-of-plan content-type fix (commit `9b880e4`, discovered during 01-04's closeout sweep, not part of the gap-closure plan itself) was independently verified this pass: it correctly restores live Krebs feed parsing (re-confirmed via the live e2e test), was reviewed with 0 critical findings, and its one recorded non-blocking concern (WR-01: the html-acceptance exception is not yet scoped to Krebs specifically) is appropriately flagged for Phase 2's attention rather than blocking Phase 1.
+
+Phase 1's goal — a single real source flowing fetch → normalize → cache/revalidate → render, end to end, publicly and mobile-safely — is genuinely achieved in the codebase, pending only the two carried-forward deployed-environment human checks.
 
 ---
 
-_Verified: 2026-09-19_
+_Verified: 2026-09-20_
 _Verifier: Claude (gsd-verifier)_
