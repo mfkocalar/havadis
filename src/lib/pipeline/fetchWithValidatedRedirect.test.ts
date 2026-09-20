@@ -210,6 +210,42 @@ test(
   }
 );
 
+// --- Positive control: a slow-but-finishing body still succeeds ----------
+// Proves the new time budget does not over-fire — a careless fix that
+// aborted every body read would still pass the all-negative suite above.
+
+test("fetchSource succeeds when the origin drips its body but finishes inside the budget", async () => {
+  const server = await startHostileServer();
+  const start = Date.now();
+  try {
+    const source: SourceConfig = {
+      id: "hostile-drip-complete",
+      name: "Hostile Drip-Then-Complete Fixture",
+      tier: "Security Research",
+      url: `${server.baseUrl}/drip-then-complete`,
+    };
+    const result = await fetchSource(source);
+    const elapsedMs = Date.now() - start;
+    assert.equal(
+      result.status,
+      "ok",
+      "a slow-but-finishing body must still succeed rather than being aborted"
+    );
+    if (result.status === "ok") {
+      assert.ok(
+        result.articles.length >= 1,
+        "expected at least one article from the fixture's minimal RSS feed"
+      );
+    }
+    assert.ok(
+      elapsedMs < 3_000,
+      `expected the drip-then-complete fetch to finish well under the budget, took ${elapsedMs}ms`
+    );
+  } finally {
+    await server.close();
+  }
+});
+
 // --- Follow-path tests, via a deterministic mocked fetch -------------------
 
 test("follows a single legitimate same-host HTTPS redirect to completion", async () => {
@@ -267,5 +303,59 @@ test("rejects a 6th redirect hop as too many redirects", async () => {
       /Too many redirects/
     );
     assert.equal(calls, 6, "expected exactly 6 requests (5 followed hops + the rejected 6th)");
+  });
+});
+
+// --- Caller-signal composition controls, via a deterministic mocked fetch --
+// Task 1 changed what signal the guard hands to fetch() on every hop — a
+// change on the path every single successful fetch takes. These two tests
+// prove the composed signal is genuinely wired into the request rather than
+// merely constructed and dropped.
+
+test("a caller-supplied signal that is never aborted still lets a legitimate redirect follow to completion", async () => {
+  await withMockFetch(
+    mockFetchSequence([
+      () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://original.test/feed/" },
+        }),
+      () => new Response("ok", { status: 200 }),
+    ]),
+    async () => {
+      const controller = new AbortController();
+      const res = await fetchWithValidatedRedirect("https://original.test/feed", {
+        signal: controller.signal,
+      });
+      assert.equal(
+        res.status,
+        200,
+        "the follow path must complete exactly as before when a fresh, never-aborted caller signal is composed in"
+      );
+    }
+  );
+});
+
+test("a caller-supplied signal that is already aborted before the call prevents the fetch from silently succeeding", async () => {
+  const controller = new AbortController();
+  controller.abort(new Error("pre-aborted by test"));
+  // A dedicated mock (rather than mockFetchSequence, which ignores its
+  // init argument entirely) that mirrors real fetch()'s own abort-checking
+  // behavior: if the composed signal handed to fetch() is already aborted,
+  // the call must fail rather than quietly returning 200. This is what
+  // proves the caller's signal is actually wired into the request, not
+  // merely constructed and dropped.
+  const mock = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.signal?.aborted) {
+      throw init.signal.reason instanceof Error ? init.signal.reason : new Error("aborted");
+    }
+    return new Response("ok", { status: 200 });
+  }) as typeof fetch;
+
+  await withMockFetch(mock, async () => {
+    await assert.rejects(
+      () => fetchWithValidatedRedirect("https://original.test/feed", { signal: controller.signal }),
+      "an already-aborted caller signal must not let the call quietly succeed"
+    );
   });
 });
