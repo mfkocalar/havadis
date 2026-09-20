@@ -1,5 +1,8 @@
 /**
- * A fetch wrapper that validates every redirect target before following it.
+ * A fetch wrapper that validates every redirect target before following it,
+ * and composes a caller-supplied `AbortSignal` into every hop's own signal
+ * so a wider, caller-owned time budget can outlive this function's per-hop
+ * timer.
  *
  * Native `fetch()` cannot inspect a redirect's target before deciding
  * whether to follow it — `redirect: "follow"` (the default) commits to
@@ -8,6 +11,19 @@
  * every request here is issued with `redirect: "manual"` from the first
  * line of code, the `Location` header is read and validated, and only a
  * validated target is fetched next — in a loop bounded by a max-hop count.
+ *
+ * Timeout scope: this function's own per-hop timer (`TIMEOUT_MS` below)
+ * covers only the header-arrival phase of each hop — it is cleared the
+ * instant `fetch()` resolves, which under Node/undici is the instant
+ * response headers arrive, not when the body is read. On its own it does
+ * not bound the body-read phase that follows in the caller. When the caller
+ * supplies its own signal via `init.signal`, that signal is composed with
+ * this hop's signal via `AbortSignal.any`, and it is the caller's signal —
+ * not this function's per-hop timer — that carries a wider budget (in this
+ * codebase, `fetchSource`'s single continuous per-source budget) past this
+ * function's boundary and into the body read. With no caller signal
+ * supplied, behavior is unchanged from before: only the bare per-hop timer
+ * applies.
  *
  * Every value below is function-local. There is no module-scope mutable
  * state, so concurrent callers cannot interfere with one another.
