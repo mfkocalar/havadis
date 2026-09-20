@@ -73,10 +73,11 @@ async function readBodyWithCap(
 }
 
 /**
- * Fetches and parses one source. NEVER throws — every failure path (per-hop
- * timeout, rejected redirect, non-2xx status, non-XML content type,
- * oversized body, parse failure) returns the error variant so the caller
- * can always render the page's full layout (CONTEXT.md D-03).
+ * Fetches and parses one source. NEVER throws — every failure path (the
+ * continuous per-source timeout described above `SOURCE_TIMEOUT_MS`,
+ * rejected redirect, non-2xx status, non-XML content type, oversized body,
+ * parse failure) returns the error variant so the caller can always render
+ * the page's full layout (CONTEXT.md D-03).
  */
 export async function fetchSource(source: SourceConfig): Promise<FrontPageResult> {
   // One controller for the whole source fetch — connect, headers, every
