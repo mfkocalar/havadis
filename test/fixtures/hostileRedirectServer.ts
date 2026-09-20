@@ -18,6 +18,18 @@ import type { AddressInfo } from "node:net";
  * `fetchWithValidatedRedirect` rejects an invalid target before issuing a
  * second request. That is exactly the property these routes exist to
  * prove.
+ *
+ * Two routes below (/slow-body, /drip-then-complete) exercise the branch
+ * /hang does NOT cover: /hang withholds response headers entirely, so the
+ * caller never gets past the connect/header phase. /slow-body and
+ * /drip-then-complete instead send headers instantly and then either stall
+ * or trickle the body that follows, proving the per-source time budget
+ * spans the body-read phase too, not just the header phase. Both routes
+ * use a repeating timer; every such timer is tracked in `activeTimers`
+ * below, `unref()`-ed so it can never by itself keep the event loop alive,
+ * cleared from the response's own `close` event, and cleared again (for
+ * any survivor) inside the exported `close()` handle before
+ * `closeAllConnections()` runs.
  */
 
 const MINIMAL_RSS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -41,6 +53,12 @@ export type HostileServer = {
 };
 
 export async function startHostileServer(): Promise<HostileServer> {
+  // Every repeating timer the /slow-body and /drip-then-complete routes
+  // create is tracked here so close() can clear any survivor before
+  // closeAllConnections() runs, in addition to each route's own
+  // response-"close"-event cleanup.
+  const activeTimers = new Set<NodeJS.Timeout>();
+
   const server = http.createServer((req, res) => {
     const requestHost = req.headers.host ?? "";
     const hostnameOnly = requestHost.split(":")[0];
@@ -96,6 +114,60 @@ export async function startHostileServer(): Promise<HostileServer> {
         return;
       }
 
+      case "/slow-body": {
+        // Headers arrive instantly (200, XML content-type), then a single
+        // byte drips every ~250ms, forever. Over an 8s budget that is ~32
+        // bytes — three orders of magnitude under the 2MB size cap, which
+        // is the whole point: the size cap can never rescue this case,
+        // only a time budget can.
+        res.writeHead(200, { "Content-Type": "application/rss+xml" });
+        // A short opening fragment so the client genuinely observes a
+        // started-but-incomplete body, not just headers.
+        res.write("<?xml");
+        const timer: NodeJS.Timeout = setInterval(() => {
+          res.write(".");
+        }, 250);
+        timer.unref();
+        activeTimers.add(timer);
+        res.on("close", () => {
+          clearInterval(timer);
+          activeTimers.delete(timer);
+        });
+        return;
+      }
+
+      case "/drip-then-complete": {
+        // A legitimate slow-but-finishing body: the existing minimal RSS
+        // document split across three chunks ~100ms apart, then ended —
+        // total elapsed comfortably under half a second. The positive
+        // control proving the time budget does not fire on a source that
+        // is merely slow, not stalled.
+        res.writeHead(200, { "Content-Type": "application/rss+xml" });
+        const chunkSize = Math.ceil(MINIMAL_RSS.length / 3);
+        const chunks = [
+          MINIMAL_RSS.slice(0, chunkSize),
+          MINIMAL_RSS.slice(chunkSize, chunkSize * 2),
+          MINIMAL_RSS.slice(chunkSize * 2),
+        ];
+        let chunkIndex = 0;
+        const timer: NodeJS.Timeout = setInterval(() => {
+          res.write(chunks[chunkIndex]);
+          chunkIndex++;
+          if (chunkIndex >= chunks.length) {
+            clearInterval(timer);
+            activeTimers.delete(timer);
+            res.end();
+          }
+        }, 100);
+        timer.unref();
+        activeTimers.add(timer);
+        res.on("close", () => {
+          clearInterval(timer);
+          activeTimers.delete(timer);
+        });
+        return;
+      }
+
       default: {
         res.writeHead(404);
         res.end();
@@ -115,9 +187,17 @@ export async function startHostileServer(): Promise<HostileServer> {
     baseUrl,
     close: () =>
       new Promise<void>((resolve) => {
-        // closeAllConnections forcibly drops the /hang endpoint's still-open
-        // socket, so teardown can never block on a connection that was
-        // designed to never end itself.
+        // Clear any repeating timer that survived past its response's own
+        // "close" cleanup (e.g. if the client never read far enough to
+        // trigger it), so a stray timer can never hold the test process
+        // open after the suite finishes.
+        for (const timer of activeTimers) {
+          clearInterval(timer);
+        }
+        activeTimers.clear();
+        // closeAllConnections forcibly drops the /hang and /slow-body
+        // endpoints' still-open sockets, so teardown can never block on a
+        // connection that was designed to never end itself.
         server.closeAllConnections();
         server.close(() => resolve());
       }),
