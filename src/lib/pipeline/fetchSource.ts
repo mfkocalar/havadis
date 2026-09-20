@@ -75,9 +75,9 @@ async function readBodyWithCap(
 /**
  * Fetches and parses one source. NEVER throws — every failure path (the
  * continuous per-source timeout described above `SOURCE_TIMEOUT_MS`,
- * rejected redirect, non-2xx status, non-XML content type, oversized body,
- * parse failure) returns the error variant so the caller can always render
- * the page's full layout (CONTEXT.md D-03).
+ * rejected redirect, non-2xx status, a content-type that could not possibly
+ * be a feed, oversized body, parse failure) returns the error variant so the
+ * caller can always render the page's full layout (CONTEXT.md D-03).
  */
 export async function fetchSource(source: SourceConfig): Promise<FrontPageResult> {
   // One controller for the whole source fetch — connect, headers, every
@@ -106,8 +106,17 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
       };
     }
 
+    // Some publishers mislabel a genuinely valid RSS/Atom response as
+    // text/html (observed live on Krebs on Security's /feed endpoint, which
+    // serves correct RSS XML under an html content-type). Rejecting on
+    // content-type alone would treat that as a fetch failure even though the
+    // body parses fine, so "html" is accepted here too — the XML parse step
+    // below remains the real authority on whether the body is a usable feed,
+    // this check only fast-fails content-types that could never be one
+    // (images, JSON, binary payloads) before spending time reading the body.
     const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.toLowerCase().includes("xml")) {
+    const lowerContentType = contentType.toLowerCase();
+    if (!lowerContentType.includes("xml") && !lowerContentType.includes("html")) {
       return {
         status: "error",
         reason: `${source.id}: unexpected content-type "${contentType}"`,
