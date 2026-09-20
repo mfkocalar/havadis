@@ -15,7 +15,6 @@ covered_files:
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-04-PLAN.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-04-SUMMARY.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-REVIEW.md"
-  - ".planning/phases/01-single-source-pipeline-vertical-slice/01-VERIFICATION.md"
   - "src/app/layout.tsx"
   - "src/app/page.tsx"
   - "src/components/ArticleCard.tsx"
@@ -35,7 +34,7 @@ covered_files:
   - "src/lib/types.ts"
   - "test/fixtures/hostileRedirectServer.ts"
   - "test/productionPage.test.ts"
-covered_digest: "v1:sha256:3c00d40b7e3e7861c58b459a07f2124c57b5cba1c3663e0426eee19d2b06a0cd"
+covered_digest: "v1:sha256:a9f59ce8156380d65ab9dc32be55be1e4d0b5d5f79b927539b4a95ba80d57688"
 behavior_unverified: 1
 overrides_applied: 0
 re_verification:
