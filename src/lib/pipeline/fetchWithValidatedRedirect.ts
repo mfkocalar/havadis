@@ -22,6 +22,14 @@ export async function fetchWithValidatedRedirect(
 ): Promise<Response> {
   let currentUrl = new URL(startUrl);
   const originalHost = currentUrl.host;
+  // Read the caller's signal off `init` before it gets spread (and then
+  // overridden) below. Composing it into every hop's own signal — rather
+  // than discarding it, which the old `...init, signal: controller.signal`
+  // shape did — is what lets a caller's own budget (fetchSource's
+  // continuous per-source timeout) survive past this function's per-hop
+  // timer, which only covers the header phase (see the `signal:` line
+  // below).
+  const callerSignal = init.signal ?? undefined;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const controller = new AbortController();
@@ -33,7 +41,17 @@ export async function fetchWithValidatedRedirect(
         // next request is issued. There is no safe way to retrofit this
         // guarantee after starting from the default "follow" mode.
         redirect: "manual",
-        signal: controller.signal,
+        // This hop's own timer covers only the header phase: it is cleared
+        // in the `finally` below the instant `fetch()` resolves, which
+        // under Node/undici is the instant response headers arrive, not
+        // when the body is read. Composing in the caller's signal (when
+        // supplied) keeps a wider, caller-owned budget live past that
+        // point, so it can still tear down a stalled body read on the
+        // Response this function returns. With no caller signal, fall back
+        // to the bare per-hop signal — identical to the prior behavior.
+        signal: callerSignal
+          ? AbortSignal.any([callerSignal, controller.signal])
+          : controller.signal,
       });
 
       if (res.status >= 300 && res.status < 400) {

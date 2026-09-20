@@ -19,10 +19,32 @@ const ACCEPT_HEADER =
 /** Matches the Vercel Data Cache's documented 2MB per-entry item size cap. */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
+/**
+ * The per-source time budget (INGEST-03's "~8s per-source timeout"),
+ * spanning connect, header arrival, every redirect hop, and the full body
+ * read as one continuous window. Armed once at `fetchSource` entry and
+ * composed into `fetchWithValidatedRedirect`'s per-hop signal (see that
+ * file's own comment on why its own per-hop timer alone is not enough).
+ */
+const SOURCE_TIMEOUT_MS = 8_000;
+
 const parser = new Parser();
 
-/** Reads a Response body up to `maxBytes`, erroring rather than exhausting the function on an unbounded stream. */
-async function readBodyWithCap(res: Response, maxBytes: number): Promise<string> {
+/**
+ * Reads a Response body up to `maxBytes`, erroring rather than exhausting
+ * the function on an unbounded stream. `signal` carries the same
+ * per-source budget the caller armed before this response existed: the
+ * load-bearing mechanism is that the runtime tears down the response body
+ * stream when `signal` aborts, so a pending `reader.read()` rejects on its
+ * own. The `signal.aborted` check at the top of the loop is a narrow safety
+ * net only — it covers the case where a chunk lands in the same tick the
+ * abort fires — not the fix itself.
+ */
+async function readBodyWithCap(
+  res: Response,
+  maxBytes: number,
+  signal: AbortSignal
+): Promise<string> {
   if (!res.body) {
     return await res.text();
   }
@@ -31,6 +53,9 @@ async function readBodyWithCap(res: Response, maxBytes: number): Promise<string>
   let total = 0;
   try {
     for (;;) {
+      if (signal.aborted) {
+        throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+      }
       const { done, value } = await reader.read();
       if (done) break;
       if (value) {
@@ -54,6 +79,15 @@ async function readBodyWithCap(res: Response, maxBytes: number): Promise<string>
  * can always render the page's full layout (CONTEXT.md D-03).
  */
 export async function fetchSource(source: SourceConfig): Promise<FrontPageResult> {
+  // One controller for the whole source fetch — connect, headers, every
+  // redirect hop, and the full body read all share this single signal, so
+  // there is no window between fetch() resolving and the body being
+  // drained in which nothing is armed.
+  const controller = new AbortController();
+  const timeoutError = new Error(
+    `${source.id}: per-source timeout exceeded (budget covers connect, headers and body)`
+  );
+  const timer = setTimeout(() => controller.abort(timeoutError), SOURCE_TIMEOUT_MS);
   try {
     const res = await fetchWithValidatedRedirect(source.url, {
       next: { revalidate: 900 },
@@ -61,6 +95,7 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
         "User-Agent": USER_AGENT,
         Accept: ACCEPT_HEADER,
       },
+      signal: controller.signal,
     });
 
     if (!res.ok) {
@@ -80,11 +115,16 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
 
     let xmlText: string;
     try {
-      xmlText = await readBodyWithCap(res, MAX_BODY_BYTES);
+      xmlText = await readBodyWithCap(res, MAX_BODY_BYTES, controller.signal);
     } catch (err) {
       return {
         status: "error",
-        reason: `${source.id}: ${err instanceof Error ? err.message : "body read failed"}`,
+        // Prefer the budget's own distinctive timeout message over
+        // whatever generic abort text the platform produced, so the reason
+        // the caller sees always names the timeout when that is the cause.
+        reason: controller.signal.aborted
+          ? timeoutError.message
+          : `${source.id}: ${err instanceof Error ? err.message : "body read failed"}`,
       };
     }
 
@@ -109,7 +149,11 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
   } catch (err) {
     return {
       status: "error",
-      reason: `${source.id}: ${err instanceof Error ? err.message : "unknown fetch error"}`,
+      reason: controller.signal.aborted
+        ? timeoutError.message
+        : `${source.id}: ${err instanceof Error ? err.message : "unknown fetch error"}`,
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
