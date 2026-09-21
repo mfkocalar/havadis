@@ -83,14 +83,16 @@ Security experts get a fast, reliable, always-current front page of what's happe
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Next.js + Tailwind on Vercel, no DB | Simplest architecture that is fast, serverless, mobile-friendly, and free-tier friendly; Next's fetch-cache gives "don't refetch every load" for free | — Pending |
-| Cache via `fetch` + `revalidate`, not cron+KV/Blob | Avoids all persistent infra; matches "essentially stateless" requirement; optional cron pre-warm can be added later without architecture change | — Pending |
-| Port sources + section taxonomy from mfksec/SecureNewspaper | Reference repo already has a vetted 13-source list and a working keyword-classification scheme — no need to redesign either from scratch for v1 | — Pending |
+| Next.js + Tailwind on Vercel, no DB | Simplest architecture that is fast, serverless, mobile-friendly, and free-tier friendly; Next's fetch-cache gives "don't refetch every load" for free | ✓ Good — Phase 1 |
+| Cache via `fetch` + `revalidate`, not cron+KV/Blob | Avoids all persistent infra; matches "essentially stateless" requirement; optional cron pre-warm can be added later without architecture change | ✓ Good — Phase 1 (verified on a real Vercel preview: HIT/STALE transitions and single-flight revalidation behave as expected) |
+| Port sources + section taxonomy from mfksec/SecureNewspaper | Reference repo already has a vetted 13-source list and a working keyword-classification scheme — no need to redesign either from scratch for v1 | — Pending (only 1/13 sources wired in Phase 1; taxonomy exercised starting Phase 3) |
 | Replaced Threatpost with The Hacker News | Research found Threatpost has been dead (no new posts) since Sept 2022; The Hacker News verified live (HTTP 200) and covers the same Threat Intelligence tier | ✓ Good |
-| Rule-based (regex/keyword) categorization, not LLM | Free, instant, deterministic; matches free-tier constraint; LLM categorization deferred to v2 as a quality upgrade | — Pending |
-| 24h lookback, 15min cache revalidation | User-confirmed values; balances "daily paper" feel with freshness | — Pending |
-| No archive, no accounts, no dark-mode toggle in v1 | User-confirmed scope cuts to keep v1 small, stateless, and shippable fast | — Pending |
-| Category filter (client-side) included in v1 | User-confirmed; cheap to add since it filters the already-cached snapshot, no new server work | — Pending |
+| Rule-based (regex/keyword) categorization, not LLM | Free, instant, deterministic; matches free-tier constraint; LLM categorization deferred to v2 as a quality upgrade | — Pending (Phase 3) |
+| 24h lookback, 15min cache revalidation | User-confirmed values; balances "daily paper" feel with freshness | ✓ Good — Phase 1 |
+| No archive, no accounts, no dark-mode toggle in v1 | User-confirmed scope cuts to keep v1 small, stateless, and shippable fast | ✓ Good — Phase 1 (no auth surface confirmed on deployed page) |
+| Category filter (client-side) included in v1 | User-confirmed; cheap to add since it filters the already-cached snapshot, no new server work | — Pending (Phase 4) |
+| Composed caller `AbortSignal` into the per-hop redirect guard via `AbortSignal.any` | 01-03's timeout coverage only spanned header arrival, not the body-read phase — a headers-then-stalled-body origin was never aborted (found by phase verification, closed by Phase 1's 01-04 gap-closure plan) | ✓ Good — Phase 1 |
+| Source content-type gate accepts `html` alongside `xml` | Krebs on Security's live `/feed` serves genuinely valid RSS under a `text/html` content-type; a strict xml-only check silently emptied the one proven source. `rss-parser`'s own parse step remains the real authority on feed validity | ✓ Good — Phase 1, but flagged (code review WR-01) to scope the exception per-source rather than globally once Phase 2 widens to 13 sources — a misbehaving non-Krebs source could otherwise burn full body-download+parse cost before failing fast |
 
 ## Evolution
 
@@ -110,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-14 after initialization*
+*Last updated: 2026-09-21 after Phase 1*
