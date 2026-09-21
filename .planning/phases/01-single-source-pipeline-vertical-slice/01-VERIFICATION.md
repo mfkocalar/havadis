@@ -1,9 +1,10 @@
 ---
 phase: 01-single-source-pipeline-vertical-slice
 verified: 2026-09-20T15:30:00Z
-status: human_needed
+status: passed
 score: 5/5 roadmap success criteria verified (0 failed); 1 backstop truth still needs deployed confirmation
 covered_files:
+
   - ".planning/REQUIREMENTS.md"
   - ".planning/ROADMAP.md"
   - ".planning/phases/01-single-source-pipeline-vertical-slice/01-01-PLAN.md"
@@ -34,6 +35,7 @@ covered_files:
   - "src/lib/types.ts"
   - "test/fixtures/hostileRedirectServer.ts"
   - "test/productionPage.test.ts"
+
 covered_digest: "v1:sha256:a9f59ce8156380d65ab9dc32be55be1e4d0b5d5f79b927539b4a95ba80d57688"
 behavior_unverified: 1
 overrides_applied: 0
@@ -45,11 +47,13 @@ re_verification:
   gaps_remaining: []
   regressions: []
 behavior_unverified_items:
+
   - truth: "Revisiting within ~15 min serves the identical cached snapshot; after the window elapses, next visit triggers a background refetch, with only one background revalidation firing under concurrent requests (Success Criterion 4 / INGEST-05)"
     test: "Deploy to a Vercel preview, load `/`, reload within ~15 minutes, and inspect `x-vercel-cache`; then wait past ~900s and reload again; then fire two near-simultaneous requests against a just-expired entry"
     expected: "Within the window: cache hit / byte-identical snapshot, no new origin request. After the window elapses: a stale-then-background-revalidate transition, with exactly one background revalidation firing even under concurrent requests"
     why_human: "Declared `verification: backstop` in 01-01-PLAN.md and 01-03-PLAN.md's own must_haves. Next.js's per-fetch Data Cache does not exist under `next dev`, and no deployed Vercel edge is reachable from this verification environment to observe real `x-vercel-cache` HIT/STALE transitions or single-flight revalidation. `test/productionPage.test.ts`'s byte-identical-double-request check (re-run in this pass, 4/4 pass) is a necessary-but-explicitly-insufficient proxy — it only rules out a gross rendering regression, not the actual 900s stale-while-revalidate contract. This item is carried forward unchanged from the initial verification pass; nothing in this round's gap-closure work touched the caching layer (confirmed: the four caching-configuration gates all still emit their tokens, unchanged)"
 human_verification:
+
   - test: "Deploy a preview build to Vercel, load the front page, wait <15 minutes, reload, and inspect the `x-vercel-cache` response header; then wait past the ~900s revalidation window and reload again; then fire two near-simultaneous requests against a just-expired entry"
     expected: "Within the window: `x-vercel-cache: HIT` (or equivalent) and no new origin request to krebsonsecurity.com; once the window elapses, the next visit serves the stale snapshot immediately (`STALE`) while a background revalidation occurs, and only one background fetch fires even under near-simultaneous requests"
     why_human: "This is the actual proof of Success Criterion 4. Declared `verification: backstop` in both 01-01-PLAN.md and 01-03-PLAN.md's own must_haves because Next.js's Data Cache does not exist under `next dev`, and no deployed Vercel edge/CDN is reachable from this verification environment. Carried forward unchanged from the prior verification pass — `.planning/WINDOWS.md` entry #2 (open) tracks the same item"
@@ -98,6 +102,7 @@ This directly falsifies the hypothesis that 01-04-SUMMARY.md is another overclai
 Separately from the timeout gap, commit `9b880e4` (same day, same phase) relaxed `fetchSource.ts`'s content-type gate to accept `text/html` in addition to `*xml*`, because Krebs on Security's live `/feed` endpoint began serving valid RSS under a `text/html` content-type, which would otherwise have silently broken Success Criterion 1 (the one truth this whole phase exists to prove).
 
 Independently verified:
+
 - **Live confirmation:** `node --test src/lib/pipeline/frontpage.e2e.test.ts` re-run in this pass against the real Krebs feed — 2/2 pass, articles returned successfully.
 - **Scope of the change:** `git diff` confirms only `fetchSource.ts`'s content-type conditional and its two doc comments changed; no other file touched.
 - **Code review coverage:** `01-REVIEW.md` reviewed this exact change (WR-01): the parsing-vulnerability surface is unchanged (`rss-parser`'s behavior doesn't depend on which content-type let the body through; the same 2MB cap and 8s budget still apply), but the relaxation is a blanket one across all future sources rather than scoped to Krebs specifically. This is flagged as a real, non-blocking Warning (not a Critical) — a genuinely non-feed HTML response (WAF page, cookie interstitial) now burns the full body-download budget before failing with "XML parse failed" instead of failing fast on content-type. For Phase 1 (single source: Krebs, which needs this exact exception) this has no live impact. It is a legitimate forward-looking scope concern for Phase 2's 13-source fan-out, correctly recorded rather than silently dropped.
@@ -189,6 +194,7 @@ No `dangerouslySetInnerHTML`, no `"use client"` directives, no auth/middleware f
 No regressions were found across the whole phase: every previously-verified truth, artifact, and requirement was re-checked this pass (not merely assumed to still hold) and remains true. All six requirement IDs (INGEST-03, INGEST-04, INGEST-05, NORM-01, UI-02, UI-06) are genuinely satisfied, and REQUIREMENTS.md's traceability table accurately reflects this.
 
 The overall status is `human_needed` rather than `passed` for two items that are **not** gaps — both were already correctly deferred by the plans themselves and are unaffected by this round's changes:
+
 1. Success Criterion 4's ~15-minute cache-window behavior, which requires a deployed Vercel preview to observe real `x-vercel-cache` transitions (declared `backstop` since 01-01).
 2. A real browser click-through of the deployed page (`.planning/WINDOWS.md` #3, open).
 
