@@ -1,7 +1,7 @@
 ---
 phase: "02"
 slug: "full-ingestion-failure-isolation"
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: "2026-09-21"
@@ -24,6 +24,8 @@ created: "2026-09-21"
 | Font | Geist Sans via `next/font` (`var(--font-geist-sans)`), falling back to `Arial, Helvetica, sans-serif` — set in `src/app/globals.css`, unchanged by this phase |
 
 Component Inventory section omitted per template rule — `Tool: none`.
+
+**Visual hierarchy:** unchanged from Phase 1 — a single vertical card list; the article title is the primary affordance on every card. Phase 2 introduces no new layout elements, only badge color differentiation across the 6 tiers.
 
 ---
 
@@ -55,7 +57,7 @@ Carried over unchanged from Phase 1's shipped code — this phase introduces no 
 | Label (source name, badge, meta time, masthead) | 14px / 12px (`text-sm` / `text-xs`) | 500 (`font-medium`) | 1.5 default |
 | Heading (article title) | 20px (`text-xl`) | 600 (`font-semibold`) | 1.375 (`leading-snug`) |
 
-Only 3 sizes (12/14/16/20 collapses to 4 distinct px values across the shipped roles above) and 2 weights (400, 500/600 — `font-medium` 500 and `font-semibold` 600 both already in use; no third weight added) — within the 3-4 size / 2-weight budget. This phase does not touch typography; recorded here only so the contract is complete for the checker.
+4 distinct px sizes (12/14/16/20) across the 3 roles above. 3 distinct CSS `font-weight` values are in use (400, 500, 600), but they map to only **2 design roles** — regular (400, body copy) and emphasis (500/600, labels and heading) — inherited unchanged from Phase 1's shipped code and justified by needing body/label/heading contrast within a conservative, no-component-library palette. This phase does not touch typography; recorded here only so the contract is complete for the checker.
 
 ---
 
@@ -127,12 +129,12 @@ Not applicable — `Tool: none`, no shadcn registry in use, no third-party block
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: FLAG (non-blocking) — visual hierarchy statement added above in response
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: FLAG (non-blocking) — weight-vs-role framing clarified above in response
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending
+**Approval:** approved (2 non-blocking recommendations addressed inline; no revision loop required)
