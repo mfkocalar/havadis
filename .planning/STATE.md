@@ -1,44 +1,44 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 01
-current_phase_name: Single-Source Pipeline (Vertical Slice)
-status: verifying
-stopped_at: Completed 01-04-PLAN.md — Phase 01 all 4 plans complete, ready for verification
-last_updated: "2026-09-20T12:51:46.485Z"
-last_activity: 2026-09-20
-last_activity_desc: Phase 01 execution started
-state_head: 9b880e4a1f269ed209f387c8607cc640ea35a012
+current_phase: 2
+current_phase_name: Full Ingestion & Failure Isolation
+status: planning
+stopped_at: Phase 01 complete, ready to plan Phase 2
+last_updated: "2026-09-21T12:11:40.658Z"
+last_activity: 2026-09-21
+last_activity_desc: Phase 01 complete, transitioned to Phase 2
+state_head: 12378946bbb16d415355ddaf1598cafcee403c46
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
   completed_plans: 4
-  percent: 0
+  percent: 25
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-14)
+See: .planning/PROJECT.md (updated 2026-09-21)
 
 **Core value:** Security experts get a fast, reliable, always-current front page of what's happening across the industry — without visiting a dozen sites, and without the app doing redundant work on every page load.
-**Current focus:** Phase 01 — Single-Source Pipeline (Vertical Slice)
+**Current focus:** Phase 2 — Full Ingestion & Failure Isolation
 
 ## Current Position
 
-Phase: 01 (Single-Source Pipeline (Vertical Slice)) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-09-20 — Phase 01 execution started
+Phase: 2 — Full Ingestion & Failure Isolation
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-21 — Phase 01 complete, transitioned to Phase 2
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 4
 - Average duration: - min
 - Total execution time: 0 hours
 
@@ -46,7 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -67,15 +67,10 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Next.js + Tailwind on Vercel, no DB — fetch-cache is the only persistence layer
-- Cache via `fetch` + `revalidate` (15 min), not cron+KV/Blob
-- Sources + section taxonomy ported from mfksec/SecureNewspaper reference repo
-- Threatpost replaced with The Hacker News (Threatpost confirmed dead since Sept 2022)
-- Rule-based (keyword/regex) categorization, not LLM, for v1
 - MVP mode: phases are vertical slices (single-source proof before full 13-source fan-out), not horizontal layers
-- [Phase 01]: Composed caller's AbortSignal into fetchWithValidatedRedirect's per-hop signal via AbortSignal.any, rather than restructuring the per-hop timer, so a wider caller-owned budget (fetchSource's continuous per-source budget) survives past the per-hop timer's boundary into the body read
-- [Phase 01]: Named the 8s per-source timeout value in prose in only one file (fetchSource.ts) so the two files' doc comments cannot drift apart on the number itself
-- [Phase 01 post-merge]: `fetchSource.ts`'s content-type gate now accepts "html" alongside "xml" — Krebs on Security's live `/feed` began serving genuinely valid RSS under `text/html`, which the old gate rejected outright, silently emptying the one live source Phase 1 proves. The `rss-parser` step remains the real authority on feed validity; the gate only fast-fails content-types that could never be a feed (images, JSON, binary). Discovered and fixed during 01-04's post-merge regression sweep — unrelated to 01-04's own timeout/redirect scope. Commit `9b880e4`.
+- [Phase 01]: Composed caller's AbortSignal into fetchWithValidatedRedirect's per-hop signal via AbortSignal.any, so a wider caller-owned continuous per-source timeout budget survives past the per-hop timer's header-only boundary into the body read
+- [Phase 01]: `fetchSource.ts`'s content-type gate now accepts "html" alongside "xml" — Krebs on Security's live `/feed` serves genuinely valid RSS under `text/html`. `rss-parser`'s own parse step remains the real authority on feed validity. Commit `9b880e4`
+- [Phase 01]: All 3 phase-01 WINDOWS.md entries resolved — real Vercel preview confirmed the 15-min cache HIT/STALE/single-flight behavior, and a real browser click-through confirmed rendering + no auth surface (with zero live articles at test time, since Krebs had nothing within the 24h lookback — correctly rendered the empty state, not a defect)
 
 ### Pending Todos
 
@@ -83,7 +78,8 @@ None yet.
 
 ### Blockers/Concerns
 
-None yet.
+- ⚠️ [Phase 1 → Phase 2] Code review WR-01: the content-type gate's "html" exception is accepted globally rather than scoped to Krebs specifically. With only 1 source this was low-risk; Phase 2 fans out to 13 sources, where a misbehaving non-Krebs source (WAF page, cookie wall, error page) would burn full body-download+parse cost before failing instead of failing fast on content-type. Worth scoping per-source (e.g. a `SourceConfig` flag) during Phase 2's ingestion work.
+- ⚠️ [Phase 1 → Phase 2] Code review WR-02: `readBodyWithCap`'s `!res.body` fallback (`return await res.text()`) bypasses `MAX_BODY_BYTES` entirely, contradicting the function's own size-cap guarantee. Narrow-likelihood but worth a quick fix alongside Phase 2's fan-out hardening.
 
 ## Deferred Items
 
@@ -95,6 +91,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-20T12:51:46.471Z
-Stopped at: Completed 01-04-PLAN.md — Phase 01 all 4 plans complete, ready for verification
+Last session: 2026-09-21T12:13:36Z
+Stopped at: Phase 01 complete, ready to plan Phase 2
 Resume file: None
