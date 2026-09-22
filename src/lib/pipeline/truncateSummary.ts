@@ -74,7 +74,10 @@ export function truncateSummary(text: string): string {
   // this floor, a pathological input whose only whitespace sits near the
   // very start of the slice would collapse a 400-code-point budget down
   // to a handful of words.
-  const lastWhitespace = cut.search(/\s(?!.*\s)/su);
+  // `[\s\S]` (rather than `.` + the `s`/dotAll flag) matches any character
+  // including newlines while staying compatible with this repo's ES2017
+  // TypeScript target, which predates the `s` flag.
+  const lastWhitespace = cut.search(/\s(?![\s\S]*\s)/u);
   const minBoundary = Math.floor(budget * 0.6);
   if (lastWhitespace >= minBoundary) {
     cut = cut.slice(0, lastWhitespace);
