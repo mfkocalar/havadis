@@ -67,20 +67,20 @@ Plans:
   2. When one configured source is deliberately broken (timeout, malformed XML, HTTP error, or dead endpoint), the front page still renders successfully using the remaining sources' articles rather than failing or hanging.
   3. Articles from all currently-healthy sources appear together through the same normalize/render path proven in Phase 1, confirming the fan-out feeds one unified pipeline.
 
-**Plans**: 3 plans
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Tracer: a second source and tier through a parallel `Promise.allSettled` fan-out, a stable recency-descending sort, and the full 6-colour tier badge palette
+- [x] 02-01-PLAN.md — Tracer: a second source and tier through a parallel `Promise.allSettled` fan-out, a stable recency-descending sort, and the full 6-colour tier badge palette
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — Wire the remaining 11 sources on live-verified canonical URLs, pin the config's integrity, and close the two Phase 1 review carry-overs
+- [x] 02-02-PLAN.md — Wire the remaining 11 sources on live-verified canonical URLs, pin the config's integrity, and close the two Phase 1 review carry-overs
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03-PLAN.md — Prove failure isolation and wall-clock concurrency against real sockets with three new hermetic fixture routes
+- [x] 02-03-PLAN.md — Prove failure isolation and wall-clock concurrency against real sockets with three new hermetic fixture routes
 
 **UI hint**: yes
 
@@ -125,6 +125,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
-| 2. Full Ingestion & Failure Isolation | 0/3 | Planned      | - |
+| 2. Full Ingestion & Failure Isolation | 3/3 | In Progress|  |
 | 3. Deduplication, Classification & Ranking | 0/TBD | Not started | - |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |
