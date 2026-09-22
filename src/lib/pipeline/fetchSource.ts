@@ -72,7 +72,9 @@ async function readBodyWithCap(
       if (value) {
         total += value.byteLength;
         if (total > maxBytes) {
-          throw new Error(`Response body exceeded ${maxBytes} byte cap`);
+          const err = new Error(`Response body exceeded ${maxBytes} byte cap`);
+          await reader.cancel(err).catch(() => {});
+          throw err;
         }
         chunks.push(value);
       }
@@ -111,6 +113,7 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
     });
 
     if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
       return {
         status: "error",
         reason: `${source.id}: non-2xx status ${res.status}`,
@@ -132,6 +135,7 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
     const lowerContentType = contentType.toLowerCase();
     const htmlOptIn = source.allowHtmlContentType === true;
     if (!lowerContentType.includes("xml") && !(htmlOptIn && lowerContentType.includes("html"))) {
+      await res.body?.cancel().catch(() => {});
       return {
         status: "error",
         reason: `${source.id}: unexpected content-type "${contentType}"`,
