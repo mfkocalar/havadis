@@ -14,7 +14,7 @@ Havadis ships as a vertical MVP: each phase delivers a working, deployable slice
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Single-Source Pipeline (Vertical Slice)** - One real source flows fetch → normalize → cache/revalidate → render, end to end, publicly and mobile-safely (completed 2026-09-21)
-- [ ] **Phase 2: Full Ingestion & Failure Isolation** - All 13 sources fetch in parallel each cycle; one dead/broken source never breaks the page
+- [x] **Phase 2: Full Ingestion & Failure Isolation** - All 13 sources fetch in parallel each cycle; one dead/broken source never breaks the page (completed 2026-09-22)
 - [ ] **Phase 3: Deduplication, Classification & Ranking** - Multi-source articles are deduped, sorted into 7 urgency-ordered sections, ranked, and CVE-annotated
 - [ ] **Phase 4: Newspaper Front Page, Filtering & Mobile Polish** - Full section layout, last-updated/count metadata, client-side filter, and verified mobile/desktop readability
 
@@ -125,6 +125,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
-| 2. Full Ingestion & Failure Isolation | 3/3 | In Progress|  |
+| 2. Full Ingestion & Failure Isolation | 3/3 | Complete    | 2026-09-22 |
 | 3. Deduplication, Classification & Ranking | 0/TBD | Not started | - |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |

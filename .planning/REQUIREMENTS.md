@@ -7,8 +7,8 @@
 
 ### Ingestion
 
-- [ ] **INGEST-01**: System fetches all 13 configured RSS/Atom sources server-side, in parallel, on each cache revalidation cycle
-- [ ] **INGEST-02**: A failure in one source (timeout, malformed XML, HTTP error, dead feed) does not prevent the page from rendering with the remaining sources' articles
+- [x] **INGEST-01**: System fetches all 13 configured RSS/Atom sources server-side, in parallel, on each cache revalidation cycle
+- [x] **INGEST-02**: A failure in one source (timeout, malformed XML, HTTP error, dead feed) does not prevent the page from rendering with the remaining sources' articles
 - [x] **INGEST-03**: Each source fetch enforces a per-source timeout (~8s) and validates any redirect target (HTTPS only, same host) before following it
 - [x] **INGEST-04**: Only articles published within the last 24 hours (per source, at fetch time) are considered
 - [x] **INGEST-05**: The front page is served from Next.js's per-URL fetch cache with a ~15 minute revalidation window — the 13 sources are not refetched on every visitor request, only in the background once the window expires
@@ -82,8 +82,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGEST-01 | Phase 2 | Pending |
-| INGEST-02 | Phase 2 | Pending |
+| INGEST-01 | Phase 2 | Complete |
+| INGEST-02 | Phase 2 | Complete |
 | INGEST-03 | Phase 1 | Complete |
 | INGEST-04 | Phase 1 | Complete |
 | INGEST-05 | Phase 1 | Complete |
