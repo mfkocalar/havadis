@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 02-full-ingestion-failure-isolation
 source: [02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md]
 started: 2026-09-22T15:29:34Z
-updated: 2026-09-22T15:48:00Z
+updated: 2026-09-22T16:05:00Z
 ---
 
 ## Current Test
@@ -80,8 +80,17 @@ blocked: 0
   reason: "User reported: for example CSO Online / Executive News / Z.ai disables coding assistant feature after flaw exposed enterprise code upload risk; is too long text shown. should not be like \"Bleeping Computer / Threat Intelligence / EvilTokens PhaaS disrupted after compromising 12,000 Microsoft accounts / The EvilTokens platform that compromised more than 12,000 Microsoft accounts at over 10,000 organizations has been disrupted in an effort led by Microsoft's Digital Crimes Unit (DCU). [...]\" — with 13 sources now live and varied title/summary lengths across origins, some cards show untruncated long text while others show short/truncated text, breaking visual consistency across the card list."
   severity: cosmetic
   test: 5
-  artifacts: []
-  missing: []
+  root_cause: "No length normalization exists at any layer, by original Phase 1 design. (1) ArticleCard.tsx renders title (L31) and summary (L42) with no line-clamp/truncate/max-h/overflow classes — a repo-wide grep confirms zero truncation utilities anywhere in src/. (2) normalize.ts L36 applies only `.trim()` to `item.contentSnippet ?? item.content` — rss-parser's `getSnippet()` (node_modules/rss-parser/lib/utils.js:11-12) strips HTML and decodes entities but imposes NO length limit; it returns the publisher's entire description/content:encoded body verbatim. Live measurement across all 13 feeds: summary length ranges 0 (CrowdStrike, empty <p>) to 26,744 chars (CISA), median 80 (Ars Technica) to 7,541 (CSO Online) — a ~94x spread; title spread is only ~3.1x, confirming summary length (not title) is the dominant axis. The user's own 'good' example (Bleeping Computer, 189 chars ending '[...]') is well-behaved by luck of that publisher's own truncation marker, not by any Havadis-side policy. Phase 1's single source (Krebs, summary median 476) had a narrow enough range that the missing clamp was invisible; Phase 2 widened sources.ts 1->13 (unrelated to ArticleCard, which Phase 2 deliberately left untouched) and exposed the full spread of 13 publishers' differing editorial lengths. CRITICAL: this is a SPEC defect, not an implementation bug — 01-02-PLAN.md:157 explicitly mandated 'the title, verbatim and untruncated — no ellipsis, no line clamp, no rewriting', with a verify gate (01-02-PLAN.md:184) asserting NO line-clamp/truncate/slice/substring exists, which 01-02-SUMMARY.md:82 records as passing. That UI-02 requirement must be amended, not silently overridden, or the fix reads as a regression against an already-passed gate. 02-UI-SPEC.md's own long-text edge analysis only scoped overflow to the 5 new tier-badge labels and list length, never re-examining the summary field despite Phase 2 widening its input distribution 13x. Incidental unrelated finding: CrowdStrike titles carry an undecoded literal `&trade;` entity — rss-parser decodes entities for contentSnippet via getSnippet but not for item.title — a separate cosmetic bug, not part of this root cause."
+  artifacts:
+    - path: "src/components/ArticleCard.tsx"
+      issue: "No line-clamp/truncate/max-h/overflow constraint on title (L31) or summary (L42) — by original Phase 1 design/spec, not an oversight"
+    - path: "src/lib/pipeline/normalize.ts"
+      issue: "L36 applies only .trim() to contentSnippet/content with no character cap, so an unbounded publisher-controlled string (measured up to 26,744 chars) reaches the component and the RSC payload"
+  missing:
+    - "Decide and document the amended UI-02 requirement (Havadis is no longer a 1-source app; verbatim-untruncated no longer holds at 13-source scale) before touching code"
+    - "Add a length cap in normalize.ts (payload-size fix, not just visual) and/or a CSS line-clamp in ArticleCard.tsx (visual-uniformity fix) — both address different failure modes and are not substitutes for each other"
+    - "Decide behavior for the 0-length CrowdStrike case (conditionally omit the empty summary paragraph rather than render it)"
+  debug_session: ".planning/debug/article-card-text-length-inconsistent.md"
 
 ## Notes
 
