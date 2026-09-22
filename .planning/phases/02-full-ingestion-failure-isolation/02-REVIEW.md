@@ -1,130 +1,92 @@
 ---
 phase: 02-full-ingestion-failure-isolation
-reviewed: 2026-09-22T15:08:59Z
+reviewed: 2026-09-22T00:00:00Z
 depth: standard
-files_reviewed: 14
+files_reviewed: 6
 files_reviewed_list:
-  - src/lib/pipeline/fanOut.ts
-  - src/lib/pipeline/sortByRecencyDesc.ts
-  - src/lib/pipeline/sortByRecencyDesc.test.ts
-  - src/lib/pipeline/getFrontPage.ts
-  - src/lib/config/sources.ts
-  - src/lib/pipeline/frontpage.e2e.test.ts
-  - src/components/SourceTierBadge.tsx
-  - src/lib/config/sources.test.ts
-  - src/lib/types.ts
+  - src/components/ArticleCard.tsx
   - src/lib/pipeline/fetchSource.ts
-  - test/productionPage.test.ts
-  - test/fixtures/hostileRedirectServer.ts
-  - src/lib/pipeline/fanOut.test.ts
-  - src/lib/pipeline/fanOutTiming.test.ts
+  - src/lib/pipeline/normalize.test.ts
+  - src/lib/pipeline/normalize.ts
+  - src/lib/pipeline/truncateSummary.test.ts
+  - src/lib/pipeline/truncateSummary.ts
 findings:
-  critical: 1
-  warning: 4
+  critical: 0
+  warning: 3
   info: 2
-  total: 7
+  total: 5
 status: issues_found
 ---
 
 # Phase 02: Code Review Report
 
-**Reviewed:** 2026-09-22T15:08:59Z
+**Reviewed:** 2026-09-22T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 14
+**Files Reviewed:** 6
 **Status:** issues_found
 
 ## Summary
 
-The fan-out/failure-isolation design itself (`Promise.allSettled` in `fanOut.ts`, the never-throws contract on `fetchSource.ts`, the socket-level proofs in `hostileRedirectServer.ts` + `fanOut.test.ts`/`fanOutTiming.test.ts`) is sound and well-tested against real sockets, not just unit-mocked. The most serious finding is a genuine resource leak: `fetchSource.ts` discards `Response` objects on every early-return failure path (`!res.ok`, rejected content-type, and the byte-cap-exceeded path) without draining or cancelling `res.body`. Given this runs inside a long-lived Node process (`next start`, and Vercel's warm/Fluid Compute functions) on a recurring 15-minute revalidation cycle against 13 external hosts that are expected to fail sometimes, this leaks a socket on every occurrence and will accumulate over the process lifetime. Beyond that, there are a few robustness/consistency gaps worth fixing: `fanOut`'s isolation guarantee silently depends on `fetcher` never throwing synchronously, `frontpage.e2e.test.ts` enforces an https-only invariant that `normalize.ts` does not actually guarantee, and `fetchSource.ts` shares one mutable `rss-parser` `Parser` instance across all 13 concurrent parses, safe today only because of an undocumented, dependency-internal synchronicity assumption.
+Incremental review of the 02-04 gap-closure change (a new `truncateSummary` normalizer wired into `normalize.ts` and `ArticleCard.tsx` to close UAT G-02-5), plus `fetchSource.ts` — included because it changed (a response-body-cancellation fix) but had never itself been reviewed.
 
-## Critical Issues
+No security vulnerabilities, crashes, or data-loss risks were found; there is no XSS exposure (`ArticleCard.tsx` renders every feed-derived field as an ordinary JSX text node, never via a raw-HTML injection prop) and `truncateSummary`'s Unicode-code-point handling is well-formedness-safe (no split surrogate pairs). The `fetchSource.ts` body-cancellation fix itself is correct and complete for the return paths it targets.
 
-### CR-01: `fetchSource.ts` leaks the response body/socket on every early-return failure path
+Three warnings were found, all logic/robustness gaps rather than crashes:
+1. `truncateSummary.ts`'s "cut must be at or beyond 60% of budget" floor check compares a UTF-16 code-unit index against a code-point-based threshold, silently defeating the floor for summaries containing supplementary-plane characters (emoji, some CJK-extension/mathematical-alphanumeric text) ahead of the cut point.
+2. `fetchSource.ts`'s no-readable-stream fallback path buffers the entire response body before the size cap is checked, contradicting the function's own documented goal of never exhausting memory on an unbounded body.
+3. `normalize.ts`'s `item.content` fallback is not HTML-stripped (unlike `contentSnippet`), so raw markup can reach `Article.summary` and now risks being cut mid-tag by `truncateSummary`, producing visible broken-tag text on the card — this also makes `ArticleCard.tsx`'s doc comment ("rss-parser already delivers an HTML-stripped snippet") inaccurate for this code path.
 
-**File:** `src/lib/pipeline/fetchSource.ts:113-139, 143-154`
-**Issue:** Node's global `fetch` (undici) only frees the underlying socket back to the connection pool once a `Response`'s body has been fully consumed or explicitly cancelled. `fetchSource` discards `res` without touching `res.body` in three places:
-- `!res.ok` (line 113-118): returns immediately, leaving the error-page body (e.g. a 404/500 page) unread.
-- content-type rejection (line 134-139): returns immediately, leaving the whole body unread.
-- byte-cap exceeded inside `readBodyWithCap` (line 74-76): the function throws without calling `reader.cancel()` or aborting `controller`, so `res.body`'s underlying connection is left open and continues to be written to by the server; nothing in `fetchSource`'s catch block (line 144-154) aborts the controller either, and by the time `finally { clearTimeout(timer) }` runs, the scheduled timeout that would eventually abort it has been cleared — so the connection is never torn down by anything in this function.
-
-This is not a one-off cost: every one of the 13 sources is fetched again on every ~15-minute Data Cache revalidation, and any source that is persistently down, misconfigured, or exceeds the 2MB cap (the exact scenario `MAX_BODY_BYTES` exists to guard against, per `sources.ts`'s own SANS ISC comment) will leak a socket on every single cycle for the lifetime of the process — both under `next start` (see `test/productionPage.test.ts`, a genuinely long-running process) and under Vercel's warm/Fluid Compute reuse model this project's own `AGENTS.md`/skill notes describe. Over time this exhausts the host's outbound connection pool for that origin and can turn a single flaky source into hangs/timeouts for otherwise-healthy requests.
-
-**Fix:**
-```ts
-if (!res.ok) {
-  await res.body?.cancel();
-  return { status: "error", reason: `${source.id}: non-2xx status ${res.status}` };
-}
-
-// ...
-
-if (!lowerContentType.includes("xml") && !(htmlOptIn && lowerContentType.includes("html"))) {
-  await res.body?.cancel();
-  return { status: "error", reason: `${source.id}: unexpected content-type "${contentType}"` };
-}
-```
-And in `readBodyWithCap`, cancel the reader/stream (not just release the lock) before throwing on cap-exceeded, or have the caller abort `controller` on any `readBodyWithCap` failure so the underlying connection is actually torn down rather than merely stopping our own reads of it:
-```ts
-if (total > maxBytes) {
-  const err = new Error(`Response body exceeded ${maxBytes} byte cap`);
-  await reader.cancel(err).catch(() => {});
-  throw err;
-}
-```
+Two info-level items (a doc-comment accuracy note and a whitespace-only-title edge case) are also listed below.
 
 ## Warnings
 
-### WR-01: `fanOut`'s isolation guarantee assumes `fetcher` never throws synchronously
+### WR-01: 60% cut-boundary floor check mixes UTF-16 code units with code-point counts, silently defeating the floor for astral-plane content
 
-**File:** `src/lib/pipeline/fanOut.ts:29`
-**Issue:** `Promise.allSettled(sources.map((source) => fetcher(source)))` only isolates failures that surface as *rejected promises*. If a `fetcher` implementation throws before it manages to return a `Promise` (a valid implementer of the `(source: SourceConfig) => Promise<FrontPageResult>` type signature, e.g. a non-`async` function with an early `throw`), `Array.prototype.map` itself throws synchronously, `Promise.allSettled` is never reached, and the exception propagates out of `fanOut` uncaught by anything in this file. That exception is then caught by `getFrontPage`'s outer `try/catch`, collapsing the *entire* page into the page-wide error variant — which is precisely the failure mode `fanOut`'s own header comment (lines 9-12) says `Promise.allSettled` exists to prevent. The default `fetchSource` is declared `async`, so it can't trigger this today, and `fanOut.test.ts`'s "rejected settlement" test only exercises an `async` throwing fetcher (which becomes a rejection, not a sync throw), so this gap is untested.
-**Fix:** Make the guarantee hold regardless of what `fetcher` does, e.g.:
+**File:** `src/lib/pipeline/truncateSummary.ts:69-83`
+**Issue:** `budget`/`minBoundary` are derived from the code-point slice (`Array.from(text).slice(0, budget)`), but `lastWhitespace = cut.search(...)` returns an index measured in UTF-16 code units of the reconstructed string `cut`. For text containing any supplementary-plane (surrogate-pair) characters before the last whitespace run inside the slice, the UTF-16 index is inflated relative to the true code-point offset, so the `lastWhitespace >= minBoundary` check can pass even when the real code-point position of the whitespace is well below the documented 60% floor.
+
+Concrete repro: `"\u{1F512}".repeat(150) + " " + "b".repeat(2000)`. The true whitespace offset inside the 399-code-point slice is `150/399 ≈ 37.6%` — below the 60% floor and thus, per the comment's own stated intent, should be rejected (keeping the full budget). Instead, the UTF-16 index of that same whitespace is `300` (each preceding emoji costs 2 units), which clears `minBoundary = floor(399*0.6) = 239`, so the cut is accepted and the result collapses to ~151 code points instead of the intended ~399. This does not corrupt the string (search/slice stay self-consistent on the same UTF-16 string, so no lone surrogates result — `isWellFormed()` still holds), but it silently breaks the "don't collapse to a handful of words" guarantee the comment describes, for any summary with astral-plane text ahead of a late whitespace run.
+
+**Fix:** Do the boundary comparison in code-point space consistently, e.g.:
 ```ts
-const settled = await Promise.allSettled(
-  sources.map((source) => Promise.resolve().then(() => fetcher(source)))
-);
-```
-
-### WR-02: `frontpage.e2e.test.ts` asserts an https-only invariant the pipeline does not actually enforce
-
-**File:** `src/lib/pipeline/frontpage.e2e.test.ts:47-51`
-**Issue:** This test asserts `new URL(article.url).protocol === "https:"` for every article returned by `getFrontPage()` against the live feeds. `normalize.ts` (the function that actually produces `article.url`) explicitly accepts both `http:` and `https:` links from third-party feed `<link>` items — that is a documented, deliberate part of its contract ("dropped unless its protocol is `https:` or `http:`"). Since these are live, externally-controlled RSS/Atom feeds, any of the 13 sources publishing a plain `http://` article link (common for older CMS setups) will make this e2e test fail — not because of a regression, but because the test enforces an invariant one layer of the pipeline does not provide.
-**Fix:** Either loosen the assertion to match `normalize.ts`'s actual contract (`protocol === "https:" || protocol === "http:"`), or — if https-only is genuinely the desired product contract — tighten `normalize.ts` to reject `http:` links and add a unit test for that in `normalize.test.ts`, rather than leaving the contract only enforced by an e2e test against live, uncontrolled data.
-
-### WR-03: Module-level `rss-parser` `Parser` instance is shared, mutably, across concurrent fan-out parses
-
-**File:** `src/lib/pipeline/fetchSource.ts:31, 161`
-**Issue:** `const parser = new Parser();` is a single module-scope instance reused by every call to `fetchSource`, and `fanOut` calls `fetchSource` for all 13 sources concurrently via `Promise.allSettled`. `rss-parser`'s `Parser` wraps one shared, mutable `xml2js.Parser` (`this.xmlParser`), which itself holds a shared, mutable `this.saxParser`. This is only safe today because `xml2js`'s default (non-`async`) parse path is fully synchronous end-to-end (write → emit `end` → `reset()` all happen within one synchronous call), so JS's run-to-completion semantics prevent two `parseString` calls from actually interleaving mid-parse — but that is an implementation detail of a third-party dependency, not a guarantee this codebase documents, tests, or controls. A future `rss-parser`/`xml2js` version (or an `options.async` change) that makes parsing genuinely asynchronous would let concurrent parses corrupt each other's in-progress state, since there is no per-call isolation.
-**Fix:** Instantiate a fresh `Parser` per call (cheap — it's a small constructor) instead of a shared module-level singleton:
-```ts
-export async function fetchSource(source: SourceConfig): Promise<FrontPageResult> {
-  const parser = new Parser();
-  // ...
+const sliceCodePoints = Array.from(cut); // re-split cut by code point
+const lastWhitespaceCp = sliceCodePoints
+  .map((ch, i) => (/\s/u.test(ch) ? i : -1))
+  .reduce((last, i) => (i >= 0 ? i : last), -1);
+if (lastWhitespaceCp >= minBoundary) {
+  cut = sliceCodePoints.slice(0, lastWhitespaceCp).join("");
 }
 ```
+(or otherwise convert `lastWhitespace` back to a code-point offset before comparing against `minBoundary`). Add a test that combines astral-plane characters *with* a whitespace boundary below/above the 60% mark — the existing astral test only checks length/well-formedness with no whitespace present, so it cannot catch this.
 
-### WR-04: Concurrency timing assertion has thin margin, risking CI flakiness
+### WR-02: No-stream fallback in `readBodyWithCap` buffers the full body before the size cap is enforced
 
-**File:** `src/lib/pipeline/fanOutTiming.test.ts:37-63`
-**Issue:** The concurrency proof requires `elapsed < 2000` after three 900ms-delayed fetches against three separately-spun-up local HTTP servers. That leaves only ~1100ms of slack to cover Node process/test startup overhead, three server binds, and scheduling jitter — on a loaded or resource-constrained CI runner this margin can be consumed by scheduling noise alone, producing a false-negative failure unrelated to any real concurrency regression in `fanOut`.
-**Fix:** Widen the upper bound (e.g. `< 2500` or `< 3000`) — a sequential fan-out would still take ~2700ms, so there remains ample separation between "concurrent" and "sequential" without needing such a tight ceiling.
+**File:** `src/lib/pipeline/fetchSource.ts:52-61`
+**Issue:** The streaming branch enforces `maxBytes` incrementally and cancels the reader the instant the cap is exceeded, keeping memory bounded. The `!res.body` fallback branch does the opposite: it calls `await res.text()` — fully materializing the entire response body in memory — and only checks `Buffer.byteLength(text, "utf-8") > maxBytes` afterward. This directly contradicts the function's own doc comment ("erroring rather than exhausting the function on an unbounded stream"): in this branch, an unbounded body is fully read into memory before the cap can reject it. The path is presumably rare (most fetch implementations on Vercel/Node expose `res.body` as a `ReadableStream`), but the code explicitly anticipates and handles the case, so the gap is real for whatever runtime/polyfill would hit it.
+**Fix:** Either remove the fallback (since it appears effectively dead on the target runtime) or enforce a hard `Content-Length`-independent read limit before buffering, e.g. reject early if `res.headers.get("content-length")` exceeds `maxBytes` as a fast-path guard, and/or document explicitly that this branch is a best-effort fallback with a known unbounded-buffering caveat rather than implying it shares the same guarantee as the streaming path.
+
+### WR-03: `item.content` fallback is not HTML-stripped, and can now be cut mid-tag by `truncateSummary`
+
+**File:** `src/lib/pipeline/normalize.ts:45` (pre-existing `??` fallback), interacting with `src/lib/pipeline/truncateSummary.ts:46-91` (new)
+**Issue:** `summary: truncateSummary((item.contentSnippet ?? item.content ?? "").trim())` falls back to `item.content` when a feed omits `contentSnippet`. Per `rss-parser`'s own docs, `contentSnippet` is the HTML-stripped excerpt, but `content` is not — it can contain raw markup (`<p>`, `<img>`, entities, etc.). Because `ArticleCard.tsx` renders `article.summary` as a plain JSX text child (not `dangerouslySetInnerHTML`), there is no XSS risk, but any markup in `content` is displayed to the reader as literal visible text (e.g. `<p>Some text</p>`). The new `truncateSummary` cut makes this worse than before: a whitespace/length-based cut has no awareness of tag boundaries, so a long `content` fallback can now be truncated mid-tag (e.g. `...<img src="/foo.j…`), producing a more conspicuous broken-looking fragment than the untruncated raw markup previously would have. This also means `ArticleCard.tsx`'s doc comment claim that "`rss-parser` already delivers an HTML-stripped snippet" is not true for every code path that can populate `summary` (see IN-01).
+**Fix:** Either strip HTML from the `content` fallback before it enters `Article.summary` (e.g. a small tag-stripping pass in `normalize.ts` for the `content`-fallback branch only), or drop the `content` fallback entirely and treat a missing `contentSnippet` the same as "no summary" (matching the CrowdStrike zero-summary case already handled by `ArticleCard.tsx`).
 
 ## Info
 
-### IN-01: `readBodyWithCap`'s no-stream fallback does not actually enforce the cap during the read, contrary to its own comment
+### IN-01: `ArticleCard.tsx` doc comment overstates the HTML-stripping guarantee
 
-**File:** `src/lib/pipeline/fetchSource.ts:34-45, 52-61`
-**Issue:** The function's header comment claims "Both the streaming path... and the no-stream path... enforce `maxBytes`... — neither path can return an uncapped or unabortable body." The no-stream branch (`if (!res.body)`) actually calls `await res.text()` to fully buffer the entire body into memory *before* checking `Buffer.byteLength(text, "utf-8") > maxBytes` — it validates the size only after the full, uncapped read has already completed, unlike the streaming branch which aborts mid-read. In practice this branch is likely unreachable under Node's built-in fetch (undici always exposes a `ReadableStream` body when content exists), but the comment overstates the guarantee this code path actually provides.
-**Fix:** Either remove the now-effectively-dead fallback branch (if `res.body` is genuinely never null for a body-bearing response under this runtime), or correct the comment to note that the no-stream path only validates-after-buffering rather than capping-during-read.
+**File:** `src/components/ArticleCard.tsx:12-14`
+**Issue:** The comment states "`rss-parser` already delivers an HTML-stripped snippet" as part of the justification for treating `article.summary` as safe plain text. That guarantee holds only for the `contentSnippet` source field, not for the `item.content` fallback `normalize.ts` uses when `contentSnippet` is absent (see WR-03). The lack of an XSS vector still holds (JSX text-node rendering escapes regardless of content), but the comment's stated reasoning is incomplete.
+**Fix:** Either narrow the comment to say "field values are rendered as plain text regardless of their contents, so no HTML-stripping guarantee is relied on here" (removing the dependency on an assumption that doesn't hold end-to-end), or fix WR-03 so the assumption becomes true.
 
-### IN-02: `productionPage.test.ts` render-state check depends on exact literal HTML attribute ordering
+### IN-02: Whitespace-only `title` passes the presence guard and renders an empty headline link
 
-**File:** `test/productionPage.test.ts:84-104`
-**Issue:** `hasArticleAnchor` is detected via the regex `/target="_blank" rel="noopener noreferrer"/`, which only matches if React renders those two attributes in exactly that order and with exactly that spacing. This happens to match `ArticleCard.tsx`'s current JSX prop order, but attribute order is an implementation detail, not a contract — any incidental reordering of props in `ArticleCard.tsx` (with no behavioral change) would silently break this test's detection logic rather than the feature it's meant to verify.
-**Fix:** Match on a less order-sensitive signal, e.g. two independent regexes (`/target="_blank"/` and `/rel="noopener noreferrer"/`) both required, or a lookahead-based pattern that doesn't depend on attribute order.
+**File:** `src/lib/pipeline/normalize.ts:27, 40`
+**Issue:** `if (!item.title || ...) return null;` only rejects a missing or empty-string title. A feed item with `title: "   "` (whitespace only) is truthy and passes the guard, then `item.title.trim()` becomes `""`, producing an `Article` with an empty `title`. `ArticleCard.tsx` would then render `<a href="...">{""}</a>` — a card with a source badge and timestamp but no visible headline text or clickable label content.
+**Fix:** Reject on the trimmed value instead: `const title = item.title?.trim(); if (!title || !item.link || !item.isoDate) return null;` and use `title` in the returned object.
 
 ---
 
-_Reviewed: 2026-09-22T15:08:59Z_
+_Reviewed: 2026-09-22T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
