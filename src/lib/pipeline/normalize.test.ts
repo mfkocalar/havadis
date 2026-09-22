@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type Parser from "rss-parser";
 import { normalize } from "./normalize.ts";
+import { SUMMARY_MAX_CHARS } from "./truncateSummary.ts";
 import type { SourceConfig } from "../types.ts";
 
 /**
@@ -122,4 +123,20 @@ test("normalize preserves feed order when mapped over an array (no reordering)",
   ];
   const titles = items.map((it) => normalize(it, source)?.title);
   assert.deepEqual(titles, ["First", "Second", "Third"]);
+});
+
+test("a well-under-cap summary passes through byte-identically (D-08 wiring, non-regression)", () => {
+  const shortSnippet = "Microsoft Corp. today issued updates to plug at least 974 security holes.";
+  const article = normalize(item({ contentSnippet: shortSnippet }), source);
+  assert.equal(article?.summary, shortSnippet);
+});
+
+test("an over-cap summary arrives on the Article at no more than SUMMARY_MAX_CHARS code points (D-08 wiring)", () => {
+  const longSnippet = "word ".repeat(SUMMARY_MAX_CHARS * 2);
+  const article = normalize(item({ contentSnippet: longSnippet }), source);
+  assert.ok(article !== null);
+  assert.ok(
+    Array.from(article!.summary).length <= SUMMARY_MAX_CHARS,
+    `expected capped summary, got ${Array.from(article!.summary).length} code points`
+  );
 });
