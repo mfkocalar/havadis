@@ -39,6 +39,10 @@ const parser = new Parser();
  * own. The `signal.aborted` check at the top of the loop is a narrow safety
  * net only — it covers the case where a chunk lands in the same tick the
  * abort fires — not the fix itself.
+ *
+ * Both the streaming path (below) and the no-stream path (when the
+ * response exposes no readable stream) enforce `maxBytes` and observe
+ * `signal` — neither path can return an uncapped or unabortable body.
  */
 async function readBodyWithCap(
   res: Response,
@@ -46,7 +50,14 @@ async function readBodyWithCap(
   signal: AbortSignal
 ): Promise<string> {
   if (!res.body) {
-    return await res.text();
+    if (signal.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+    }
+    const text = await res.text();
+    if (Buffer.byteLength(text, "utf-8") > maxBytes) {
+      throw new Error(`Response body exceeded ${maxBytes} byte cap`);
+    }
+    return text;
   }
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -107,16 +118,20 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
     }
 
     // Some publishers mislabel a genuinely valid RSS/Atom response as
-    // text/html (observed live on Krebs on Security's /feed endpoint, which
-    // serves correct RSS XML under an html content-type). Rejecting on
-    // content-type alone would treat that as a fetch failure even though the
-    // body parses fine, so "html" is accepted here too — the XML parse step
-    // below remains the real authority on whether the body is a usable feed,
-    // this check only fast-fails content-types that could never be one
-    // (images, JSON, binary payloads) before spending time reading the body.
+    // text/html (observed live on Krebs on Security's bare /feed path,
+    // pre-redirect). With a single source that global exception was
+    // low-risk; across 13 origins, an HTML WAF challenge, cookie wall, or
+    // error page from any non-opted-in source would otherwise burn the full
+    // body-download and XML-parse cost before failing, inside a shared 8s
+    // budget. So "html" is only accepted for a source that opted in via
+    // `allowHtmlContentType` on live-probe evidence — the XML parse step
+    // below remains the real authority on whether the body is a usable
+    // feed for that source; this check only fast-fails content-types that
+    // could never be one (images, JSON, binary payloads) for everyone else.
     const contentType = res.headers.get("content-type") ?? "";
     const lowerContentType = contentType.toLowerCase();
-    if (!lowerContentType.includes("xml") && !lowerContentType.includes("html")) {
+    const htmlOptIn = source.allowHtmlContentType === true;
+    if (!lowerContentType.includes("xml") && !(htmlOptIn && lowerContentType.includes("html"))) {
       return {
         status: "error",
         reason: `${source.id}: unexpected content-type "${contentType}"`,
