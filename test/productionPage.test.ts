@@ -85,15 +85,21 @@ test("body contains exactly one of the two valid render states — never neither
   const res = await fetch(BASE_URL);
   const body = await res.text();
 
-  const hasArticleAnchor = /href="https:\/\/krebsonsecurity\.com[^"]*"/.test(body);
+  // Source-agnostic since Phase 2 widened SOURCES beyond a single hardcoded
+  // origin (krebsonsecurity.com): any ArticleCard anchor carries
+  // target="_blank" rel="noopener noreferrer" and no other element on the
+  // page does (see src/components/ArticleCard.tsx, src/app/layout.tsx) —
+  // this is the render-state signal, independent of which of the 13
+  // sources actually contributed the article.
+  const hasArticleAnchor = /target="_blank" rel="noopener noreferrer"/.test(body);
   const hasEmptyState = body.includes("No articles in the last 24 hours");
 
   assert.notEqual(
     hasArticleAnchor,
     hasEmptyState,
-    "exactly one of {a krebsonsecurity.com article anchor, the D-03 empty-state line} must be present — " +
-      "neither means the blank-page failure this criterion exists to exclude, and both means the empty " +
-      "state rendered alongside real articles"
+    "exactly one of {an article anchor from any configured source, the D-03 empty-state line} must be " +
+      "present — neither means the blank-page failure this criterion exists to exclude, and both means " +
+      "the empty state rendered alongside real articles"
   );
 });
 

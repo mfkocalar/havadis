@@ -21,6 +21,15 @@ export type SourceConfig = {
   name: string;
   tier: SourceTier;
   url: string;
+  /**
+   * This source is known to serve a genuinely valid RSS/Atom body under a
+   * `text/html` content-type, verified by live probe. Omitting this field
+   * (the default) means an HTML response is rejected before the body is
+   * read. Kept as a documented per-source escape hatch: if a source later
+   * starts serving valid RSS under `text/html`, opt in that one entry
+   * rather than re-loosening the content-type gate for all sources.
+   */
+  allowHtmlContentType?: boolean;
 };
 
 /** The common shape every feed item is normalized into. */
