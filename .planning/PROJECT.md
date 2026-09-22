@@ -93,6 +93,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
 | Category filter (client-side) included in v1 | User-confirmed; cheap to add since it filters the already-cached snapshot, no new server work | — Pending (Phase 4) |
 | Composed caller `AbortSignal` into the per-hop redirect guard via `AbortSignal.any` | 01-03's timeout coverage only spanned header arrival, not the body-read phase — a headers-then-stalled-body origin was never aborted (found by phase verification, closed by Phase 1's 01-04 gap-closure plan) | ✓ Good — Phase 1 |
 | Source content-type gate accepts `html` alongside `xml` | Krebs on Security's live `/feed` serves genuinely valid RSS under a `text/html` content-type; a strict xml-only check silently emptied the one proven source. `rss-parser`'s own parse step remains the real authority on feed validity | ✓ Good — Phase 1, but flagged (code review WR-01) to scope the exception per-source rather than globally once Phase 2 widens to 13 sources — a misbehaving non-Krebs source could otherwise burn full body-download+parse cost before failing fast |
+| Article card title and summary bounded by a CSS clamp, plus a 400-code-point data-layer cap on the summary | UAT G-02-5 measured a ~94x summary-length spread across 13 sources (80 to 7,541 median characters, 26,744 worst case) making card heights wildly inconsistent, and shipping up to ~26KB of publisher body per article in the RSC payload; supersedes Phase 1's single-source no-clamp mandate (D-08) | ✓ Good — Phase 2 gap closure, plan `02-04` |
 
 ## Evolution
 

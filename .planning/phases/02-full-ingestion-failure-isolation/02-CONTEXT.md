@@ -26,6 +26,44 @@ Requirements covered: INGEST-01 (parallel fetch of all 13 sources), INGEST-02 (a
 - **D-06:** The extreme edge case — all 13 sources fail in the same revalidation cycle — reuses Phase 1's exact quiet-empty-state message verbatim (01-CONTEXT.md D-03). No new UI path distinguishing "everything failed" from "one source failed" or "genuinely zero articles in the window."
 - **D-07:** No minimum-article-count floor before rendering. Even if only 1 of 13 sources succeeds and yields a single article, that article renders normally — the same "any success renders, no diagnostics" principle as D-05.
 
+### Article Card Text Length (Gap Closure G-02-5)
+- **D-08:** Article card title and summary are displayed within a fixed visual bound (a three-line
+  CSS clamp on both fields), and the summary is additionally capped at the data layer, before it
+  enters the payload, at 400 Unicode code points. This decision **supersedes** three passing Phase
+  1 artefacts: `01-02-PLAN.md:157`'s mandate that the title render "verbatim and untruncated — no
+  ellipsis, no line clamp, no rewriting"; the `01-02-PLAN.md:184` verify gate that asserted
+  `ArticleCard.tsx` contained no clamp and no slice/substring call; and `01-02-SUMMARY.md:82`,
+  which recorded that gate as passing. It also supersedes `01-02-PLAN.md:31`'s companion claim
+  that "no byte, code-point or grapheme-cluster length definition applies" to these fields — a
+  length definition now does apply, and it is measured in Unicode code points, never UTF-16 code
+  units, so a surrogate pair is never split.
+
+  That Phase 1 mandate was correct for a one-source app: Krebs' own summaries clustered around a
+  476-character median, so every card looked identically treated regardless of the no-clamp rule.
+  At 13 sources, live measurement (debug session `article-card-text-length-inconsistent.md`,
+  evidence T6) found summary length spanning 0 characters (CrowdStrike) to 26,744 (CISA) — a
+  roughly 94x median spread — which is exactly what UAT G-02-5 reports. Re-adding the Phase 1
+  no-clamp gate at this scale is therefore a **regression**, not a fix, and any future reader of
+  `01-02-PLAN.md` who is tempted to "restore" it should read this entry first.
+
+  UI-02's verbatim guarantee is narrowed in scope, not revoked: it continues to constrain
+  *editorial* rewriting — no re-casing, re-wording, or title truncation at the data layer. The
+  full title string still reaches the DOM and the accessibility tree; only its *rendered height*
+  is bounded, and only via CSS, never by cutting the string itself.
+
+  Consequence carried into Phase 3: UI-03's CVE scan will operate on the capped summary, so a CVE
+  identifier appearing beyond the 400-code-point cap inside an unusually long publisher body will
+  not produce a chip. This is deliberately accepted — the chip then always corresponds to text the
+  reader can actually reach — and CVE identifiers in titles (the common case for advisory feeds
+  such as CISA) are unaffected, because titles are never cut at the data layer.
+
+  — **Reversibility:** the visual bound (CSS clamp) is reversible — deleting the classes restores
+  the previous rendering exactly. The data-layer summary cap is **costly** to reverse: it discards
+  publisher text before anything downstream can see it, so already-cached payloads keep the capped
+  text until the next revalidation, and any later feature wanting the full publisher body back
+  (notably a future Phase 3 CVE scan over long summaries) would need the full text re-plumbed
+  through `normalize.ts`.
+
 ### Claude's Discretion
 - **Combined article-list ordering.** `getFrontPage.ts` currently just concatenates articles in source-iteration order with no sorting. User explicitly deferred discussing this — Claude picks a reasonable interim order (most likely recency-descending across all combined sources) for the flat list that exists before Phase 3 builds real classification + ranking. This is a transitional choice Phase 3 will replace, not a lasting product decision.
 - Exact hex/Tailwind color tokens for the 5 remaining tier badges, within the constraints above (no red/orange, equal visual weight, complements the locked indigo).

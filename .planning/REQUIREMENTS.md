@@ -27,7 +27,7 @@
 ### Front Page UI
 
 - [ ] **UI-01**: User can view a responsive, newspaper-style front page with articles grouped under their 7 sections, in urgency order
-- [x] **UI-02**: Each article card shows the source name, a source-tier badge, the verbatim (non-editorialized) title, a summary, a relative published time with the absolute time available on hover, and a link that opens the original article at the source's own URL
+- [x] **UI-02**: Each article card shows the source name, a source-tier badge, the verbatim (non-editorialized) title, a summary, a relative published time with the absolute time available on hover, and a link that opens the original article at the source's own URL. Title and summary are displayed within a fixed visual bound so card heights stay comparable across sources, and the summary is additionally capped in the data layer before render; "verbatim" constrains editorial rewriting (no re-casing, re-wording, or truncation of the underlying string), not display length (amended per gap `G-02-5`, decision `D-08`)
 - [ ] **UI-03**: An article card shows a visible CVE-ID chip whenever a CVE identifier (pattern `CVE-\d{4}-\d{4,7}`) is detected in its title or summary
 - [ ] **UI-04**: The page shows a "last updated" timestamp for the current cached snapshot and an article count per section
 - [ ] **UI-05**: The layout is readable and usable on narrow mobile viewports (~360–390px wide) as well as desktop, verified on both, not just a resized desktop browser
