@@ -2,25 +2,30 @@ import clsx from "clsx";
 import type { SourceTier } from "@/lib/types";
 
 /**
- * Tier-keyed colour classes for the pill. Only "Security Research" gets a
- * distinct colour in Phase 1 (CONTEXT.md D-04, Claude's Discretion) — the
- * other five tiers share a neutral default until Phase 2 wires up more
- * sources, or the Phase 4 polish pass finalizes the full six-colour
- * palette. Both variants below clear WCAG AA contrast (4.5:1) at this
- * pill's text size.
+ * Tier-keyed colour classes for the pill. All six tiers now carry a
+ * distinct hue (CONTEXT.md D-01, D-03 — this phase's deliverable): the
+ * "Security Research" indigo row is locked from Phase 1 (D-04) and
+ * untouched here; the other five hues were chosen this phase to
+ * complement it, not the reverse. Every row uses the identical
+ * `{hue}-50 / {hue}-700 / {hue}-200` shade-step construction, which is
+ * what carries WCAG AA (4.5:1) text contrast across all six hues and
+ * keeps them reading as one palette. Red and orange are deliberately
+ * absent from every row (D-02) — reserved for Phase 3's CVE-ID chips and
+ * Phase 4's urgency cues, so tier badges never visually compete with
+ * those higher-signal elements.
  */
 const TIER_STYLES: Record<SourceTier, string> = {
   "Security Research":
     "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200",
-  Government: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+  Government: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
   "Enterprise Security":
-    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+    "bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200",
   "Threat Intelligence":
-    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+    "bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200",
   "Tech & General":
-    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+    "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
   "Executive News":
-    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+    "bg-fuchsia-50 text-fuchsia-700 ring-1 ring-inset ring-fuchsia-200",
 };
 
 export function SourceTierBadge({ tier }: { tier: SourceTier }) {
