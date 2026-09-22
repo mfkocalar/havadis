@@ -30,6 +30,18 @@ import type { AddressInfo } from "node:net";
  * cleared from the response's own `close` event, and cleared again (for
  * any survivor) inside the exported `close()` handle before
  * `closeAllConnections()` runs.
+ *
+ * Plan 02-03 adds three more routes to prove `fanOut`'s failure-isolation
+ * and concurrency claims against real sockets:
+ * - /delayed-feed: a healthy, tagged feed that completes after an
+ *   arbitrary (capped) delay — the positive control used to prove
+ *   concurrency (N sources in flight at once) and to build a "healthy
+ *   source among broken ones" mix.
+ * - /status-500: the HTTP-error failure mode — `fetchSource` must reject
+ *   it on `!res.ok` before ever reading the body.
+ * - /malformed-xml: a 200 response whose body fails XML parsing — the
+ *   content-type passes the gate so the failure lands in the parse step,
+ *   not the earlier content-type check.
  */
 
 const MINIMAL_RSS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -44,6 +56,28 @@ const MINIMAL_RSS = `<?xml version="1.0" encoding="UTF-8"?>
     </item>
   </channel>
 </rss>`;
+
+/**
+ * Same RSS 2.0 document shape as `MINIMAL_RSS`, but with a per-tag item
+ * title and link so a test can attribute a returned article to the exact
+ * fixture route/source that produced it. `MINIMAL_RSS` itself is left
+ * untouched so the existing redirect tests keep their current
+ * expectations.
+ */
+function taggedRss(tag: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Hostile Fixture Feed</title>
+    <item>
+      <title>Fixture Item ${tag}</title>
+      <link>https://example.test/fixture-item-${tag}</link>
+      <pubDate>Mon, 01 Jan 2026 00:00:00 GMT</pubDate>
+      <description>tagged fixture item for source-attribution assertions</description>
+    </item>
+  </channel>
+</rss>`;
+}
 
 export type HostileServer = {
   /** e.g. "http://127.0.0.1:54321" — no trailing slash. */
@@ -165,6 +199,65 @@ export async function startHostileServer(): Promise<HostileServer> {
           clearInterval(timer);
           activeTimers.delete(timer);
         });
+        return;
+      }
+
+      case "/delayed-feed": {
+        // A healthy, tagged feed that completes after an arbitrary delay —
+        // the positive control for both concurrency (N sources in flight
+        // at once) and "healthy source among broken ones" mixes. `ms` is
+        // clamped to a 10s ceiling so a mistyped param can never outlive
+        // the suite; `ms=0` responds immediately with no timer armed at
+        // all.
+        const rawMs = Number(url.searchParams.get("ms") ?? "0");
+        const ms = Number.isFinite(rawMs) ? Math.min(Math.max(rawMs, 0), 10_000) : 0;
+        const tag = url.searchParams.get("tag") ?? "X";
+        const send = () => {
+          res.writeHead(200, { "Content-Type": "application/rss+xml" });
+          res.end(taggedRss(tag));
+        };
+        if (ms === 0) {
+          send();
+          return;
+        }
+        // Same lifecycle treatment as /drip-then-complete's interval:
+        // unref()'d, tracked in activeTimers, cleared from the response's
+        // own close event. This is a setTimeout, not a setInterval, but
+        // Node's clearInterval accepts a setTimeout handle interchangeably
+        // (both return the same Timeout object) — so the shared close()
+        // sweep above needs no change to also cover this timer; do not
+        // "fix" this into a separate clearTimeout call.
+        const timer: NodeJS.Timeout = setTimeout(() => {
+          activeTimers.delete(timer);
+          send();
+        }, ms);
+        timer.unref();
+        activeTimers.add(timer);
+        res.on("close", () => {
+          clearInterval(timer);
+          activeTimers.delete(timer);
+        });
+        return;
+      }
+
+      case "/status-500": {
+        // The HTTP-error failure mode: fetchSource must reject this on
+        // !res.ok before ever reading the body.
+        res.writeHead(500, { "Content-Type": "application/rss+xml" });
+        res.end("internal error");
+        return;
+      }
+
+      case "/malformed-xml": {
+        // A 200 response whose content-type passes the gate, but whose
+        // body is deliberately not well-formed XML (an opening
+        // rss/channel/item/title chain with no closing tags) — the
+        // failure this route exists to exercise lands in the XML parse
+        // step, not the content-type check.
+        res.writeHead(200, { "Content-Type": "application/rss+xml" });
+        res.end(
+          '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><item><title>Unterminated'
+        );
         return;
       }
 
