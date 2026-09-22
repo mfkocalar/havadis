@@ -67,7 +67,7 @@ Plans:
   2. When one configured source is deliberately broken (timeout, malformed XML, HTTP error, or dead endpoint), the front page still renders successfully using the remaining sources' articles rather than failing or hanging.
   3. Articles from all currently-healthy sources appear together through the same normalize/render path proven in Phase 1, confirming the fan-out feeds one unified pipeline.
 
-**Plans**: 3/3 plans executed
+**Plans**: 3/4 plans executed
 
 Plans:
 **Wave 1**
@@ -81,6 +81,10 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 02-03-PLAN.md — Prove failure isolation and wall-clock concurrency against real sockets with three new hermetic fixture routes
+
+**Wave 4** *(gap closure — blocked on Wave 3 completion)*
+
+- [ ] 02-04-PLAN.md — Close UAT gap G-02-5: bound card text at both layers (code-point summary cap in `normalize.ts`, line clamp in `ArticleCard.tsx`), omit the empty-summary element, and record the amendment of Phase 1's no-clamp UI-02 mandate
 
 **UI hint**: yes
 
@@ -125,6 +129,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
-| 2. Full Ingestion & Failure Isolation | 3/3 | Complete    | 2026-09-22 |
+| 2. Full Ingestion & Failure Isolation | 3/4 | Gap closure | - |
 | 3. Deduplication, Classification & Ranking | 0/TBD | Not started | - |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |
