@@ -1,31 +1,23 @@
 import { SOURCES } from "../config/sources.ts";
-import type { Article, FrontPageResult } from "../types.ts";
-import { fetchSource } from "./fetchSource.ts";
+import type { FrontPageResult } from "../types.ts";
+import { fanOut } from "./fanOut.ts";
 import { filterLookback } from "./filterLookback.ts";
+import { sortByRecencyDesc } from "./sortByRecencyDesc.ts";
 
 /**
- * The single orchestrator: iterates `SOURCES`, awaits `fetchSource` for
- * each, applies the 24h lookback filter, and returns the discriminated
- * result. Never throws.
+ * The single orchestrator: fans `SOURCES` out concurrently via `fanOut`
+ * (a `Promise.allSettled` fan-out over the never-throwing `fetchSource`),
+ * applies the 24h lookback filter, sorts the survivors newest-first, and
+ * returns the discriminated result. Never throws.
  *
- * Phase 1 iterates sequentially over one source. The loop shape is kept
- * so Phase 2 can switch this to a parallel fan-out over thirteen entries
- * (e.g. `Promise.all`) without reshaping the return value.
+ * A per-source failure is swallowed inside `fanOut` rather than
+ * propagated here — a failure yields zero articles for that source and
+ * the page renders CONTEXT.md D-03's quiet empty-state message, the same
+ * treatment as a genuinely empty 24h window.
  */
 export async function getFrontPage(): Promise<FrontPageResult> {
   try {
-    const articles: Article[] = [];
-    for (const source of SOURCES) {
-      const result = await fetchSource(source);
-      if (result.status === "ok") {
-        articles.push(...result.articles);
-      }
-      // A per-source failure is swallowed here rather than propagated:
-      // with Phase 1's single source, a failure yields zero articles and
-      // the page renders CONTEXT.md D-03's quiet empty-state message —
-      // the same treatment as a genuinely empty 24h window.
-    }
-    return { status: "ok", articles: filterLookback(articles) };
+    return { status: "ok", articles: sortByRecencyDesc(filterLookback(await fanOut(SOURCES))) };
   } catch (err) {
     return {
       status: "error",
