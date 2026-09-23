@@ -42,3 +42,7 @@ next-env.d.ts
 
 # havadis planning
 .planning/research/.cache/
+.planning/state.json
+
+# gsd internal runtime state
+.gsd/
