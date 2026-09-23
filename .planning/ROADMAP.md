@@ -129,6 +129,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
-| 2. Full Ingestion & Failure Isolation | 4/4 | In Progress|  |
+| 2. Full Ingestion & Failure Isolation | 4/4 | Complete    | 2026-09-23 |
 | 3. Deduplication, Classification & Ranking | 0/TBD | Not started | - |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |
