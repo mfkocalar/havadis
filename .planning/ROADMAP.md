@@ -102,7 +102,21 @@ Plans:
   4. Within each section, articles are ordered by a combination of recency and source weight, not raw feed order.
   5. Any article whose title or summary contains a CVE identifier (pattern `CVE-\d{4}-\d{4,7}`) displays a visible CVE-ID chip.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Tracer: keyword classification into 7 urgency-ordered section headings on the live page, then tier-weight x clamped-recency ranking within sections, locked by fixtures, a live snapshot and a real-page order test
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — Decode title HTML entities once in `normalize.ts` (closes the CrowdStrike `&trade;` blocker), then collapse the same story from several outlets to its earliest copy via canonical-URL-or-normalized-title union-find dedupe
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md — Red, monospace, NVD-linked CVE chips (max 3 plus "+N") in the card meta row with validated hrefs, plus the D-12/D-01 doc corrections and the no-external-API COVERAGE.md
+
 **UI hint**: yes
 
 ### Phase 4: Newspaper Front Page, Filtering & Mobile Polish
