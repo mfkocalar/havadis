@@ -66,10 +66,18 @@ expected: |
   anything that looks off.
 result: pass
 
+### 7. Card Visual Check After Text-Length Fix (VERIFICATION.md human item)
+expected: |
+  Comparing CISA / CSO Online / SANS ISC cards against Bleeping Computer / Ars Technica at
+  desktop and ~375px mobile width: a clamped summary shows a visible trailing ellipsis; no
+  card's title/summary block is dramatically taller than its neighbours' on mobile; a
+  tabbed-to headline's focus ring is not clipped by the line-clamp's overflow:hidden.
+result: pass
+
 ## Summary
 
-total: 6
-passed: 6
+total: 7
+passed: 7
 issues: 0
 pending: 0
 skipped: 0
