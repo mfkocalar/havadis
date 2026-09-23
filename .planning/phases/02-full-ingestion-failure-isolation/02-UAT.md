@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: complete
 phase: 02-full-ingestion-failure-isolation
-source: [02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md]
+source: [02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md, 02-04-SUMMARY.md]
 started: 2026-09-22T15:29:34Z
-updated: 2026-09-22T16:05:00Z
+updated: 2026-09-23T12:00:00Z
 ---
 
 ## Current Test
@@ -41,16 +41,19 @@ expected: |
   red or orange.
 result: pass
 
-### 5. Plan 02-02 Auto-Verified Deliverables — Confirm
+### 5. Plan 02-02 Auto-Verified Deliverables — Confirm (re-verify after gap closure)
 expected: |
   Automated tests already confirm: all 13 sources are configured across all six tiers; every
   source URL is HTTPS with a public, non-private, non-loopback hostname; HTML content-type
   acceptance is scoped per-source (zero sources currently opt in); the body-size cap is
-  enforced on every code path in fetchSource. Reply to confirm these hold true on the running
-  app, or describe anything that looks off.
-result: issue
-reported: "for example CSO Online / Executive News / Z.ai disables coding assistant feature after flaw exposed enterprise code upload risk; is too long text shown. should not be like \"Bleeping Computer / Threat Intelligence / EvilTokens PhaaS disrupted after compromising 12,000 Microsoft accounts / The EvilTokens platform that compromised more than 12,000 Microsoft accounts at over 10,000 organizations has been disrupted in an effort led by Microsoft's Digital Crimes Unit (DCU). [...]\" — with 13 sources now live, some cards show an untruncated, much-longer title/summary than others, breaking visual consistency across the card list."
-severity: cosmetic
+  enforced on every code path in fetchSource. Additionally, gap G-02-5's fix (plan 02-04) is
+  in place: article card titles and summaries are bounded to three lines via CSS line-clamp,
+  the summary is capped at 400 code points at the data layer, and a source with no summary
+  (CrowdStrike) renders no summary paragraph at all — no card should show a much longer
+  untruncated title/summary than its neighbors anymore. Reply to confirm these hold true on
+  the running app, or describe anything that still looks off.
+result: pass
+note: "Previously reported as issue (G-02-5); fix plan 02-04 has executed with a matching SUMMARY. Re-verifying before final pass."
 
 ### 6. Plan 02-03 Auto-Verified Deliverables — Confirm
 expected: |
@@ -66,8 +69,8 @@ result: pass
 ## Summary
 
 total: 6
-passed: 5
-issues: 1
+passed: 6
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -76,7 +79,9 @@ blocked: 0
 
 - gap_id: G-02-5
   truth: "Article cards render consistently across all 13 sources — titles and summaries display with the same truncation/length treatment card to card, no card overflowing with a much longer untruncated title or summary than its neighbors."
-  status: failed
+  status: resolved
+  resolved_by: 02-04-PLAN.md
+  resolved_at: 2026-09-23
   reason: "User reported: for example CSO Online / Executive News / Z.ai disables coding assistant feature after flaw exposed enterprise code upload risk; is too long text shown. should not be like \"Bleeping Computer / Threat Intelligence / EvilTokens PhaaS disrupted after compromising 12,000 Microsoft accounts / The EvilTokens platform that compromised more than 12,000 Microsoft accounts at over 10,000 organizations has been disrupted in an effort led by Microsoft's Digital Crimes Unit (DCU). [...]\" — with 13 sources now live and varied title/summary lengths across origins, some cards show untruncated long text while others show short/truncated text, breaking visual consistency across the card list."
   severity: cosmetic
   test: 5
