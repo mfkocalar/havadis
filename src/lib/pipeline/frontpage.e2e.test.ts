@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SOURCES } from "../config/sources.ts";
+import { SECTION_DISPLAY_ORDER } from "../config/sections.ts";
 import { fetchSource } from "./fetchSource.ts";
 import { getFrontPage } from "./getFrontPage.ts";
 
@@ -62,6 +63,10 @@ test("getFrontPage() resolves to the ok variant with well-formed, current articl
     );
 
     assert.equal(typeof article.summary, "string");
+    assert.ok(
+      SECTION_DISPLAY_ORDER.includes(article.section),
+      `expected ${article.section} to be a member of SECTION_DISPLAY_ORDER`
+    );
   }
 
   // Deliberately no minimum-count assertion on the post-filter list:
@@ -70,19 +75,41 @@ test("getFrontPage() resolves to the ok variant with well-formed, current articl
   // flaky test failure (RESEARCH.md Pitfall 4).
 });
 
-test("getFrontPage() returns articles sorted non-increasing by publishedAt", async () => {
+// Replaces the removed "getFrontPage() returns articles sorted non-increasing
+// by publishedAt" test: once articles are classified and grouped, a global
+// recency order across the whole flat list is structurally incompatible with
+// sectioned output (RESEARCH.md "Existing Tests Requiring Updates"). This is
+// the section-shape contract that replaces it.
+test("getFrontPage() groups every article into exactly one non-empty section, in SECTION_DISPLAY_ORDER", async () => {
   const result = await getFrontPage();
   assert.equal(result.status, "ok");
   if (result.status !== "ok") return;
 
-  for (let i = 1; i < result.articles.length; i++) {
-    const prev = result.articles[i - 1];
-    const next = result.articles[i];
+  let lastIndex = -1;
+  for (const group of result.sections) {
+    const index = SECTION_DISPLAY_ORDER.indexOf(group.section);
+    assert.ok(index >= 0, `expected ${group.section} to be a member of SECTION_DISPLAY_ORDER`);
     assert.ok(
-      new Date(prev.publishedAt).getTime() >= new Date(next.publishedAt).getTime(),
-      `expected article ${i - 1} to be newer than or equal to article ${i}`
+      index > lastIndex,
+      `expected section ${group.section} to appear after the previous group in SECTION_DISPLAY_ORDER`
     );
+    lastIndex = index;
+
+    assert.ok(group.articles.length > 0, `expected every group to hold at least one article`);
+    for (const article of group.articles) {
+      assert.equal(
+        article.section,
+        group.section,
+        "expected every article inside a group to carry that group's section"
+      );
+    }
   }
+
+  assert.deepEqual(
+    result.articles,
+    result.sections.flatMap((group) => group.articles),
+    "expected the flat articles list to equal the sections flattened in order"
+  );
 });
 
 test("getFrontPage()'s contributing sources are a subset of the configured source names", async () => {
