@@ -44,11 +44,51 @@ export type Article = {
 };
 
 /**
- * Discriminated result shared by `fetchSource` and `getFrontPage`. Both
- * functions must never throw — every failure path resolves to the error
- * variant instead of an uncaught rejection, so the page can always render
- * its full layout (see CONTEXT.md D-03).
+ * Discriminated result of a single source's fetch, shared by `fetchSource`
+ * and `fanOut`'s injectable fetcher seam. Must never throw — every failure
+ * path resolves to the error variant instead of an uncaught rejection (see
+ * CONTEXT.md D-03). `getFrontPage` now returns `SectionedFrontPageResult`
+ * (Phase 3, 03-01) — this type stays the per-source result shape only.
  */
 export type FrontPageResult =
   | { status: "ok"; articles: Article[] }
+  | { status: "error"; reason: string };
+
+/**
+ * The 7 newspaper-style sections every article is classified into
+ * (PROJECT.md's taxonomy, CLASSIFY-01/CLASSIFY-03). Declared here in D-12
+ * display order for readability, but `SECTION_DISPLAY_ORDER` in
+ * `config/sections.ts` — not this declaration order — is the runtime
+ * authority for render order (D-05: evaluation order and display order are
+ * two separate constants).
+ */
+export type Section =
+  | "Vulnerabilities"
+  | "Advisories"
+  | "Ransomware"
+  | "Breaches"
+  | "Threat Intelligence"
+  | "Tools/Techniques"
+  | "Industry/Policy";
+
+/**
+ * An `Article` after classification. Derived, not a widening of `Article`
+ * itself — `Article` stays exactly six fields because `normalize`,
+ * `fetchSource` and `fanOut` all construct it and `fanOut.test.ts` pins its
+ * key set to exactly those six fields. (Plan 03-03 adds a `cves` field to
+ * this type.)
+ */
+export type ClassifiedArticle = Article & { section: Section };
+
+/** One non-empty section's ranked articles, in `SECTION_DISPLAY_ORDER` position. */
+export type SectionGroup = { section: Section; articles: ClassifiedArticle[] };
+
+/**
+ * The discriminated result `getFrontPage` returns (Phase 3, 03-01). Must
+ * never throw — same never-throws contract as `FrontPageResult` (CONTEXT.md
+ * D-03). `articles` is always the flattening of `sections` in display
+ * order, never computed independently (RESEARCH.md Open Question 1).
+ */
+export type SectionedFrontPageResult =
+  | { status: "ok"; articles: ClassifiedArticle[]; sections: SectionGroup[] }
   | { status: "error"; reason: string };
