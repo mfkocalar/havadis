@@ -237,6 +237,15 @@ None - no external service configuration required.
 - Two coverage items (D6: page visual/ranking "feel"; D7: live-headline classification plausibility) are flagged `human_judgment: true` and will surface at end-of-phase UAT per `human_verify_mode=end-of-phase` — nothing further needed from this plan to unblock 03-02.
 - Ready for 03-02.
 
+## Self-Check: PASSED
+
+- FOUND: `src/lib/pipeline/classify.test.ts`
+- FOUND: `src/lib/pipeline/groupBySection.test.ts`
+- FOUND: `.planning/phases/03-deduplication-classification-ranking/03-01-SUMMARY.md`
+- FOUND: commit `ec60f69` (test(03-01): lock classify/groupBySection with fixture, live and safety tests)
+- FOUND: commit `865a014` (test(03-01): add live rankScore and real-page section-order assertions)
+- FOUND: commit `917c2b8` (docs(03-01): complete deduplication-classification-ranking sectioned front page plan)
+
 ---
 *Phase: 03-deduplication-classification-ranking*
 *Completed: 2026-09-27*
