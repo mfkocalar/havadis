@@ -20,9 +20,9 @@
 
 ### Classification & Ranking
 
-- [ ] **CLASSIFY-01**: Each article is classified into exactly one of 7 sections (Threat Intelligence, Vulnerabilities, Breaches, Ransomware, Industry/Policy, Tools/Techniques, Advisories) via keyword/regex rules, first-match-wins, defaulting to Industry/Policy when nothing matches
-- [ ] **CLASSIFY-02**: Within each section, articles are ranked by a combination of recency and source weight
-- [ ] **CLASSIFY-03**: Sections render in operational-urgency order — Vulnerabilities and Advisories first, Ransomware and Breaches next, Threat Intelligence next, Tools/Techniques next, Industry/Policy last
+- [x] **CLASSIFY-01**: Each article is classified into exactly one of 7 sections (Threat Intelligence, Vulnerabilities, Breaches, Ransomware, Industry/Policy, Tools/Techniques, Advisories) via keyword/regex rules, first-match-wins, defaulting to Industry/Policy when nothing matches
+- [x] **CLASSIFY-02**: Within each section, articles are ranked by a combination of recency and source weight
+- [x] **CLASSIFY-03**: Sections render in operational-urgency order — Vulnerabilities and Advisories first, Ransomware and Breaches next, Threat Intelligence next, Tools/Techniques next, Industry/Policy last
 
 ### Front Page UI
 
@@ -89,9 +89,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INGEST-05 | Phase 1 | Complete |
 | NORM-01 | Phase 1 | Complete |
 | NORM-02 | Phase 3 | Pending |
-| CLASSIFY-01 | Phase 3 | Pending |
-| CLASSIFY-02 | Phase 3 | Pending |
-| CLASSIFY-03 | Phase 3 | Pending |
+| CLASSIFY-01 | Phase 3 | Complete |
+| CLASSIFY-02 | Phase 3 | Complete |
+| CLASSIFY-03 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Pending |
 | UI-02 | Phase 1 | Complete |
 | UI-03 | Phase 3 | Pending |
