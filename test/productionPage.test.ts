@@ -2,6 +2,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
+import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
 
 /**
  * Drives a real `next start` production server and asserts the public
@@ -101,6 +102,38 @@ test("body contains exactly one of the two valid render states — never neither
       "present — neither means the blank-page failure this criterion exists to exclude, and both means " +
       "the empty state rendered alongside real articles"
   );
+});
+
+// Real-page CLASSIFY-03 check: every data-section attribute value in the
+// production HTML must be a member of SECTION_DISPLAY_ORDER, in strictly
+// increasing display-order index (D-12), present alongside an article
+// anchor and absent from the empty state.
+test("data-section values on the real production page follow SECTION_DISPLAY_ORDER", async () => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+
+  const dataSections = [...body.matchAll(/data-section="([^"]+)"/g)].map((m) => m[1]);
+
+  const hasArticleAnchor = /target="_blank" rel="noopener noreferrer"/.test(body);
+  const hasEmptyState = body.includes("No articles in the last 24 hours");
+
+  let lastIndex = -1;
+  for (const section of dataSections) {
+    const index = SECTION_DISPLAY_ORDER.indexOf(section as (typeof SECTION_DISPLAY_ORDER)[number]);
+    assert.ok(index >= 0, `expected data-section="${section}" to be a member of SECTION_DISPLAY_ORDER`);
+    assert.ok(
+      index > lastIndex,
+      `expected data-section="${section}" to appear after the previous section in SECTION_DISPLAY_ORDER (D-12)`
+    );
+    lastIndex = index;
+  }
+
+  if (hasArticleAnchor) {
+    assert.ok(dataSections.length > 0, "expected at least one data-section when an article anchor is present");
+  }
+  if (hasEmptyState) {
+    assert.equal(dataSections.length, 0, "expected no data-section attributes in the empty state");
+  }
 });
 
 test("two consecutive requests return byte-identical HTML", async () => {
