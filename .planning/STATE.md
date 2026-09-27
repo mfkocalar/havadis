@@ -82,7 +82,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- ⚠️ [Phase 2 → Phase 3] CrowdStrike titles carry an undecoded literal `&trade;` entity (rss-parser decodes entities in contentSnippet but not item.title) — cosmetic, found during G-02-5 diagnosis; worth fixing in Phase 3's normalization/dedupe work since title normalization feeds the dedupe key.
+None currently open. [Resolved: CrowdStrike `&trade;` undecoded-entity blocker closed by Phase 3 Plan 03-02 Task 1 (D-04) — `decodeHtmlEntities` now decodes titles once in `normalize.ts`.]
 
 ## Deferred Items
 

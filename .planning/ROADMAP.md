@@ -102,7 +102,7 @@ Plans:
   4. Within each section, articles are ordered by a combination of recency and source weight, not raw feed order.
   5. Any article whose title or summary contains a CVE identifier (pattern `CVE-\d{4}-\d{4,7}`) displays a visible CVE-ID chip.
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -111,7 +111,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — Decode title HTML entities once in `normalize.ts` (closes the CrowdStrike `&trade;` blocker), then collapse the same story from several outlets to its earliest copy via canonical-URL-or-normalized-title union-find dedupe
+- [x] 03-02-PLAN.md — Decode title HTML entities once in `normalize.ts` (closes the CrowdStrike `&trade;` blocker), then collapse the same story from several outlets to its earliest copy via canonical-URL-or-normalized-title union-find dedupe
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -144,5 +144,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
 | 2. Full Ingestion & Failure Isolation | 4/4 | Complete    | 2026-09-23 |
-| 3. Deduplication, Classification & Ranking | 1/3 | In Progress|  |
+| 3. Deduplication, Classification & Ranking | 2/3 | In Progress|  |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |
