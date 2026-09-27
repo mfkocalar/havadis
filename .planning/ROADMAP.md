@@ -102,12 +102,12 @@ Plans:
   4. Within each section, articles are ordered by a combination of recency and source weight, not raw feed order.
   5. Any article whose title or summary contains a CVE identifier (pattern `CVE-\d{4}-\d{4,7}`) displays a visible CVE-ID chip.
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Tracer: keyword classification into 7 urgency-ordered section headings on the live page, then tier-weight x clamped-recency ranking within sections, locked by fixtures, a live snapshot and a real-page order test
+- [x] 03-01-PLAN.md — Tracer: keyword classification into 7 urgency-ordered section headings on the live page, then tier-weight x clamped-recency ranking within sections, locked by fixtures, a live snapshot and a real-page order test
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -144,5 +144,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
 | 2. Full Ingestion & Failure Isolation | 4/4 | Complete    | 2026-09-23 |
-| 3. Deduplication, Classification & Ranking | 0/TBD | Not started | - |
+| 3. Deduplication, Classification & Ranking | 1/3 | In Progress|  |
 | 4. Newspaper Front Page, Filtering & Mobile Polish | 0/TBD | Not started | - |
