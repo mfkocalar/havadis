@@ -51,7 +51,12 @@ export function ArticleCard({ article }: { article: Article }) {
        * tree; only its rendered height is bounded, which is why UI-02's
        * verbatim guarantee still holds.
        */}
-      <h2 className="mt-3 line-clamp-3 text-xl font-semibold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50">
+      {/*
+       * h3, not h2: page.tsx's per-section headings are now the page's h2
+       * level (D-16), so the card title moves down one level to keep a
+       * valid document outline (WCAG 1.3.1).
+       */}
+      <h3 className="mt-3 line-clamp-3 text-xl font-semibold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50">
         <a
           href={article.url}
           target="_blank"
@@ -60,7 +65,7 @@ export function ArticleCard({ article }: { article: Article }) {
         >
           {article.title}
         </a>
-      </h2>
+      </h3>
 
       {/*
        * Three-line clamp (D-08), sized against SUMMARY_MAX_CHARS: the
