@@ -16,7 +16,7 @@
 ### Normalization & Deduplication
 
 - [x] **NORM-01**: Each article, regardless of source feed dialect (RSS 2.0 or Atom), is normalized to a common shape: title, url, source, source tier, published time, summary
-- [ ] **NORM-02**: Duplicate articles — same normalized (title, url) pair appearing from more than one source — are shown once
+- [x] **NORM-02**: Duplicate articles — same normalized (title, url) pair appearing from more than one source — are shown once
 
 ### Classification & Ranking
 
@@ -88,7 +88,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INGEST-04 | Phase 1 | Complete |
 | INGEST-05 | Phase 1 | Complete |
 | NORM-01 | Phase 1 | Complete |
-| NORM-02 | Phase 3 | Pending |
+| NORM-02 | Phase 3 | Complete |
 | CLASSIFY-01 | Phase 3 | Complete |
 | CLASSIFY-02 | Phase 3 | Complete |
 | CLASSIFY-03 | Phase 3 | Complete |
