@@ -2,8 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SOURCES } from "../config/sources.ts";
 import { SECTION_DISPLAY_ORDER } from "../config/sections.ts";
+import { canonicalizeUrl } from "./canonicalizeUrl.ts";
 import { fetchSource } from "./fetchSource.ts";
 import { getFrontPage } from "./getFrontPage.ts";
+import { normalizeTitleForDedupe } from "./normalizeTitleForDedupe.ts";
 import { rankScore } from "./rank.ts";
 
 /**
@@ -145,6 +147,37 @@ test("within every live section, adjacent articles are non-increasing by rankSco
         `expected ${JSON.stringify(prev.title)} (score ${rankScore(prev, now)}) to rank at or ` +
           `above ${JSON.stringify(next.title)} (score ${rankScore(next, now)}) within section ${group.section}`
       );
+    }
+  }
+});
+
+// NORM-02 live invariant (assumption-delta guard, see 03-02-PLAN.md's
+// <assumption_delta_decision>): dedupe guarantees uniqueness by
+// construction, but this assertion proves it holds against today's real
+// feed data too — so `page.tsx`'s `key={article.url}` can never silently
+// collide. Both the canonical URL key and any non-empty normalized title
+// key must also stay unique, since dedupe unions on either.
+test("post-dedupe, every article.url, canonicalizeUrl key, and non-empty normalizeTitleForDedupe key is unique", async () => {
+  const result = await getFrontPage();
+  assert.equal(result.status, "ok");
+  if (result.status !== "ok") return;
+
+  const urls = new Set<string>();
+  const urlKeys = new Set<string>();
+  const titleKeys = new Set<string>();
+
+  for (const article of result.articles) {
+    assert.ok(!urls.has(article.url), `duplicate article.url: ${article.url}`);
+    urls.add(article.url);
+
+    const urlKey = canonicalizeUrl(article.url);
+    assert.ok(!urlKeys.has(urlKey), `duplicate canonical URL key: ${urlKey}`);
+    urlKeys.add(urlKey);
+
+    const titleKey = normalizeTitleForDedupe(article.title);
+    if (titleKey !== "") {
+      assert.ok(!titleKeys.has(titleKey), `duplicate normalized title key: ${titleKey}`);
+      titleKeys.add(titleKey);
     }
   }
 });

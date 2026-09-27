@@ -48,16 +48,38 @@ test("a well-formed item normalizes to an Article with every field populated and
   });
 });
 
-test("title containing markup and an ampersand entity survives verbatim (escaping is the render layer's job)", () => {
+test("title's HTML entities decode exactly once (D-04); non-entity markup stays literal", () => {
   const article = normalize(
     item({ title: "R&amp;D team ships <patch> for CVE-2026-0001" }),
     source
   );
   assert.equal(
     article?.title,
-    "R&amp;D team ships <patch> for CVE-2026-0001",
-    "normalize must not strip, unescape, or rewrite feed-supplied markup/entities"
+    "R&D team ships <patch> for CVE-2026-0001",
+    "normalize decodes the title's HTML entities once per D-04; <patch> is not an entity and stays literal"
   );
+});
+
+test("title trademark entity decodes to the trademark sign (closes the STATE.md CrowdStrike blocker)", () => {
+  const article = normalize(
+    item({ title: "CrowdStrike Falcon&trade; Adds X" }),
+    source
+  );
+  assert.equal(article?.title, "CrowdStrike Falcon™ Adds X");
+});
+
+test("title decodes before trimming: a leading/trailing &nbsp; is trimmed away", () => {
+  const article = normalize(item({ title: "&nbsp;Headline&nbsp;" }), source);
+  assert.equal(article?.title, "Headline");
+});
+
+test("returns null when the title is entity-encoded whitespace only", () => {
+  assert.equal(normalize(item({ title: "&nbsp;&nbsp;" }), source), null);
+});
+
+test("summary is not entity-decoded again: contentSnippet already-decoded text passes through unchanged", () => {
+  const article = normalize(item({ contentSnippet: "5 &lt; 6" }), source);
+  assert.equal(article?.summary, "5 &lt; 6");
 });
 
 test("returns null when title is missing", () => {
