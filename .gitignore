@@ -43,6 +43,8 @@ next-env.d.ts
 # havadis planning
 .planning/research/.cache/
 .planning/state.json
+.planning/milestone.lock
 
 # gsd internal runtime state
 .gsd/
+.claude/worktrees/
