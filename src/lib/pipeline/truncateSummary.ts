@@ -9,11 +9,13 @@
  * payload entirely, rather than merely hiding it with CSS after it
  * arrives.
  *
- * This module deliberately does NOT touch the title — `normalize.ts`
- * keeps `title: item.title.trim()` unchanged. The title's measured spread
- * is only ~3.1x across sources (vs. the summary's ~94x) and it is the
- * card's primary affordance, so ArticleCard.tsx's presentational clamp is
- * sufficient there.
+ * This module deliberately does NOT touch the title — the title is not
+ * capped here at all. `normalize.ts` now entity-decodes the title exactly
+ * once (D-04), a different transform from capping: decoding restores the
+ * publisher's intended characters, it does not bound length. The title's
+ * measured spread is only ~3.1x across sources (vs. the summary's ~94x) and
+ * it is the card's primary affordance, so ArticleCard.tsx's presentational
+ * clamp is sufficient there.
  */
 
 /**
