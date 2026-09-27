@@ -2,6 +2,7 @@ import { SOURCES } from "../config/sources.ts";
 import type { Article, SectionedFrontPageResult } from "../types.ts";
 import { classify } from "./classify.ts";
 import { dedupe } from "./dedupe.ts";
+import { extractCves } from "./extractCves.ts";
 import { fanOut } from "./fanOut.ts";
 import { filterLookback } from "./filterLookback.ts";
 import { groupBySection } from "./groupBySection.ts";
@@ -10,10 +11,11 @@ import { groupBySection } from "./groupBySection.ts";
  * Pure, synchronous seam composing the post-fetch pipeline stages:
  * dedupe the same story arriving from more than one source down to its
  * earliest copy (NORM-02, D-01/D-02/D-03), then classify each surviving
- * article into its `Section`, then group into non-empty `SectionGroup`s,
- * ranked within each section by tier weight x recency decay (CLASSIFY-02)
- * and ordered by `SECTION_DISPLAY_ORDER` (D-12). `sections` is the runtime
- * authority; the flat `articles` field is always derived from it
+ * article into its `Section` and extract its CVE IDs (UI-03, D-13), then
+ * group into non-empty `SectionGroup`s, ranked within each section by tier
+ * weight x recency decay (CLASSIFY-02) and ordered by
+ * `SECTION_DISPLAY_ORDER` (D-12). `sections` is the runtime authority; the
+ * flat `articles` field is always derived from it
  * (`sections.flatMap((g) => g.articles)`), never computed independently
  * (RESEARCH.md Open Question 1). `now` is threaded straight through to
  * `groupBySection`/`rankWithinSection` — nothing in this composition reads
@@ -21,18 +23,22 @@ import { groupBySection } from "./groupBySection.ts";
  * this plan's own tests) can prove the composed pipeline hermetically,
  * without touching the network.
  *
- * Stage order: dedupe -> classify -> groupBySection (ranking within).
- * Dedupe runs first so classification and ranking only ever see one card
- * per story — this is also what makes `page.tsx`'s `key={article.url}`
- * safe to rely on for uniqueness (dedupe guarantees no two surviving
- * articles share a `url`).
+ * Stage order: dedupe -> classify + extractCves -> groupBySection (ranking
+ * within). Dedupe runs first so classification, CVE extraction and ranking
+ * only ever see one card per story — this is also what makes `page.tsx`'s
+ * `key={article.url}` safe to rely on for uniqueness (dedupe guarantees no
+ * two surviving articles share a `url`).
  */
 export function composeFrontPage(
   articles: Article[],
   now: number
 ): Extract<SectionedFrontPageResult, { status: "ok" }> {
   const deduped = dedupe(articles);
-  const classified = deduped.map((article) => ({ ...article, section: classify(article) }));
+  const classified = deduped.map((article) => ({
+    ...article,
+    section: classify(article),
+    cves: extractCves(article),
+  }));
   const sections = groupBySection(classified, now);
   return { status: "ok", articles: sections.flatMap((group) => group.articles), sections };
 }

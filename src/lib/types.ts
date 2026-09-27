@@ -75,10 +75,17 @@ export type Section =
  * An `Article` after classification. Derived, not a widening of `Article`
  * itself — `Article` stays exactly six fields because `normalize`,
  * `fetchSource` and `fanOut` all construct it and `fanOut.test.ts` pins its
- * key set to exactly those six fields. (Plan 03-03 adds a `cves` field to
- * this type.)
+ * key set to exactly those six fields.
  */
-export type ClassifiedArticle = Article & { section: Section };
+export type ClassifiedArticle = Article & {
+  section: Section;
+  /**
+   * CVE IDs found in this article's title and capped summary (UI-03, D-13):
+   * uppercase, de-duplicated, kept in first-appearance order with title IDs
+   * before summary IDs. Computed by `extractCves` in `composeFrontPage`.
+   */
+  cves: string[];
+};
 
 /** One non-empty section's ranked articles, in `SECTION_DISPLAY_ORDER` position. */
 export type SectionGroup = { section: Section; articles: ClassifiedArticle[] };
