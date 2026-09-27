@@ -4,6 +4,7 @@ import { SOURCES } from "../config/sources.ts";
 import { SECTION_DISPLAY_ORDER } from "../config/sections.ts";
 import { fetchSource } from "./fetchSource.ts";
 import { getFrontPage } from "./getFrontPage.ts";
+import { rankScore } from "./rank.ts";
 
 /**
  * End-to-end test driving the whole traced path against the live feeds —
@@ -121,5 +122,29 @@ test("getFrontPage()'s contributing sources are a subset of the configured sourc
   const contributing = new Set(result.articles.map((a) => a.source));
   for (const source of contributing) {
     assert.ok(names.has(source), `${source} is not a configured source name`);
+  }
+});
+
+// Live CLASSIFY-02 check: within every section, adjacent articles must be
+// non-increasing by rankScore for the same `now` passed to getFrontPage(now)
+// (D-09). Sampling `now` once and threading it into both getFrontPage and
+// rankScore keeps the comparison consistent with a single instant, exactly
+// as rank.ts's own contract requires.
+test("within every live section, adjacent articles are non-increasing by rankScore for the same now", async () => {
+  const now = Date.now();
+  const result = await getFrontPage(now);
+  assert.equal(result.status, "ok");
+  if (result.status !== "ok") return;
+
+  for (const group of result.sections) {
+    for (let i = 1; i < group.articles.length; i++) {
+      const prev = group.articles[i - 1];
+      const next = group.articles[i];
+      assert.ok(
+        rankScore(prev, now) >= rankScore(next, now),
+        `expected ${JSON.stringify(prev.title)} (score ${rankScore(prev, now)}) to rank at or ` +
+          `above ${JSON.stringify(next.title)} (score ${rankScore(next, now)}) within section ${group.section}`
+      );
+    }
   }
 });
