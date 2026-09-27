@@ -24,6 +24,12 @@ export const SOURCES: SourceConfig[] = [
     name: "Krebs on Security",
     tier: "Security Research",
     url: "https://krebsonsecurity.com/feed/",
+    // Krebs's bare /feed path serves genuinely valid RSS under
+    // `text/html; charset=UTF-8` (confirmed live 2026-09-27, and the exact
+    // case `fetchSource.ts`'s `allowHtmlContentType` opt-in was built for —
+    // see its comment). This entry never set the flag, so Krebs has been
+    // silently dropped by the content-type gate since Phase 2; this fixes it.
+    allowHtmlContentType: true,
   },
   // CISA's PROJECT.md URL returns 200 (no redirect) at 427,927 bytes, well
   // under the 2MB body cap — wired in as-is. CISA's <pubDate> uses a
