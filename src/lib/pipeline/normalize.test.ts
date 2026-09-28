@@ -123,6 +123,22 @@ test("falls back to an empty string summary when no description/content is prese
   assert.equal(article?.summary, "");
 });
 
+test("does not fall back to raw item.content when contentSnippet is absent (WR-01): summary stays empty rather than rendering unstripped markup", () => {
+  const article = normalize(
+    item({
+      contentSnippet: undefined,
+      content: "<p>Raw <strong>unstripped</strong> markup &amp; entities</p>",
+    }),
+    source
+  );
+  assert.notEqual(article, null);
+  assert.equal(
+    article?.summary,
+    "",
+    "item.content is never HTML-stripped by rss-parser, so it must not be used as a summary fallback"
+  );
+});
+
 test("carries the source name and tier onto the normalized article", () => {
   const article = normalize(item({}), source);
   assert.equal(article?.source, "Krebs on Security");

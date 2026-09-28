@@ -35,6 +35,15 @@ import { truncateSummary } from "./truncateSummary.ts";
  * NOT entity-decoded again here: `rss-parser`'s `contentSnippet` is already
  * entity-decoded (that's the exact asymmetry D-04 fixes for titles), so a
  * second decode pass over the summary would alter publisher text.
+ *
+ * `summary` is sourced from `contentSnippet` only, never `item.content`:
+ * `rss-parser` auto-generates `contentSnippet` by stripping HTML tags from
+ * the raw content, but `item.content` itself is NOT stripped and can
+ * contain raw markup. `ArticleCard.tsx` renders `article.summary` as a
+ * plain JSX text node on the assumption that it is already HTML-stripped
+ * (WR-01) — falling back to the unstripped `item.content` would violate
+ * that assumption and display raw markup on the front page. A missing
+ * `contentSnippet` is therefore treated the same as a missing summary.
  */
 export function normalize(item: Parser.Item, source: SourceConfig): Article | null {
   if (!item.title || !item.link || !item.isoDate) return null;
@@ -58,6 +67,6 @@ export function normalize(item: Parser.Item, source: SourceConfig): Article | nu
     source: source.name,
     sourceTier: source.tier,
     publishedAt: item.isoDate,
-    summary: truncateSummary((item.contentSnippet ?? item.content ?? "").trim()),
+    summary: truncateSummary((item.contentSnippet ?? "").trim()),
   };
 }
