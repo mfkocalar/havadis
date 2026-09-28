@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { SOURCES } from "../config/sources.ts";
 import { SECTION_DISPLAY_ORDER } from "../config/sections.ts";
 import { canonicalizeUrl } from "./canonicalizeUrl.ts";
+import { extractCves } from "./extractCves.ts";
 import { fetchSource } from "./fetchSource.ts";
 import { getFrontPage } from "./getFrontPage.ts";
 import { normalizeTitleForDedupe } from "./normalizeTitleForDedupe.ts";
@@ -179,5 +180,30 @@ test("post-dedupe, every article.url, canonicalizeUrl key, and non-empty normali
       assert.ok(!titleKeys.has(titleKey), `duplicate normalized title key: ${titleKey}`);
       titleKeys.add(titleKey);
     }
+  }
+});
+
+// UI-03 live invariant: every article.cves entry is a well-formed CVE ID,
+// has no duplicates, and equals extractCves(article) — proving getFrontPage
+// never diverges from the pure extraction function against real feed data.
+test("every live article.cves entry matches the CVE ID shape, has no duplicates, and equals extractCves(article)", async () => {
+  const result = await getFrontPage();
+  assert.equal(result.status, "ok");
+  if (result.status !== "ok") return;
+
+  const CVE_ID_SHAPE = /^CVE-\d{4}-\d{4,7}$/;
+  for (const article of result.articles) {
+    assert.ok(Array.isArray(article.cves), "expected article.cves to be an array");
+    const seen = new Set<string>();
+    for (const id of article.cves) {
+      assert.ok(CVE_ID_SHAPE.test(id), `expected ${id} to match ${CVE_ID_SHAPE}`);
+      assert.ok(!seen.has(id), `duplicate CVE ID ${id} on article ${article.url}`);
+      seen.add(id);
+    }
+    assert.deepEqual(
+      article.cves,
+      extractCves(article),
+      `expected article.cves to equal extractCves(article) for ${article.url}`
+    );
   }
 });
