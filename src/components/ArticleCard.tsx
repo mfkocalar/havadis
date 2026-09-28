@@ -1,6 +1,7 @@
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { SourceTierBadge } from "@/components/SourceTierBadge";
-import type { Article } from "@/lib/types";
+import { CveChips } from "@/components/CveChips";
+import type { ClassifiedArticle } from "@/lib/types";
 
 /**
  * The complete UI-02 article card, built to the "Modern editorial"
@@ -9,12 +10,13 @@ import type { Article } from "@/lib/types";
  * a hover treatment — closer to a modern tech-news site than a broadsheet
  * pastiche or a dark terminal look.
  *
- * All six UI-02 fields are rendered as ordinary JSX text nodes — no
- * raw-HTML injection prop is used anywhere in this file. `rss-parser`
- * already delivers an HTML-stripped snippet, and feed fields are
- * untrusted external input (threat T-01-07). This stays a Server
- * Component: the absolute-time hover is the native `title` attribute, so
- * no client JavaScript is needed anywhere in this file.
+ * All six UI-02 fields, plus the CVE chips (UI-03, a seventh rendered
+ * element built from validated IDs, see `CveChips.tsx`), are rendered as
+ * ordinary JSX text nodes — no raw-HTML injection prop is used anywhere in
+ * this file. `rss-parser` already delivers an HTML-stripped snippet, and
+ * feed fields are untrusted external input (threat T-01-07). This stays a
+ * Server Component: the absolute-time hover is the native `title`
+ * attribute, so no client JavaScript is needed anywhere in this file.
  *
  * Per D-08 (02-CONTEXT.md), both the title and the summary are now
  * visually bounded to three lines via Tailwind's `line-clamp-3`. This
@@ -28,7 +30,7 @@ import type { Article } from "@/lib/types";
  * an ordinary JSX text node with no raw-HTML injection prop anywhere in
  * it. Do not reinstate the old no-clamp gate as a "fix" — read D-08 first.
  */
-export function ArticleCard({ article }: { article: Article }) {
+export function ArticleCard({ article }: { article: ClassifiedArticle }) {
   const absoluteTime = new Date(article.publishedAt).toLocaleString();
 
   return (
@@ -38,6 +40,7 @@ export function ArticleCard({ article }: { article: Article }) {
           {article.source}
         </span>
         <SourceTierBadge tier={article.sourceTier} />
+        <CveChips cves={article.cves} />
       </div>
 
       {/*

@@ -91,7 +91,10 @@ test("body contains exactly one of the two valid render states — never neither
   // target="_blank" rel="noopener noreferrer" and no other element on the
   // page does (see src/components/ArticleCard.tsx, src/app/layout.tsx) —
   // this is the render-state signal, independent of which of the 13
-  // sources actually contributed the article.
+  // sources actually contributed the article. Phase 3's CVE chip anchors
+  // (src/components/CveChips.tsx) now also carry this exact attribute
+  // pair, but a chip only ever renders inside an article card next to the
+  // tier badge, so the signal still means "at least one article rendered".
   const hasArticleAnchor = /target="_blank" rel="noopener noreferrer"/.test(body);
   const hasEmptyState = body.includes("No articles in the last 24 hours");
 
@@ -133,6 +136,33 @@ test("data-section values on the real production page follow SECTION_DISPLAY_ORD
   }
   if (hasEmptyState) {
     assert.equal(dataSections.length, 0, "expected no data-section attributes in the empty state");
+  }
+});
+
+// Real-page D-14 check: every anchor whose href references NVD's CVE detail
+// page must match the exact shape and carry both target="_blank" and
+// rel="noopener noreferrer", independent of attribute order in the emitted
+// markup.
+test("every NVD anchor on the real production page has the exact href shape and carries target/rel", async () => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+
+  const anchorTags = [...body.matchAll(/<a\b[^>]*>/g)].map((m) => m[0]);
+  const nvdAnchors = anchorTags.filter((tag) => tag.includes("nvd.nist.gov"));
+
+  for (const tag of nvdAnchors) {
+    const hrefMatch = tag.match(/href="([^"]*)"/);
+    assert.ok(hrefMatch, `expected an href attribute on NVD anchor tag: ${tag}`);
+    assert.match(
+      hrefMatch![1],
+      /^https:\/\/nvd\.nist\.gov\/vuln\/detail\/CVE-\d{4}-\d{4,7}$/,
+      `expected NVD anchor href to match the exact detail-page shape, got ${hrefMatch![1]}`
+    );
+    assert.ok(tag.includes('target="_blank"'), `expected target="_blank" on NVD anchor: ${tag}`);
+    assert.ok(
+      tag.includes('rel="noopener noreferrer"'),
+      `expected rel="noopener noreferrer" on NVD anchor: ${tag}`
+    );
   }
 });
 
