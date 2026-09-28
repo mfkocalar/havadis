@@ -203,3 +203,7 @@ Phase 3 complete — ready for phase verification. Task 2's plan carries an expl
 ---
 *Phase: 03-deduplication-classification-ranking*
 *Completed: 2026-09-28*
+
+## Self-Check: PASSED
+
+All created files found on disk (extractCves.ts, cveChips.ts, CveChips.tsx, extractCves.test.ts, cveChips.test.ts, COVERAGE.md, 03-03-SUMMARY.md). All commit hashes found in `git log --oneline --all` (f5131ac, 36c061f, 5e26e16, 6d363da).
