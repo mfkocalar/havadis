@@ -20,6 +20,21 @@ const READY_POLL_INTERVAL_MS = 500;
 let server: ChildProcess | null = null;
 let stderrLog = "";
 
+/**
+ * Detects "at least one article anchor rendered" tolerant of attribute
+ * order, the same way the NVD-anchor check below already is: extract each
+ * `<a>` tag first, then test each tag for both attributes independently
+ * rather than relying on one exact adjacent-and-ordered string match (see
+ * WR-04, 03-REVIEW.md) — a JSX attribute-order change or React/Next.js
+ * serialization-order bump would otherwise silently break this signal.
+ */
+function hasArticleAnchorTag(body: string): boolean {
+  const anchorTags = [...body.matchAll(/<a\b[^>]*>/g)].map((m) => m[0]);
+  return anchorTags.some(
+    (tag) => tag.includes('target="_blank"') && tag.includes('rel="noopener noreferrer"')
+  );
+}
+
 async function pollUntilReady(): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -95,7 +110,7 @@ test("body contains exactly one of the two valid render states — never neither
   // (src/components/CveChips.tsx) now also carry this exact attribute
   // pair, but a chip only ever renders inside an article card next to the
   // tier badge, so the signal still means "at least one article rendered".
-  const hasArticleAnchor = /target="_blank" rel="noopener noreferrer"/.test(body);
+  const hasArticleAnchor = hasArticleAnchorTag(body);
   const hasEmptyState = body.includes("No articles in the last 24 hours");
 
   assert.notEqual(
@@ -117,7 +132,7 @@ test("data-section values on the real production page follow SECTION_DISPLAY_ORD
 
   const dataSections = [...body.matchAll(/data-section="([^"]+)"/g)].map((m) => m[1]);
 
-  const hasArticleAnchor = /target="_blank" rel="noopener noreferrer"/.test(body);
+  const hasArticleAnchor = hasArticleAnchorTag(body);
   const hasEmptyState = body.includes("No articles in the last 24 hours");
 
   let lastIndex = -1;
