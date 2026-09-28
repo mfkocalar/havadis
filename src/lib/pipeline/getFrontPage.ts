@@ -60,6 +60,10 @@ export async function getFrontPage(now: number = Date.now()): Promise<SectionedF
   try {
     return composeFrontPage(filterLookback(await fanOut(SOURCES)), now);
   } catch (err) {
+    // WR-03: page.tsx discards `reason` and renders the same quiet empty
+    // state as a genuinely quiet 24h window (D-03), so this log line is the
+    // only operator-visible trail a total pipeline failure leaves behind.
+    console.error("getFrontPage failed:", err);
     return {
       status: "error",
       reason: err instanceof Error ? err.message : "unknown getFrontPage error",
