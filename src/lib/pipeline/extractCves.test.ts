@@ -60,6 +60,14 @@ test("a 3-digit sequence number does not match", () => {
   assert.deepEqual(extractCves({ title: "CVE-2026-123 is not a valid ID shape", summary: "" }), []);
 });
 
+test("an 8+-digit sequence number is rejected outright, not truncated into a wrong-but-valid-looking ID (WR-02)", () => {
+  assert.deepEqual(
+    extractCves({ title: "CVE-2026-123456789 is not a valid ID shape", summary: "" }),
+    [],
+    "must not silently truncate to CVE-2026-1234567"
+  );
+});
+
 test("a 2-digit year does not match", () => {
   assert.deepEqual(extractCves({ title: "CVE-26-1234 is not a valid ID shape", summary: "" }), []);
 });
