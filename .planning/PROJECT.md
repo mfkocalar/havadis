@@ -22,7 +22,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
 - [ ] User can view a responsive, newspaper-style front page of current security news, grouped into 7 sections
 - [ ] Articles are deduplicated (same story from multiple sources shown once)
 - [ ] Articles are classified into sections via keyword rules (ported from reference repo taxonomy)
-- [ ] Sections are rendered in SOC/CISO triage-urgency order (Vulnerabilities/Threat Intel/Breaches/Ransomware first, Tools/Advisories/Industry-Policy after), not alphabetical or config-declaration order
+- [ ] Sections are rendered in SOC/CISO triage-urgency order (Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy — per Phase 3 D-12 and REQUIREMENTS.md CLASSIFY-03), not alphabetical or config-declaration order
 - [ ] Articles are ranked within each section (recency + source weight)
 - [ ] User can filter the front page by section/category (client-side, over the already-cached snapshot)
 - [ ] Site works well on mobile (narrow viewport) and desktop
@@ -65,9 +65,10 @@ Security experts get a fast, reliable, always-current front page of what's happe
   - 🏛️ INDUSTRY_POLICY — regulation, policy, compliance, GDPR, HIPAA, law, government (also the default bucket)
   - 🔧 TOOLS_TECHNIQUES — tool, technique, framework, methodology, defense, detection
   - 📢 ADVISORIES — advisory, alert, warning, notice, recommend, security bulletin
+- The tuned, word-bounded keyword lists actually used live in src/lib/config/sections.ts (Phase 3 D-07; every deviation from the list above is documented there). Industry/Policy is the default-only bucket, not an active rule (D-05).
 - Lookback window: 24 hours per source per refresh (articles older than 24h are dropped from consideration).
 - Cache/revalidation window: ~15 minutes. Implemented via Next.js `fetch(url, { next: { revalidate: 900 } })` per source — Vercel's Data Cache serves the derived front page to all visitors and only re-runs ingestion in the background after the window expires (stale-while-revalidate). No cron, no KV, no DB for v1.
-- Deduplication approach (ported from reference repo): dedupe by normalized (title, url) pair.
+- Deduplication approach (Phase 3 D-01, widened from the reference repo's normalized (title, url) pair): two articles are the same story if either their canonical URLs or their normalized titles match; the earliest-published copy survives (D-02), and the collapse is silent (D-03).
 - Must run entirely within Vercel's free tier — this rules out always-on infrastructure, paid KV/DB add-ons, and anything that scales cost with traffic in a way that could exceed free-tier limits.
 
 ## Constraints

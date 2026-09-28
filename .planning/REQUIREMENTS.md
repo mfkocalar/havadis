@@ -16,7 +16,7 @@
 ### Normalization & Deduplication
 
 - [x] **NORM-01**: Each article, regardless of source feed dialect (RSS 2.0 or Atom), is normalized to a common shape: title, url, source, source tier, published time, summary
-- [x] **NORM-02**: Duplicate articles — same normalized (title, url) pair appearing from more than one source — are shown once
+- [x] **NORM-02**: Duplicate articles — same normalized (title, url) pair appearing from more than one source — are shown once (widened per decision D-01, 03-CONTEXT.md: two articles are duplicates when either their canonical URLs or their normalized titles match — an exact (title, url) pair almost never matches across outlets)
 
 ### Classification & Ranking
 
