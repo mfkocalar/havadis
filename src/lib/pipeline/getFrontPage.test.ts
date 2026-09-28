@@ -127,3 +127,31 @@ test("n distinct stories across three sections produce n articles, groups in SEC
     result.sections.flatMap((g) => g.articles)
   );
 });
+
+test("an article with a CVE ID in its summary gets cves through the composed pipeline and lands in Vulnerabilities", () => {
+  const withCve = article({
+    title: "Emergency patch released",
+    url: "https://d.test/cve-story",
+    source: "Source D",
+    summary: "Addresses cve-2026-4242 in a widely-used library.",
+  });
+
+  const result = composeFrontPage([withCve], NOW);
+
+  assert.equal(result.articles.length, 1);
+  assert.deepEqual(result.articles[0].cves, ["CVE-2026-4242"]);
+  assert.equal(result.articles[0].section, "Vulnerabilities");
+});
+
+test("an article with no CVE ID gets an empty cves array through the composed pipeline", () => {
+  const noCve = article({
+    title: "Quarterly earnings call discusses cloud growth",
+    url: "https://e.test/no-cve-story",
+    source: "Source E",
+  });
+
+  const result = composeFrontPage([noCve], NOW);
+
+  assert.equal(result.articles.length, 1);
+  assert.deepEqual(result.articles[0].cves, []);
+});
