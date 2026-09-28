@@ -19,9 +19,20 @@ import { rankScore } from "./rank.ts";
  * itself) rather than hard-coding a single source's name/tier/URL prefix,
  * because this phase widens `SOURCES` beyond one entry and any article in
  * the combined list may come from any configured source.
+ *
+ * Gated behind an explicit `E2E=1` opt-in (WR-05, 03-REVIEW.md): these
+ * tests make unmocked live network calls to 13 real third-party domains
+ * with no retry/offline handling, so a network-restricted `npm test` (a
+ * common CI/sandbox restriction) must not fail on infrastructure it
+ * doesn't control. Run with `E2E=1 npm test` (or a scheduled job with
+ * egress) to actually exercise this file.
  */
 
-test("fetchSource(Krebs) yields at least one normalized article before lookback filtering", async () => {
+const E2E_SKIP_REASON =
+  "Skipped: set E2E=1 to run this suite against live third-party feeds (see WR-05, 03-REVIEW.md)";
+const e2eOptions = { skip: process.env.E2E === "1" ? false : E2E_SKIP_REASON };
+
+test("fetchSource(Krebs) yields at least one normalized article before lookback filtering", e2eOptions, async () => {
   const krebs = SOURCES.find((s) => s.id === "krebs");
   assert.ok(krebs, "expected a krebs entry in SOURCES");
   const result = await fetchSource(krebs!);
@@ -35,7 +46,7 @@ test("fetchSource(Krebs) yields at least one normalized article before lookback 
   );
 });
 
-test("getFrontPage() resolves to the ok variant with well-formed, current articles from configured sources", async () => {
+test("getFrontPage() resolves to the ok variant with well-formed, current articles from configured sources", e2eOptions, async () => {
   const result = await getFrontPage();
   assert.equal(result.status, "ok", "getFrontPage must never surface an error while at least one source is healthy");
   if (result.status !== "ok") return;
@@ -84,7 +95,7 @@ test("getFrontPage() resolves to the ok variant with well-formed, current articl
 // recency order across the whole flat list is structurally incompatible with
 // sectioned output (RESEARCH.md "Existing Tests Requiring Updates"). This is
 // the section-shape contract that replaces it.
-test("getFrontPage() groups every article into exactly one non-empty section, in SECTION_DISPLAY_ORDER", async () => {
+test("getFrontPage() groups every article into exactly one non-empty section, in SECTION_DISPLAY_ORDER", e2eOptions, async () => {
   const result = await getFrontPage();
   assert.equal(result.status, "ok");
   if (result.status !== "ok") return;
@@ -116,7 +127,7 @@ test("getFrontPage() groups every article into exactly one non-empty section, in
   );
 });
 
-test("getFrontPage()'s contributing sources are a subset of the configured source names", async () => {
+test("getFrontPage()'s contributing sources are a subset of the configured source names", e2eOptions, async () => {
   const result = await getFrontPage();
   assert.equal(result.status, "ok");
   if (result.status !== "ok") return;
@@ -133,7 +144,7 @@ test("getFrontPage()'s contributing sources are a subset of the configured sourc
 // (D-09). Sampling `now` once and threading it into both getFrontPage and
 // rankScore keeps the comparison consistent with a single instant, exactly
 // as rank.ts's own contract requires.
-test("within every live section, adjacent articles are non-increasing by rankScore for the same now", async () => {
+test("within every live section, adjacent articles are non-increasing by rankScore for the same now", e2eOptions, async () => {
   const now = Date.now();
   const result = await getFrontPage(now);
   assert.equal(result.status, "ok");
@@ -158,7 +169,7 @@ test("within every live section, adjacent articles are non-increasing by rankSco
 // feed data too — so `page.tsx`'s `key={article.url}` can never silently
 // collide. Both the canonical URL key and any non-empty normalized title
 // key must also stay unique, since dedupe unions on either.
-test("post-dedupe, every article.url, canonicalizeUrl key, and non-empty normalizeTitleForDedupe key is unique", async () => {
+test("post-dedupe, every article.url, canonicalizeUrl key, and non-empty normalizeTitleForDedupe key is unique", e2eOptions, async () => {
   const result = await getFrontPage();
   assert.equal(result.status, "ok");
   if (result.status !== "ok") return;
@@ -186,7 +197,7 @@ test("post-dedupe, every article.url, canonicalizeUrl key, and non-empty normali
 // UI-03 live invariant: every article.cves entry is a well-formed CVE ID,
 // has no duplicates, and equals extractCves(article) — proving getFrontPage
 // never diverges from the pure extraction function against real feed data.
-test("every live article.cves entry matches the CVE ID shape, has no duplicates, and equals extractCves(article)", async () => {
+test("every live article.cves entry matches the CVE ID shape, has no duplicates, and equals extractCves(article)", e2eOptions, async () => {
   const result = await getFrontPage();
   assert.equal(result.status, "ok");
   if (result.status !== "ok") return;
