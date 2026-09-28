@@ -7,6 +7,14 @@ import type { Article } from "../types.ts";
  * re-validates against an anchored variant of the same shape (D-14 defence
  * in depth) rather than importing this global-flag pattern directly.
  *
+ * The trailing `(?!\d)` (WR-02) rejects sequence numbers longer than 7
+ * digits outright rather than silently truncating them: without it, a
+ * hypothetical 8+-digit ID (e.g. `CVE-2026-123456789`) would greedily match
+ * only its first 7 digits, producing a different, syntactically-valid but
+ * wrong CVE ID rather than failing to match. `cveChips.ts`'s anchored
+ * `CVE_ID_SHAPE` already rejects this case via its own `$` anchor, so this
+ * lookahead brings the global-scan pattern's behavior in line with it.
+ *
  * `CVE_PATTERN` is a module-level `RegExp` with the `g` flag, so it carries
  * mutable `lastIndex` state across calls to `.match()`/`.exec()`. This is
  * safe here: `String.prototype.match(regexp)` with a global regexp always
@@ -14,7 +22,7 @@ import type { Article } from "../types.ts";
  * matches, so concurrent/sequential calls to `extractCves` never observe a
  * stale `lastIndex` from a previous call.
  */
-export const CVE_PATTERN = /CVE-\d{4}-\d{4,7}/gi;
+export const CVE_PATTERN = /CVE-\d{4}-\d{4,7}(?!\d)/gi;
 
 /**
  * Extracts every CVE ID from an article's title and capped summary (Phase 2
