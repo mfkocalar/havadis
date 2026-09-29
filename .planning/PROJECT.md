@@ -16,16 +16,18 @@ Security experts get a fast, reliable, always-current front page of what's happe
 - ✓ Front page is served from a short-lived cache — sources are not refetched on every request, only on a ~15 min revalidation window — Phase 1 (verified on a real Vercel preview)
 - ✓ Each article shows source name, source tier badge, title, summary, relative published time, and links out to the original article — Phase 1, text bounds amended Phase 2 (D-08)
 - ✓ Site is fully public with no authentication — Phase 1
+- ✓ Articles are deduplicated (same story from multiple sources shown once) — Phase 3 (widened per D-01: canonical-URL-or-normalized-title match, earliest-published copy survives)
+- ✓ Articles are classified into sections via keyword rules (ported from reference repo taxonomy, tuned per D-07) — Phase 3
+- ✓ Sections are rendered in SOC/CISO triage-urgency order (Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy — per Phase 3 D-12 and REQUIREMENTS.md CLASSIFY-03), not alphabetical or config-declaration order — Phase 3
+- ✓ Articles are ranked within each section (recency + source weight) — Phase 3
+- ✓ Visible CVE-ID chip on any article card whose title/summary matches the CVE pattern, linking out to NVD — Phase 3 (UI-03)
 
 ### Active
 
-- [ ] User can view a responsive, newspaper-style front page of current security news, grouped into 7 sections
-- [ ] Articles are deduplicated (same story from multiple sources shown once)
-- [ ] Articles are classified into sections via keyword rules (ported from reference repo taxonomy)
-- [ ] Sections are rendered in SOC/CISO triage-urgency order (Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy — per Phase 3 D-12 and REQUIREMENTS.md CLASSIFY-03), not alphabetical or config-declaration order
-- [ ] Articles are ranked within each section (recency + source weight)
+- [ ] User can view a responsive, newspaper-style front page of current security news, grouped into 7 sections (functionally rendering since Phase 3; UI-01/UI-05 close out the responsive/mobile-verified half in Phase 4)
+- [ ] The page shows a "last updated" timestamp and an article count per section (UI-04)
 - [ ] User can filter the front page by section/category (client-side, over the already-cached snapshot)
-- [ ] Site works well on mobile (narrow viewport) and desktop
+- [ ] Site works well on mobile (narrow viewport) and desktop, verified on both (UI-05)
 
 ### Out of Scope
 
@@ -85,9 +87,12 @@ Security experts get a fast, reliable, always-current front page of what's happe
 |----------|-----------|---------|
 | Next.js + Tailwind on Vercel, no DB | Simplest architecture that is fast, serverless, mobile-friendly, and free-tier friendly; Next's fetch-cache gives "don't refetch every load" for free | ✓ Good — Phase 1 |
 | Cache via `fetch` + `revalidate`, not cron+KV/Blob | Avoids all persistent infra; matches "essentially stateless" requirement; optional cron pre-warm can be added later without architecture change | ✓ Good — Phase 1 (verified on a real Vercel preview: HIT/STALE transitions and single-flight revalidation behave as expected) |
-| Port sources + section taxonomy from mfksec/SecureNewspaper | Reference repo already has a vetted 13-source list and a working keyword-classification scheme — no need to redesign either from scratch for v1 | ✓ Good for sources — Phase 2 (all 13 wired; sans-isc, recorded-future, crowdstrike use corrected canonical URLs). Taxonomy — Pending (Phase 3) |
+| Port sources + section taxonomy from mfksec/SecureNewspaper | Reference repo already has a vetted 13-source list and a working keyword-classification scheme — no need to redesign either from scratch for v1 | ✓ Good — Phase 2 (all 13 wired; sans-isc, recorded-future, crowdstrike use corrected canonical URLs); Phase 3 (taxonomy tuned, word-bounded, plural-tolerant, D-07 deviations documented) |
 | Replaced Threatpost with The Hacker News | Research found Threatpost has been dead (no new posts) since Sept 2022; The Hacker News verified live (HTTP 200) and covers the same Threat Intelligence tier | ✓ Good |
-| Rule-based (regex/keyword) categorization, not LLM | Free, instant, deterministic; matches free-tier constraint; LLM categorization deferred to v2 as a quality upgrade | — Pending (Phase 3) |
+| Rule-based (regex/keyword) categorization, not LLM | Free, instant, deterministic; matches free-tier constraint; LLM categorization deferred to v2 as a quality upgrade | ✓ Good — Phase 3 |
+| Widened dedupe to canonical-URL-OR-normalized-title match, earliest-published copy survives (D-01/D-02) | An exact (title, url) pair almost never matches across independently-worded outlets covering the same story; widening the match and picking the earliest copy actually collapses cross-outlet duplicates | ✓ Good — Phase 3, verified against live multi-source data (66/66 unique post-dedupe) |
+| `rankScore = TIER_WEIGHT[tier] * recencyDecay(age)`, 6-hour half-life, future-dates clamped | A Government/Security-Research item should outrank a same-age Tech item; a live Dark Reading item dated 71 days in the future would otherwise dominate every section without a clamp | ✓ Good — Phase 3, human-verified "feel" on live headlines |
+| CVE chip `href` built only from a re-validated, anchored ID match (`^CVE-\d{4}-\d{4,7}$`), never from feed-supplied URLs; 3-visible-chip + "+N" overflow cap (D-13/D-14) | Feed-controlled text must never reach an outbound `href` unvalidated (open-redirect/`javascript:` risk); a hard visual cap keeps a Patch-Tuesday multi-CVE title from dominating a card | ✓ Good — Phase 3, defense-in-depth confirmed in security review (T-03-11) |
 | 24h lookback, 15min cache revalidation | User-confirmed values; balances "daily paper" feel with freshness | ✓ Good — Phase 1 |
 | No archive, no accounts, no dark-mode toggle in v1 | User-confirmed scope cuts to keep v1 small, stateless, and shippable fast | ✓ Good — Phase 1 (no auth surface confirmed on deployed page) |
 | Category filter (client-side) included in v1 | User-confirmed; cheap to add since it filters the already-cached snapshot, no new server work | — Pending (Phase 4) |
@@ -114,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-23 after Phase 2*
+*Last updated: 2026-09-29 after Phase 3*

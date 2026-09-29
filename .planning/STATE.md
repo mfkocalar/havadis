@@ -1,44 +1,44 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 03
-current_phase_name: Deduplication, Classification & Ranking
-status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-09-26T12:09:23.580Z"
-last_activity: 2026-09-26
-last_activity_desc: Phase 03 execution started
-state_head: 80b2c62fa78c44b69c48588adbb1a01e239af065
+current_phase: 4
+current_phase_name: Newspaper Front Page, Filtering & Mobile Polish
+status: planning
+stopped_at: Phase 03 complete, ready to plan Phase 4
+last_updated: "2026-09-29T15:56:29.123Z"
+last_activity: 2026-09-29
+last_activity_desc: Phase 03 complete, transitioned to Phase 4
+state_head: 81c9ea914c4bce9c2b10a10285e37159e20abd1e
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 8
-  percent: 25
+  completed_plans: 11
+  percent: 50
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-23)
+See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** Security experts get a fast, reliable, always-current front page of what's happening across the industry — without visiting a dozen sites, and without the app doing redundant work on every page load.
-**Current focus:** Phase 03 — Deduplication, Classification & Ranking
+**Current focus:** Phase 4 — Newspaper Front Page, Filtering & Mobile Polish
 
 ## Current Position
 
-Phase: 03 (Deduplication, Classification & Ranking) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 03
-Last activity: 2026-09-26 — Phase 03 execution started
+Phase: 4 — Newspaper Front Page, Filtering & Mobile Polish
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-29 — Phase 03 complete, transitioned to Phase 4
 
-Progress: [███░░░░░░░] 25%
+Progress: [████████████████████] 11/11 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
+- Total plans completed: 11
 - Average duration: - min
 - Total execution time: 0 hours
 
@@ -48,6 +48,7 @@ Progress: [███░░░░░░░] 25%
 |-------|-------|-------|----------|
 | 01 | 4 | - | - |
 | 02 | 4 | - | - |
+| 03 | 3 | - | - |
 
 **Recent Trend:**
 
@@ -75,6 +76,11 @@ Recent decisions affecting current work:
 - [Phase 02]: Fan-out uses Promise.allSettled so one rejected source can never collapse the page; per-source timeout budgets run concurrently
 - [Phase 02]: Content-type HTML acceptance scoped per-source (`allowHtmlContentType`), resolving code review WR-01; WR-02 no-stream body-cap bypass also fixed
 - [Phase 02]: D-08 amends UI-02 — card title/summary clamped to 3 lines, summary capped at 400 code points in the data layer (gap G-02-5, plan 02-04)
+- [Phase 03]: Dedupe widened to canonical-URL-OR-normalized-title match (D-01), earliest-published copy survives ties (D-02); collapse is silent (D-03)
+- [Phase 03]: `rankScore = TIER_WEIGHT[tier] * recencyDecay(age)`, 6-hour half-life; `recencyDecay` clamps `Math.max(0, ageMs)` before exponentiation so a future-dated item (live Dark Reading bug, 71 days ahead) can't dominate a section
+- [Phase 03]: CVE chip `href` is built only from a re-validated, anchored ID match (`^CVE-\d{4}-\d{4,7}$`, `CVE_PATTERN` uses a `(?!\d)` lookahead per WR-02), never from feed-supplied URLs; 3-visible + "+N" overflow cap (D-13/D-14)
+- [Phase 03]: Code review 5/5 warnings fixed (WR-01..05); live e2e suite now gated behind `E2E=1` opt-in (`npm test` → 201/208 hermetic, `E2E=1 npm test` → 208/208 incl. live feeds)
+- [Phase 03]: Security review — 18 threats registered (12 closed by confirmed mitigations, 6 accepted as documented risks), `threats_open: 0`; UI audit scored 24/24, no blockers
 
 ### Pending Todos
 
@@ -94,6 +100,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-23T09:39:15.312Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-deduplication-classification-ranking/03-CONTEXT.md
+Last session: 2026-09-29
+Stopped at: Phase 03 complete, ready to plan Phase 4
+Resume file: None
