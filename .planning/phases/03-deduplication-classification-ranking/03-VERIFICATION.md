@@ -1,7 +1,7 @@
 ---
 phase: 03-deduplication-classification-ranking
 verified: 2026-09-29T00:00:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified (5 ROADMAP success criteria; ~39 granular plan-level truths across 03-01/03-02/03-03 all pass their hermetic + live tests)
 covered_files: [".planning/REQUIREMENTS.md", ".planning/phases/03-deduplication-classification-ranking/03-01-PLAN.md", ".planning/phases/03-deduplication-classification-ranking/03-01-SUMMARY.md", ".planning/phases/03-deduplication-classification-ranking/03-02-PLAN.md", ".planning/phases/03-deduplication-classification-ranking/03-02-SUMMARY.md", ".planning/phases/03-deduplication-classification-ranking/03-03-PLAN.md", ".planning/phases/03-deduplication-classification-ranking/03-03-SUMMARY.md", ".planning/phases/03-deduplication-classification-ranking/03-REVIEW-FIX.md", ".planning/phases/03-deduplication-classification-ranking/03-REVIEW.md", ".planning/phases/03-deduplication-classification-ranking/COVERAGE.md", ".planning/phases/03-deduplication-classification-ranking/deferred-items.md", "src/app/page.tsx", "src/components/ArticleCard.tsx", "src/components/CveChips.tsx", "src/lib/config/ranking.ts", "src/lib/config/sections.ts", "src/lib/cveChips.ts", "src/lib/pipeline/canonicalizeUrl.ts", "src/lib/pipeline/classify.ts", "src/lib/pipeline/decodeHtmlEntities.ts", "src/lib/pipeline/dedupe.ts", "src/lib/pipeline/extractCves.ts", "src/lib/pipeline/getFrontPage.ts", "src/lib/pipeline/groupBySection.ts", "src/lib/pipeline/normalize.ts", "src/lib/pipeline/normalizeTitleForDedupe.ts", "src/lib/pipeline/rank.ts", "src/lib/types.ts"]
 covered_digest: "v1:sha256:02ec949ef8fa7f3d9e0f7ebc0dc3b71cf340995961f4e35aa38f279ae7a30208"
@@ -9,6 +9,7 @@ behavior_unverified: 0
 overrides_applied: 0
 behavior_unverified_items: []
 human_verification:
+
   - test: "Run `npm run build && npm run start`, open http://localhost:3000 on desktop, then at roughly 375px wide."
     expected: "Section headings appear with their emoji in the order Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy, with any empty section simply absent; no visible 'Latest' label, no counts/grid/filter/show-more; within a section the order reads sensibly (a few-hours-old Government item can sit above a minutes-old general-tech item, day-old items sink); no obviously security-relevant headline is stranded in Industry/Policy and no clearly non-security headline sits in a security section; tier badges look exactly as before."
     why_human: "Ranking 'feel' (RESEARCH Assumption A3, 03-01 must_haves.truths backstop statement) and classification plausibility on today's live headlines are judgment calls a grep cannot make (03-01 Task 3's own human-check, deferred to end-of-phase per human_verify_mode=end-of-phase; coverage item D6/D7 in 03-01-SUMMARY.md)."
