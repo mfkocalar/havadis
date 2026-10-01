@@ -338,6 +338,64 @@ test("the bar's Updated text is the snapshot's deterministic UTC time in the ser
   );
 });
 
+test("sections of 9 or more articles show exactly 6 cards before a hidden overflow region holding the rest; smaller sections have neither region nor button", async (t) => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const chunks = sectionChunks(body);
+  let expanders = 0;
+
+  for (const chunk of chunks) {
+    const count = Number(chunk.count);
+    const regionMarker = 'data-overflow="';
+    const hasRegion = chunk.html.includes(regionMarker);
+    const buttons = openingTags(chunk.html, "button").filter((tag) => tag.includes("data-expander"));
+
+    if (count < 9) {
+      assert.ok(!hasRegion, `${chunk.section}: ${count} articles must have no overflow region`);
+      assert.equal(buttons.length, 0, `${chunk.section}: ${count} articles must have no expander button`);
+      continue;
+    }
+
+    expanders += 1;
+    assert.equal(
+      chunk.html.split(regionMarker).length - 1,
+      1,
+      `${chunk.section}: expected exactly one overflow region`
+    );
+    const markerIndex = chunk.html.indexOf(regionMarker);
+    const regionTagStart = chunk.html.lastIndexOf("<div", markerIndex);
+    const regionTag = chunk.html.slice(regionTagStart, chunk.html.indexOf(">", markerIndex) + 1);
+    assert.ok(regionTag.includes('hidden=""'), `${chunk.section}: the overflow region must be hidden`);
+    const regionId = attrValue(regionTag, "id");
+    assert.ok(regionId, `${chunk.section}: the overflow region must have an id`);
+
+    const primary = chunk.html.slice(0, regionTagStart);
+    const overflow = chunk.html.slice(regionTagStart);
+    assert.equal((primary.match(/<article\b/g) ?? []).length, 6, `${chunk.section}: 6 cards before the overflow`);
+    assert.equal(
+      (overflow.match(/<article\b/g) ?? []).length,
+      count - 6,
+      `${chunk.section}: the rest of the cards inside the overflow region`
+    );
+
+    assert.equal(buttons.length, 1, `${chunk.section}: expected exactly one expander button`);
+    assert.equal(attrValue(buttons[0], "aria-expanded"), "false");
+    assert.equal(attrValue(buttons[0], "aria-controls"), regionId);
+    assert.ok(
+      chunk.html.indexOf(buttons[0]) > markerIndex,
+      `${chunk.section}: the button must follow the overflow region in DOM order`
+    );
+    assert.ok(
+      chunk.html.includes(`Show all ${count}</button>`),
+      `${chunk.section}: expected the "Show all ${count}" label`
+    );
+  }
+
+  // A quiet news day with no long section exercises nothing above; say so
+  // rather than staying silently green (Pitfall 12).
+  t.diagnostic(`expanders on this build: ${expanders} of ${chunks.length} sections`);
+});
+
 test("the front page is still statically prerendered with the 900-second revalidation window", () => {
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {

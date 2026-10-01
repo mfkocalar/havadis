@@ -1,13 +1,16 @@
 import { getFrontPage } from "@/lib/pipeline/getFrontPage";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FrontPageFilter, SectionVisibility } from "@/components/FrontPageFilter";
+import { SectionExpander } from "@/components/SectionExpander";
 import { SectionFilterBar } from "@/components/SectionFilterBar";
 import { SECTION_EMOJI } from "@/lib/config/sections";
+import { planSectionCap } from "@/lib/planSectionCap";
 import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 
 /**
  * D-02: 1 column below 768px, 2 from 768px, 3 from 1024px. Sparse sections
- * leave the remaining cells empty (D-04). Plan 04-02 reuses this verbatim.
+ * leave the remaining cells empty (D-04). Used verbatim by both the primary
+ * grid and the overflow grid of a capped section (04-02).
  */
 const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3";
 
@@ -27,9 +30,13 @@ const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
  * urgency-ordered section per non-empty group (D-12/D-16), each with its
  * full article count beside the heading (D-14). Filtering (D-09) is purely
  * client-side: every section stays in the server-rendered HTML and the
- * `SectionVisibility` wrapper only toggles the `hidden` attribute. Only
- * section names, emoji and counts cross into client components (T-01-07);
- * the cards are server-rendered and passed through as children.
+ * `SectionVisibility` wrapper only toggles the `hidden` attribute. Sections
+ * of 9 or more articles show their 6 highest-ranked cards, then the rest in a
+ * server-rendered overflow grid inside `SectionExpander` (D-05, D-06, D-07):
+ * the overflow cards are in the initial HTML and only a `hidden` attribute
+ * toggles them. Only section names, emoji, counts and the snapshot timestamp
+ * cross into client components (T-01-07); the cards are server-rendered and
+ * passed through as children.
  *
  * The route MUST stay statically prerendered with the 900-second revalidation
  * window of the fetch cache: no request-time APIs (cookies, headers, search
@@ -73,6 +80,7 @@ export default async function Home() {
         <div className="flex flex-col gap-12">
           {result.sections.map((group, index) => {
             const total = group.articles.length;
+            const { visibleCount, hiddenCount } = planSectionCap(total);
             const headingId = `section-heading-${index}`;
             return (
               <SectionVisibility key={group.section} section={group.section}>
@@ -98,10 +106,19 @@ export default async function Home() {
                   </h2>
                   <div className="flex flex-col gap-6">
                     <div className={CARD_GRID_CLASSES}>
-                      {group.articles.map((article) => (
+                      {group.articles.slice(0, visibleCount).map((article) => (
                         <ArticleCard key={article.url} article={article} />
                       ))}
                     </div>
+                    {hiddenCount > 0 && (
+                      <SectionExpander section={group.section} total={total}>
+                        <div className={CARD_GRID_CLASSES}>
+                          {group.articles.slice(visibleCount).map((article) => (
+                            <ArticleCard key={article.url} article={article} />
+                          ))}
+                        </div>
+                      </SectionExpander>
+                    )}
                   </div>
                 </section>
               </SectionVisibility>
