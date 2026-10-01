@@ -21,13 +21,14 @@ Security experts get a fast, reliable, always-current front page of what's happe
 - ✓ Sections are rendered in SOC/CISO triage-urgency order (Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy — per Phase 3 D-12 and REQUIREMENTS.md CLASSIFY-03), not alphabetical or config-declaration order — Phase 3
 - ✓ Articles are ranked within each section (recency + source weight) — Phase 3
 - ✓ Visible CVE-ID chip on any article card whose title/summary matches the CVE pattern, linking out to NVD — Phase 3 (UI-03)
+- ✓ User can view a responsive, newspaper-style front page of current security news, grouped into 7 sections — v1.0 (1/2/3-column card grid in a `max-w-7xl` shell; sections of 9+ articles cap at 6 behind a client-side "Show all N")
+- ✓ The page shows a "last updated" timestamp and an article count per section — v1.0 (sticky bar: exact UTC "Updated" in cached HTML, relative after hydration; counts on each section pill; cards show absolute UTC times)
+- ✓ User can filter the front page by section (client-side, over the already-cached snapshot) — v1.0 (multi-select pills toggle `hidden` on server-rendered sections; zero network requests, verified in a real browser)
+- ✓ Site works well on mobile (narrow viewport) and desktop, verified on both — v1.0 (Playwright emulation at 360/390/768/1024/1280/1440px plus a real iOS Safari and Android Chrome pass; device models/OS versions not recorded)
 
 ### Active
 
-- [ ] User can view a responsive, newspaper-style front page of current security news, grouped into 7 sections (functionally rendering since Phase 3; UI-01/UI-05 close out the responsive/mobile-verified half in Phase 4)
-- [ ] The page shows a "last updated" timestamp and an article count per section (UI-04)
-- [ ] User can filter the front page by section/category (client-side, over the already-cached snapshot)
-- [ ] Site works well on mobile (narrow viewport) and desktop, verified on both (UI-05)
+(None — v1 scope shipped. Next-milestone requirements are defined by `/gsd-new-milestone`.)
 
 ### Out of Scope
 
@@ -95,11 +96,29 @@ Security experts get a fast, reliable, always-current front page of what's happe
 | CVE chip `href` built only from a re-validated, anchored ID match (`^CVE-\d{4}-\d{4,7}$`), never from feed-supplied URLs; 3-visible-chip + "+N" overflow cap (D-13/D-14) | Feed-controlled text must never reach an outbound `href` unvalidated (open-redirect/`javascript:` risk); a hard visual cap keeps a Patch-Tuesday multi-CVE title from dominating a card | ✓ Good — Phase 3, defense-in-depth confirmed in security review (T-03-11) |
 | 24h lookback, 15min cache revalidation | User-confirmed values; balances "daily paper" feel with freshness | ✓ Good — Phase 1 |
 | No archive, no accounts, no dark-mode toggle in v1 | User-confirmed scope cuts to keep v1 small, stateless, and shippable fast | ✓ Good — Phase 1 (no auth surface confirmed on deployed page) |
-| Category filter (client-side) included in v1 | User-confirmed; cheap to add since it filters the already-cached snapshot, no new server work | — Pending (Phase 4) |
+| Category filter (client-side) included in v1 | User-confirmed; cheap to add since it filters the already-cached snapshot, no new server work | ✓ Good — Phase 4 (no new server fetch, verified in a real browser) |
 | Composed caller `AbortSignal` into the per-hop redirect guard via `AbortSignal.any` | 01-03's timeout coverage only spanned header arrival, not the body-read phase — a headers-then-stalled-body origin was never aborted (found by phase verification, closed by Phase 1's 01-04 gap-closure plan) | ✓ Good — Phase 1 |
 | Source content-type gate accepts `html` alongside `xml` | Krebs on Security's live `/feed` serves genuinely valid RSS under a `text/html` content-type; a strict xml-only check silently emptied the one proven source. `rss-parser`'s own parse step remains the real authority on feed validity | ✓ Good — Phase 1, but flagged (code review WR-01) to scope the exception per-source rather than globally once Phase 2 widens to 13 sources — a misbehaving non-Krebs source could otherwise burn full body-download+parse cost before failing fast. Resolved Phase 2 (`02-02`): HTML acceptance is now a per-source `allowHtmlContentType` opt-in; only `krebs` opts in (added in `da6dbba`, 2026-09-27, after Krebs was found silently dropped by the gate) |
 | Fan out with `Promise.allSettled`, not `Promise.all` | Even if `fetchSource`'s never-throws contract regresses, one rejected source can never collapse the whole page into the error state; a stalled source's timeout budget runs concurrently, not added to the others' | ✓ Good — Phase 2 (`02-01`, proven against real sockets in `02-03`) |
 | Article card title and summary bounded by a CSS clamp, plus a 400-code-point data-layer cap on the summary | UAT G-02-5 measured a ~94x summary-length spread across 13 sources (80 to 7,541 median characters, 26,744 worst case) making card heights wildly inconsistent, and shipping up to ~26KB of publisher body per article in the RSC payload; supersedes Phase 1's single-source no-clamp mandate (D-08) | ✓ Good — Phase 2 gap closure, plan `02-04` |
+| Unpressed pill / expander outline uses `ring-zinc-500`, not the UI-SPEC's zinc-400 (light) / zinc-600 (dark) | The spec values measured 2.63:1 and 2.29:1 against the 3:1 non-text contrast target; zinc-500 measures 4.83:1 / 3.67:1. A contrast test gates it | ✓ Good — user-approved, Phase 4 |
+| Filter pills scroll horizontally below 1024px and wrap from 1024px (UI-SPEC said 768px) | At 768px the 7 pills wrapped to 3 rows and the sticky bar reached 133px against the 96px scroll-padding budget | ✓ Good — user-approved, Phase 4 |
+| Cards show absolute UTC publish times; only the sticky bar's "Updated" text is relative and live | Card relative times freeze at render in a cached page and could contradict the live clock; a live clock per card would need ~64 client components | ✓ Good — Phase 4 review fix (WR-04) |
+| Keep `lg:grid-cols-3` although ~25% of titles hit the 3-line clamp at 1024px | Backstop measurement was 17/68 at 1024px and 1/68 at 1280px; user chose to keep D-02 as locked | — Revisit if reader feedback complains about truncated titles |
+
+## Current State
+
+Shipped **v1.0 MVP** on 2026-10-01: 4 phases, 14 plans, ~5.7K lines of TypeScript in `src/`. All 17 v1 requirements are complete. The site is a static, ISR-style Next.js 16 page (900s revalidate) aggregating 13 feeds, deduplicated, classified into 7 urgency-ordered sections, with a client-side section filter and verified mobile layout.
+
+Known follow-ups carried out of v1.0 (none block use):
+- Phases 1, 3 and 4 were closed with stale verification reports (an override closeout); no milestone audit was run.
+- 768–1023px layouts are emulation-verified only; real-device models/OS versions were not recorded.
+- The Vercel preview predates the final pill-wrap commit.
+- `scripts/verify-viewports.mjs` needs Playwright installed ad hoc (`npm install --no-save playwright@1.63.0`); it is deliberately not a dependency.
+
+## Next Milestone Goals
+
+Not yet defined. Candidates from Out of Scope and earlier notes: keyword search, an optional daily cron pre-warm, LLM categorization/summarization, and archive of past front pages (requires persistence). Run `/gsd-new-milestone` to choose.
 
 ## Evolution
 
@@ -119,4 +138,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-29 after Phase 3*
+*Last updated: 2026-10-01 after v1.0 milestone*
