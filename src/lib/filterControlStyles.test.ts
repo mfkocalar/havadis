@@ -128,7 +128,14 @@ const BAR: Record<Theme, Rgb[]> = {
   light: [WHITE],
   dark: [zinc("950", "bar"), zinc("900", "bar")],
 };
-const PAGE: Record<Theme, Rgb[]> = { light: [PAGE_LIGHT], dark: [PAGE_DARK] };
+// The real <body> surfaces are the layout.tsx utilities (bg-zinc-50 light,
+// dark:bg-zinc-950), which win over the globals.css `body` default now that it
+// lives in `@layer base` (review WR-01). The --background root values are kept
+// as additional worst-case surfaces so a change to either is still gated.
+const PAGE: Record<Theme, Rgb[]> = {
+  light: [zinc("50", "page"), PAGE_LIGHT],
+  dark: [zinc("950", "page"), PAGE_DARK],
+};
 
 function assertRatio(
   label: string,
