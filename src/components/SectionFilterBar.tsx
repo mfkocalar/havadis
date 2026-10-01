@@ -58,7 +58,7 @@ export function SectionFilterBar({ pills }: { pills: readonly FilterPill[] }) {
       data-filter-bar=""
       className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90"
     >
-      <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-2 sm:px-6 md:flex-row md:items-start md:justify-between md:gap-4">
+      <div className="mx-auto flex w-full max-w-7xl flex-col px-4 py-2 sm:px-6 md:flex-row md:items-start md:justify-between md:gap-4">
         <div
           role="group"
           aria-label="Filter by section"

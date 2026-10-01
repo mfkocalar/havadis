@@ -6,6 +6,12 @@ import { SECTION_EMOJI } from "@/lib/config/sections";
 import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 
 /**
+ * D-02: 1 column below 768px, 2 from 768px, 3 from 1024px. Sparse sections
+ * leave the remaining cells empty (D-04). Plan 04-02 reuses this verbatim.
+ */
+const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3";
+
+/**
  * The public front page. Awaits `getFrontPage()` once and branches only on
  * its discriminant -- none of the error variant's internal diagnostic detail
  * is ever surfaced in the rendered output (threat T-01-10 / T-03-04). Both
@@ -35,7 +41,7 @@ export default async function Home() {
 
   if (result.status !== "ok" || result.sections.length === 0) {
     return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
         <h1 className="sr-only">Latest</h1>
         <p className="text-zinc-500 dark:text-zinc-400">
           No articles in the last 24 hours.
@@ -55,7 +61,7 @@ export default async function Home() {
   return (
     <FrontPageFilter>
       <SectionFilterBar pills={pills} />
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
         {/*
          * D-16 swaps the single visible "Latest" label for per-section
          * headings below. The document still keeps exactly one <h1> for
@@ -91,9 +97,11 @@ export default async function Home() {
                     <span className="sr-only">{articleCountLabel(total)}</span>
                   </h2>
                   <div className="flex flex-col gap-6">
-                    {group.articles.map((article) => (
-                      <ArticleCard key={article.url} article={article} />
-                    ))}
+                    <div className={CARD_GRID_CLASSES}>
+                      {group.articles.map((article) => (
+                        <ArticleCard key={article.url} article={article} />
+                      ))}
+                    </div>
                   </div>
                 </section>
               </SectionVisibility>
