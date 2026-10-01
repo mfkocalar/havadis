@@ -221,7 +221,9 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
       const cs = getComputedStyle(el);
       return { wrap: cs.flexWrap, ox: cs.overflowX };
     });
-    if (width < 768) {
+    // UI-SPEC amendment (04-03, "768 bar: A"): scroller below 1024, wrap from
+    // 1024 (the spec said 768, which makes a 133px bar at 768).
+    if (width < 1024) {
       return s.wrap === "nowrap" && s.ox === "auto"
         ? null
         : `expected nowrap/auto, got ${s.wrap}/${s.ox}`;
