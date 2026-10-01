@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Single-Source Pipeline (Vertical Slice)** - One real source flows fetch → normalize → cache/revalidate → render, end to end, publicly and mobile-safely (completed 2026-09-21)
 - [x] **Phase 2: Full Ingestion & Failure Isolation** - All 13 sources fetch in parallel each cycle; one dead/broken source never breaks the page (completed 2026-09-22)
 - [x] **Phase 3: Deduplication, Classification & Ranking** - Multi-source articles are deduped, sorted into 7 urgency-ordered sections, ranked, and CVE-annotated (completed 2026-09-29)
-- [ ] **Phase 4: Newspaper Front Page, Filtering & Mobile Polish** - Full section layout, last-updated/count metadata, client-side filter, and verified mobile/desktop readability
+- [x] **Phase 4: Newspaper Front Page, Filtering & Mobile Polish** - Full section layout, last-updated/count metadata, client-side filter, and verified mobile/desktop readability (completed 2026-10-01)
 
 ## Phase Details
 
@@ -132,20 +132,20 @@ Plans:
   3. The layout is readable and fully usable on narrow mobile viewports (~360–390px) as well as desktop, verified at real device widths, not just a resized desktop browser window.
   4. A user can filter the visible front page down to one or more sections entirely client-side — over the already-rendered snapshot, with no full page reload and no new server fetch.
 
-**Plans**: 3 plans
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Tracer: count-bearing sticky section pills narrow the page client-side (DOM-less provider, hidden wrappers, route stays static at 900 s), then the 1/2/3-column grid in one aligned 7xl container with an AA contrast gate over the real Tailwind palette
+- [x] 04-01-PLAN.md — Tracer: count-bearing sticky section pills narrow the page client-side (DOM-less provider, hidden wrappers, route stays static at 900 s), then the 1/2/3-column grid in one aligned 7xl container with an AA contrast gate over the real Tailwind palette
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02-PLAN.md — Tracer: `generatedAt` threaded from the pipeline into an honest "Updated" time (UTC in cached HTML, relative after hydration via useSyncExternalStore), then top-6 per section behind a client-side "Show all N"
+- [x] 04-02-PLAN.md — Tracer: `generatedAt` threaded from the pipeline into an honest "Updated" time (UTC in cached HTML, relative after hydration via useSyncExternalStore), then top-6 per section behind a client-side "Show all N"
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03-PLAN.md — Real-width verification: Playwright legitimacy gate, emulated 360/390/768/1024/1280/1440 checks with zero-request filtering, a preview deploy, and a real iOS + Android device check with the ring and 3-column sign-offs
+- [x] 04-03-PLAN.md — Real-width verification: Playwright legitimacy gate, emulated 360/390/768/1024/1280/1440 checks with zero-request filtering, a preview deploy, and a real iOS + Android device check with the ring and 3-column sign-offs
 
 **UI hint**: yes
 
@@ -159,4 +159,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
 | 2. Full Ingestion & Failure Isolation | 4/4 | Complete    | 2026-09-23 |
 | 3. Deduplication, Classification & Ranking | 3/3 | Complete    | 2026-09-29 |
-| 4. Newspaper Front Page, Filtering & Mobile Polish | 0/3 | Planned | - |
+| 4. Newspaper Front Page, Filtering & Mobile Polish | 3/3 | Complete    | 2026-10-01 |

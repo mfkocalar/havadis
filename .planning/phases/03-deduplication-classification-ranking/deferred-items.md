@@ -7,6 +7,8 @@ Out-of-scope discoveries logged during plan execution, per the executor's scope-
 
 **Krebs on Security `fetchSource` fails with content-type gate, unrelated to this plan's changes.**
 
+- **Status:** resolved
+- **Resolution:** `allowHtmlContentType: true` added to the `krebs` entry in `sources.ts` by commit `da6dbba` (2026-09-27); live Krebs e2e test passes.
 - **File:** `src/lib/config/sources.ts` (the `krebs` `SourceConfig` entry) / `src/lib/pipeline/fetchSource.ts` (the content-type gate) — neither file is in 03-01's `files_modified` list.
 - **Symptom:** `src/lib/pipeline/frontpage.e2e.test.ts`'s test `"fetchSource(Krebs) yields at least one normalized article before lookback filtering"` fails with `{ status: "error", reason: 'krebs: unexpected content-type "text/html; charset=UTF-8"' }`.
 - **Confirmed pre-existing / live-environment, not a Task 1 regression:** `curl -sI https://krebsonsecurity.com/feed/` (run live during this session) confirms Krebs is currently serving `content-type: text/html; charset=UTF-8` — this is the same source and same content-type behavior PROJECT.md's Key Decisions table already documents ("Krebs on Security's live `/feed` serves genuinely valid RSS under `text/html`"), but the `krebs` entry in `sources.ts` does not currently set `allowHtmlContentType: true`, the per-source opt-in Phase 2 (`02-02`) introduced specifically for this exact case. Nothing in this plan's task touches `sources.ts` or `fetchSource.ts`.

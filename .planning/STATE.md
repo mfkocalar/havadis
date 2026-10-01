@@ -1,19 +1,18 @@
 ---
 gsd_state_version: "1.0"
 current_phase: 04
-current_phase_name: newspaper-front-page-filtering-mobile-polish
-status: executing
-stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-10-01T07:14:22.799Z"
-last_activity: 2026-09-29
-last_activity_desc: Phase 03 complete, transitioned to Phase 4
-state_head: ee1bcadd8974d60d6473ed8f4cd3a450bb266f75
+status: completed
+stopped_at: Phase 04 complete — all phases complete
+last_updated: "2026-10-01T09:13:40.223Z"
+last_activity: 2026-10-01
+last_activity_desc: Phase 04 complete
+state_head: f4c4a881163d13225a5b35c6a4a353306fe8842b
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 14
-  completed_plans: 11
-  percent: 25
+  completed_plans: 14
+  percent: 50
 ---
 
 # Project State
@@ -23,22 +22,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** Security experts get a fast, reliable, always-current front page of what's happening across the industry — without visiting a dozen sites, and without the app doing redundant work on every page load.
-**Current focus:** Phase 4 — Newspaper Front Page, Filtering & Mobile Polish
+**Current focus:** Phase 04 — Newspaper Front Page, Filtering & Mobile Polish
 
 ## Current Position
 
-Phase: 04 (newspaper-front-page-filtering-mobile-polish) — READY TO EXECUTE
+Phase: 04
 Plan: Not started
-Status: Ready to execute
-Last activity: 2026-09-29 — Phase 03 complete, transitioned to Phase 4
+Status: All phases complete
+Last activity: 2026-10-01 — Phase 04 complete
 
-Progress: [████████████████████] 11/11 plans ([███░░░░░░░] 25%)
+Progress: [████████████████████] 11/11 plans ([█████░░░░░] 50%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 11
+- Total plans completed: 14
 - Average duration: - min
 - Total execution time: 0 hours
 
@@ -49,6 +48,7 @@ Progress: [████████████████████] 11/11 p
 | 01 | 4 | - | - |
 | 02 | 4 | - | - |
 | 03 | 3 | - | - |
+| 04 | 3 | - | - |
 
 **Recent Trend:**
 
@@ -61,6 +61,9 @@ Progress: [████████████████████] 11/11 p
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P04 | 28min | 3 tasks | 4 files |
+| Phase 04 P01 | 5 min | 2 tasks | 10 files |
+| Phase 04 P02 | 4 min | 3 tasks | 15 files |
+| Phase 04 P03 | n/a | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -81,6 +84,12 @@ Recent decisions affecting current work:
 - [Phase 03]: CVE chip `href` is built only from a re-validated, anchored ID match (`^CVE-\d{4}-\d{4,7}$`, `CVE_PATTERN` uses a `(?!\d)` lookahead per WR-02), never from feed-supplied URLs; 3-visible + "+N" overflow cap (D-13/D-14)
 - [Phase 03]: Code review 5/5 warnings fixed (WR-01..05); live e2e suite now gated behind `E2E=1` opt-in (`npm test` → 201/208 hermetic, `E2E=1 npm test` → 208/208 incl. live feeds)
 - [Phase 03]: Security review — 18 threats registered (12 closed by confirmed mitigations, 6 accepted as documented risks), `threats_open: 0`; UI audit scored 24/24, no blockers
+- [Phase 04]: Phase 04-01: unpressed filter pill/control outline uses ring-zinc-500 (amends UI-SPEC zinc-400/zinc-600 for 3:1 non-text contrast); pending sign-off at 04-03
+- [Phase 04]: Phase 04-01: filtered sections hidden with hidden attribute, never unmounted; filter state in-memory only (D-09, D-10)
+- [Phase 04]: Phase 04: plan work committed on branch gsd/phase-04-newspaper-front-page-filtering-mobile-polish (main is protected); user merges to main
+- [Phase 04]: Phase 04-02: Updated text is UTC in server HTML/hydration and relative only after hydration via useSyncExternalStore (D-13); collapsed overflow cards use plain hidden (find-in-page limitation accepted)
+- [Phase 04]: 04-03: pill row scrolls below 1024px and wraps from 1024px (UI-SPEC amendment, user-approved 768 bar: A)
+- [Phase 04]: 04-03: ring-zinc-500 on unpressed pills and expander approved; lg:grid-cols-3 kept (D-02)
 
 ### Pending Todos
 
@@ -100,6 +109,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-30T12:08:51.626Z
-Stopped at: Phase 4 UI-SPEC approved
-Resume file: .planning/phases/04-newspaper-front-page-filtering-mobile-polish/04-UI-SPEC.md
+Last session: 2026-10-01T09:06:12.710Z
+Stopped at: Phase 04 complete — all phases complete
+Resume file: None
