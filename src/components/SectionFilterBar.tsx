@@ -72,6 +72,13 @@ export function SectionFilterBar({
     >
       <div className="mx-auto flex w-full max-w-7xl flex-col px-4 py-2 sm:px-6 md:flex-row md:items-start md:justify-between md:gap-4 md:py-1.5">
         {/*
+         * The pills scroll in one row below `lg` and wrap from `lg`.
+         * UI-SPEC amendment (04-03, user-approved "768 bar: A"): the spec had
+         * the wrap start at `md`, but the pills total about 1184px, so at 768
+         * they wrap to 3 rows and the bar is 133px, over the 96px
+         * `scroll-padding-top`. From 1024 they take 2 rows (93px). `md:px-1`
+         * keeps room for the focus outline inside the scroller.
+         *
          * `relative` makes this scroller the containing block of the pills'
          * `sr-only` (position: absolute) spans. Without it their containing
          * block is the sticky bar, outside this scroller's clip, so they sit
@@ -82,7 +89,7 @@ export function SectionFilterBar({
         <div
           role="group"
           aria-label="Filter by section"
-          className="relative -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 py-1 max-md:scrollbar-none sm:-mx-6 sm:px-6 md:mx-0 md:flex-1 md:flex-wrap md:overflow-visible md:px-0"
+          className="relative -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 py-1 max-lg:scrollbar-none sm:-mx-6 sm:px-6 md:mx-0 md:flex-1 md:px-1 lg:flex-wrap lg:overflow-visible lg:px-0"
         >
           {pills.map(({ section, emoji, count }) => {
             const pressed = selected.has(section);
