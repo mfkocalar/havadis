@@ -19,26 +19,47 @@
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+/*
+ * These element defaults live in `@layer base` on purpose. Tailwind v4 emits
+ * its utilities inside cascade layers, and unlayered author CSS beats every
+ * layered rule regardless of specificity. Left unlayered, `body`, `h1-h3` and
+ * `p` below would silently defeat the page background/text utilities on
+ * `<body>` (layout.tsx) and `leading-snug` / `leading-relaxed` / `text-*`
+ * line-heights on headings and paragraphs (Phase 4 review WR-01). In the base
+ * layer they remain defaults that utilities can override.
+ */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * "Modern editorial" direction (CONTEXT.md D-02): a comfortable reading
+   * line-height for headlines and body copy, established here once so
+   * ArticleCard and every later phase's SectionGroup/masthead inherit it
+   * rather than each component setting its own.
+   */
+  h1,
+  h2,
+  h3 {
+    line-height: 1.25;
+  }
+
+  p {
+    line-height: 1.6;
+  }
 }
 
 /*
- * "Modern editorial" direction (CONTEXT.md D-02): a comfortable reading
- * line-height for headlines and body copy, established here once so
- * ArticleCard and every later phase's SectionGroup/masthead inherit it
- * rather than each component setting its own.
+ * Keep keyboard focus clear of the sticky filter bar (WCAG 2.2 SC 2.4.11,
+ * focus not obscured). The bar is at most ~96px tall at md+ when its row
+ * wraps to two lines, so 6rem offsets scrolled-into-view targets. The filter
+ * bar's scrollIntoView({ block: "start" }) after a toggle relies on this.
  */
-h1,
-h2,
-h3 {
-  line-height: 1.25;
-}
-
-p {
-  line-height: 1.6;
+html {
+  scroll-padding-top: 6rem;
 }

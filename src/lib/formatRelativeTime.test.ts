@@ -38,3 +38,27 @@ test("a future timestamp (clock skew) returns 'just now', never a negative value
   const future = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   assert.equal(formatRelativeTime(future), "just now");
 });
+
+// Explicit-`now` form (Phase 4 D-13): the "Updated" text passes the client
+// clock's minute snapshot in, so these cases use fixed timestamps only.
+
+test("with an explicit now, 4m30s after the timestamp returns '4m ago'", () => {
+  assert.equal(
+    formatRelativeTime("2026-09-30T12:00:00.000Z", Date.parse("2026-09-30T12:04:30.000Z")),
+    "4m ago"
+  );
+});
+
+test("with an explicit now earlier than the timestamp returns 'just now', never negative", () => {
+  assert.equal(
+    formatRelativeTime("2026-09-30T12:00:00.000Z", Date.parse("2026-09-30T11:59:00.000Z")),
+    "just now"
+  );
+});
+
+test("with an explicit now 72 hours later returns '72h ago' (honest age of a long-idle cached page)", () => {
+  assert.equal(
+    formatRelativeTime("2026-09-27T12:00:00.000Z", Date.parse("2026-09-30T12:00:00.000Z")),
+    "72h ago"
+  );
+});

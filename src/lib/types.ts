@@ -95,7 +95,17 @@ export type SectionGroup = { section: Section; articles: ClassifiedArticle[] };
  * never throw — same never-throws contract as `FrontPageResult` (CONTEXT.md
  * D-03). `articles` is always the flattening of `sections` in display
  * order, never computed independently (RESEARCH.md Open Question 1).
+ *
+ * `generatedAt` (ok variant only) is an ISO 8601 timestamp of when this
+ * snapshot was composed, derived from the same single `now` the ranking used
+ * (Phase 3 D-09, Phase 4 D-13). The error variant carries none and renders
+ * no bar.
  */
 export type SectionedFrontPageResult =
-  | { status: "ok"; articles: ClassifiedArticle[]; sections: SectionGroup[] }
+  | {
+      status: "ok";
+      articles: ClassifiedArticle[];
+      sections: SectionGroup[];
+      generatedAt: string;
+    }
   | { status: "error"; reason: string };

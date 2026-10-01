@@ -89,6 +89,13 @@ test("an empty input array produces the ok variant with empty articles and empty
   assert.deepEqual(result.sections, []);
 });
 
+test("composeFrontPage stamps generatedAt from the injected now, never from the wall clock", () => {
+  const expected = "2026-09-23T12:00:00.000Z";
+  assert.equal(composeFrontPage([], NOW).generatedAt, expected);
+  const one = article({ url: "https://fixture.test/generated-at" });
+  assert.equal(composeFrontPage([one], NOW).generatedAt, expected);
+});
+
 test("n distinct stories across three sections produce n articles, groups in SECTION_DISPLAY_ORDER, flat articles equal to the groups flattened", () => {
   const vuln = article({
     title: "New CVE-2026-1234 patched in widely-used library",
