@@ -1,4 +1,5 @@
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
+import { formatUtcDateTime } from "@/lib/formatUtcTime";
 import { SourceTierBadge } from "@/components/SourceTierBadge";
 import { CveChips } from "@/components/CveChips";
 import type { ClassifiedArticle } from "@/lib/types";
@@ -16,7 +17,10 @@ import type { ClassifiedArticle } from "@/lib/types";
  * this file. `rss-parser` already delivers an HTML-stripped snippet, and
  * feed fields are untrusted external input (threat T-01-07). This stays a
  * Server Component: the absolute-time hover is the native `title`
- * attribute, so no client JavaScript is needed anywhere in this file.
+ * attribute, so no client JavaScript is needed anywhere in this file. The
+ * tooltip text is the deterministic, zone-labelled UTC form ("YYYY-MM-DD HH:MM
+ * UTC"), never the server's locale or time zone: this render is frozen into
+ * the statically prerendered HTML and shown to every visitor.
  *
  * Per D-08 (02-CONTEXT.md), both the title and the summary are now
  * visually bounded to three lines via Tailwind's `line-clamp-3`. This
@@ -31,7 +35,7 @@ import type { ClassifiedArticle } from "@/lib/types";
  * it. Do not reinstate the old no-clamp gate as a "fix" — read D-08 first.
  */
 export function ArticleCard({ article }: { article: ClassifiedArticle }) {
-  const absoluteTime = new Date(article.publishedAt).toLocaleString();
+  const absoluteTime = formatUtcDateTime(article.publishedAt);
 
   return (
     <article className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow duration-150 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
