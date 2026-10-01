@@ -1,8 +1,8 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "article-card-text-length-inconsistent — Article card titles/summaries render with inconsistent length treatment across the 13 configured sources"
 created: 2026-09-22T00:00:00Z
-updated: 2026-09-22T00:00:00Z
+updated: 2026-10-01T00:00:00Z
 ---
 
 ## Current Focus
@@ -233,3 +233,10 @@ root_cause: |
 fix: "[not applied — goal: find_root_cause_only]"
 verification: "[not applied — goal: find_root_cause_only]"
 files_changed: []
+
+## Fix Applied (recorded 2026-10-01)
+
+Both AND-gated conditions were fixed in Phase 2 (decision D-08, which amended the Phase 1 "no line clamp" spec the diagnosis flagged):
+- Presentation: `ArticleCard.tsx` clamps title (`h3`) and summary (`p`) to three lines with `line-clamp-3`, and omits the summary paragraph entirely when empty (commit `ba62a49`, fix(02-04)).
+- Data: `src/lib/pipeline/truncateSummary.ts` caps `summary` at `SUMMARY_MAX_CHARS = 400` code points.
+Phase 4 later added `break-words` on the title and verified card text containment at six widths. This session sat in `diagnosed` only because nobody recorded the fix.
