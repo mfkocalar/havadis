@@ -2,6 +2,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
 
 /**
@@ -33,6 +34,44 @@ function hasArticleAnchorTag(body: string): boolean {
   return anchorTags.some(
     (tag) => tag.includes('target="_blank"') && tag.includes('rel="noopener noreferrer"')
   );
+}
+
+/** Every `<tag ...>` opening tag in `html`. */
+function openingTags(html: string, tagName: string): string[] {
+  return [...html.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, "g"))].map((m) => m[0]);
+}
+
+/** The quoted value of attribute `name` in an opening tag, or null. */
+function attrValue(tag: string, name: string): string | null {
+  const m = tag.match(new RegExp(`\\s${name}="([^"]*)"`));
+  return m ? m[1] : null;
+}
+
+/** The slice of the document from the first `<main` to the first `</main>`. */
+function mainHtml(body: string): string {
+  const start = body.indexOf("<main");
+  const end = body.indexOf("</main>");
+  if (start === -1 || end === -1) return "";
+  return body.slice(start, end);
+}
+
+type SectionChunk = { section: string; count: string; html: string };
+
+/**
+ * Splits <main> into one chunk per `<section` opening tag: chunk i runs from
+ * that tag to the next one (or to the end of main).
+ */
+function sectionChunks(body: string): SectionChunk[] {
+  const main = mainHtml(body);
+  const starts = [...main.matchAll(/<section\b[^>]*>/g)].map((m) => ({
+    index: m.index as number,
+    tag: m[0],
+  }));
+  return starts.map((s, i) => ({
+    section: attrValue(s.tag, "data-section") ?? "",
+    count: attrValue(s.tag, "data-count") ?? "",
+    html: main.slice(s.index, i + 1 < starts.length ? starts[i + 1].index : main.length),
+  }));
 }
 
 async function pollUntilReady(): Promise<void> {
@@ -191,4 +230,85 @@ test("two consecutive requests return byte-identical HTML", async () => {
   const [res1, res2] = await Promise.all([fetch(BASE_URL), fetch(BASE_URL)]);
   const [body1, body2] = await Promise.all([res1.text(), res2.text()]);
   assert.equal(body1, body2);
+});
+
+// Count invariants (RESEARCH Pitfall 9/12): one count per section, reused on
+// the section element, its heading and (below) its pill; and every card is in
+// the initial HTML even when a section is filtered out client-side (D-07).
+test("every rendered section carries one full article count on its section, heading and pill, and every card is in the initial HTML", async () => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const chunks = sectionChunks(body);
+
+  for (const chunk of chunks) {
+    const cardCount = (chunk.html.match(/<article\b/g) ?? []).length;
+    const headingTag = openingTags(chunk.html, "h2")[0] ?? "";
+    const headingCount = attrValue(
+      openingTags(chunk.html, "span").find((t) => t.includes("data-heading-count")) ?? "",
+      "data-heading-count"
+    );
+    assert.equal(
+      String(cardCount),
+      chunk.count,
+      `${chunk.section}: <article> count must equal the section's data-count`
+    );
+    assert.equal(
+      headingCount,
+      chunk.count,
+      `${chunk.section}: data-heading-count must equal the section's data-count`
+    );
+    const sectionTag = openingTags(chunk.html, "section")[0];
+    const labelledBy = attrValue(sectionTag, "aria-labelledby");
+    assert.ok(labelledBy, `${chunk.section}: expected aria-labelledby on the section`);
+    assert.equal(
+      attrValue(headingTag, "id"),
+      labelledBy,
+      `${chunk.section}: aria-labelledby must equal the id on its h2`
+    );
+  }
+});
+
+test("the filter bar renders one unpressed pill per rendered section, in section order, inside the labelled group, above main", async () => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const chunks = sectionChunks(body);
+
+  if (chunks.length === 0) {
+    assert.ok(body.includes("No articles in the last 24 hours"));
+    assert.ok(!body.includes("data-filter-pill"), "the empty state must render no pills");
+    assert.ok(!body.includes("data-filter-bar"), "the empty state must render no filter bar");
+    return;
+  }
+
+  const pillTags = openingTags(body, "button").filter((t) => t.includes("data-filter-pill"));
+  assert.deepEqual(
+    pillTags.map((t) => attrValue(t, "data-filter-pill")),
+    chunks.map((c) => c.section),
+    "pills must follow the rendered section order"
+  );
+  pillTags.forEach((tag, i) => {
+    assert.equal(attrValue(tag, "aria-pressed"), "false", "pills render unpressed before hydration");
+    assert.equal(attrValue(tag, "data-count"), chunks[i].count, "pill count must equal its section count");
+  });
+  assert.ok(body.includes('role="group"'), "expected the pill group role");
+  assert.ok(body.includes('aria-label="Filter by section"'), "expected the pill group label");
+  assert.ok(
+    body.includes(`Showing all ${chunks.length} section`),
+    "expected the initial live-region status message"
+  );
+  assert.ok(
+    body.indexOf("data-filter-bar") < body.indexOf("<main"),
+    "the filter bar must precede <main> in the document"
+  );
+});
+
+test("the front page is still statically prerendered with the 900-second revalidation window", () => {
+  const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    routes: Record<string, { initialRevalidateSeconds?: number | false; compute?: string }>;
+  };
+  const route = manifest.routes["/"];
+  assert.ok(route, 'expected "/" in the prerender manifest');
+  assert.equal(route.initialRevalidateSeconds, 900);
+  assert.equal(route.compute, "static");
 });
