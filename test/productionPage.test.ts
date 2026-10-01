@@ -302,6 +302,42 @@ test("the filter bar renders one unpressed pill per rendered section, in section
   );
 });
 
+test("the bar's Updated text is the snapshot's deterministic UTC time in the served HTML", async () => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const chunks = sectionChunks(body);
+
+  if (chunks.length === 0) {
+    assert.ok(!body.includes("data-last-updated"), "the empty state must render no Updated text");
+    return;
+  }
+
+  const timeTags = openingTags(body, "time").filter((t) => t.includes("data-last-updated"));
+  assert.equal(timeTags.length, 1, "expected exactly one data-last-updated time element");
+  const tag = timeTags[0];
+  const tagIndex = body.indexOf(tag);
+  assert.ok(
+    tagIndex > body.indexOf("data-filter-bar") && tagIndex < body.indexOf("<main"),
+    "the Updated text must live inside the filter bar, above <main>"
+  );
+
+  const innerMatch = body.slice(tagIndex).match(/^<time\b[^>]*data-last-updated[^>]*>([^<]*)<\/time>/);
+  assert.ok(innerMatch, "expected the time element to hold a single text node");
+  const text = innerMatch![1];
+  assert.match(text, /^Updated \d{2}:\d{2} UTC$/);
+  assert.ok(!text.includes("ago") && !text.includes("just now"), "server HTML must never carry a relative string");
+
+  const iso = attrValue(tag, "datetime") ?? attrValue(tag, "dateTime");
+  assert.ok(iso, "expected a dateTime attribute");
+  assert.equal(new Date(iso!).toISOString(), iso, "dateTime must be a canonical ISO string");
+  assert.equal(text, `Updated ${iso!.slice(11, 16)} UTC`, "text HH:MM must equal the ISO value's HH:MM");
+  assert.equal(
+    attrValue(tag, "title"),
+    `${iso!.slice(0, 10)} ${iso!.slice(11, 16)} UTC`,
+    "hover title must be the full UTC date and time"
+  );
+});
+
 test("the front page is still statically prerendered with the 900-second revalidation window", () => {
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {

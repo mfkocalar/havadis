@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { flushSync } from "react-dom";
 import clsx from "clsx";
 import { useSectionFilter } from "@/components/FrontPageFilter";
+import { LastUpdated } from "@/components/LastUpdated";
 import {
   articleCountLabel,
   filterStatusMessage,
@@ -29,10 +30,21 @@ import {
  * `aria-hidden` so the name is not read twice (Pitfall 8). A visually hidden
  * `role="status"` region announces the result after each toggle.
  *
- * Props are limited to section names, emoji and counts: feed text and article
- * data never reach this client component (T-01-07, T-04-02).
+ * The snapshot's `Updated` text sits after the pill group (D-12): on its own
+ * row below 768px, at the trailing edge and centred on the first pill row from
+ * 768px up.
+ *
+ * Props are limited to section names, emoji, counts and the server-generated
+ * snapshot timestamp: feed text and article data never reach this client
+ * component (T-01-07, T-04-02).
  */
-export function SectionFilterBar({ pills }: { pills: readonly FilterPill[] }) {
+export function SectionFilterBar({
+  pills,
+  generatedAt,
+}: {
+  pills: readonly FilterPill[];
+  generatedAt: string;
+}) {
   const { selected, toggle } = useSectionFilter();
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -99,6 +111,9 @@ export function SectionFilterBar({ pills }: { pills: readonly FilterPill[] }) {
               </button>
             );
           })}
+        </div>
+        <div className="flex shrink-0 items-center pb-1 md:mt-1 md:min-h-8 md:pb-0">
+          <LastUpdated generatedAt={generatedAt} />
         </div>
         <p role="status" className="sr-only">
           {filterStatusMessage(selected.size, pills.length)}
