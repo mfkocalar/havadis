@@ -48,3 +48,8 @@ next-env.d.ts
 # gsd internal runtime state
 .gsd/
 .claude/worktrees/
+
+# AI-assistant instruction files (local only)
+/CLAUDE.md
+/AGENTS.md
+.claude/
