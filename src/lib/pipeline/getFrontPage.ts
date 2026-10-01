@@ -19,7 +19,9 @@ import { groupBySection } from "./groupBySection.ts";
  * (`sections.flatMap((g) => g.articles)`), never computed independently
  * (RESEARCH.md Open Question 1). `now` is threaded straight through to
  * `groupBySection`/`rankWithinSection` — nothing in this composition reads
- * the clock itself (D-09). Exists as its own export so later plans (and
+ * the clock itself (D-09). The same `now` also stamps the result's
+ * `generatedAt` ISO timestamp (Phase 4 D-13), so the page's "Updated" text
+ * measures the snapshot the reader is looking at. Exists as its own export so later plans (and
  * this plan's own tests) can prove the composed pipeline hermetically,
  * without touching the network.
  *
@@ -40,7 +42,12 @@ export function composeFrontPage(
     cves: extractCves(article),
   }));
   const sections = groupBySection(classified, now);
-  return { status: "ok", articles: sections.flatMap((group) => group.articles), sections };
+  return {
+    status: "ok",
+    articles: sections.flatMap((group) => group.articles),
+    sections,
+    generatedAt: new Date(now).toISOString(),
+  };
 }
 
 /**
