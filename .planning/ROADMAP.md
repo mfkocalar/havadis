@@ -132,7 +132,7 @@ Plans:
   3. The layout is readable and fully usable on narrow mobile viewports (~360–390px) as well as desktop, verified at real device widths, not just a resized desktop browser window.
   4. A user can filter the visible front page down to one or more sections entirely client-side — over the already-rendered snapshot, with no full page reload and no new server fetch.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -145,7 +145,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03-PLAN.md — Real-width verification: Playwright legitimacy gate, emulated 360/390/768/1024/1280/1440 checks with zero-request filtering, a preview deploy, and a real iOS + Android device check with the ring and 3-column sign-offs
+- [x] 04-03-PLAN.md — Real-width verification: Playwright legitimacy gate, emulated 360/390/768/1024/1280/1440 checks with zero-request filtering, a preview deploy, and a real iOS + Android device check with the ring and 3-column sign-offs
 
 **UI hint**: yes
 
@@ -159,4 +159,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
 | 2. Full Ingestion & Failure Isolation | 4/4 | Complete    | 2026-09-23 |
 | 3. Deduplication, Classification & Ranking | 3/3 | Complete    | 2026-09-29 |
-| 4. Newspaper Front Page, Filtering & Mobile Polish | 2/3 | In Progress|  |
+| 4. Newspaper Front Page, Filtering & Mobile Polish | 3/3 | In Progress|  |

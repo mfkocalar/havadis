@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Newspaper Front Page, Filtering & Mobile Polish
-status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-10-01T07:29:04.745Z"
+status: verifying
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-10-01T09:06:12.767Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 04 execution started
-state_head: 8dfd38dc02bed7157224237a9fcb2979d34637cd
+state_head: 2c853b230913d1bd7b0848a286e69875282f2ff3
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
   percent: 25
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 Phase: 04 (Newspaper Front Page, Filtering & Mobile Polish) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-01 — Phase 04 execution started
 
 Progress: [████████████████████] 11/11 plans ([███░░░░░░░] 25%)
@@ -63,6 +63,7 @@ Progress: [████████████████████] 11/11 p
 | Phase 01 P04 | 28min | 3 tasks | 4 files |
 | Phase 04 P01 | 5 min | 2 tasks | 10 files |
 | Phase 04 P02 | 4 min | 3 tasks | 15 files |
+| Phase 04 P03 | n/a | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Phase 04-01: filtered sections hidden with hidden attribute, never unmounted; filter state in-memory only (D-09, D-10)
 - [Phase 04]: Phase 04: plan work committed on branch gsd/phase-04-newspaper-front-page-filtering-mobile-polish (main is protected); user merges to main
 - [Phase 04]: Phase 04-02: Updated text is UTC in server HTML/hydration and relative only after hydration via useSyncExternalStore (D-13); collapsed overflow cards use plain hidden (find-in-page limitation accepted)
+- [Phase 04]: 04-03: pill row scrolls below 1024px and wraps from 1024px (UI-SPEC amendment, user-approved 768 bar: A)
+- [Phase 04]: 04-03: ring-zinc-500 on unpressed pills and expander approved; lg:grid-cols-3 kept (D-02)
 
 ### Pending Todos
 
@@ -106,6 +109,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-01T07:29:04.692Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-10-01T09:06:12.710Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
