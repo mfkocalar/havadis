@@ -59,7 +59,7 @@ export function ArticleCard({ article }: { article: ClassifiedArticle }) {
        * level (D-16), so the card title moves down one level to keep a
        * valid document outline (WCAG 1.3.1).
        */}
-      <h3 className="mt-3 line-clamp-3 text-xl font-semibold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50">
+      <h3 className="mt-3 line-clamp-3 break-words text-xl font-semibold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50">
         <a
           href={article.url}
           target="_blank"

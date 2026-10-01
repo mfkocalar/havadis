@@ -70,11 +70,19 @@ export function SectionFilterBar({
       data-filter-bar=""
       className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90"
     >
-      <div className="mx-auto flex w-full max-w-7xl flex-col px-4 py-2 sm:px-6 md:flex-row md:items-start md:justify-between md:gap-4">
+      <div className="mx-auto flex w-full max-w-7xl flex-col px-4 py-2 sm:px-6 md:flex-row md:items-start md:justify-between md:gap-4 md:py-1.5">
+        {/*
+         * `relative` makes this scroller the containing block of the pills'
+         * `sr-only` (position: absolute) spans. Without it their containing
+         * block is the sticky bar, outside this scroller's clip, so they sit
+         * at x of about 1200px and widen the page: mobile browsers then
+         * widen the layout viewport (sideways scroll or zoom-out, found by
+         * 04-03 viewport verification, RESEARCH Pitfall 6).
+         */}
         <div
           role="group"
           aria-label="Filter by section"
-          className="-mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 py-1 max-md:scrollbar-none sm:-mx-6 sm:px-6 md:mx-0 md:flex-1 md:flex-wrap md:overflow-visible md:px-0"
+          className="relative -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 py-1 max-md:scrollbar-none sm:-mx-6 sm:px-6 md:mx-0 md:flex-1 md:flex-wrap md:overflow-visible md:px-0"
         >
           {pills.map(({ section, emoji, count }) => {
             const pressed = selected.has(section);
