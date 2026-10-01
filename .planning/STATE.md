@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Newspaper Front Page, Filtering & Mobile Polish
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-10-01T07:24:09.733Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-10-01T07:29:04.745Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 04 execution started
-state_head: 0522de8588a242a30e498e649cb6e190c6e5f034
+state_head: 8dfd38dc02bed7157224237a9fcb2979d34637cd
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 25
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 ## Current Position
 
 Phase: 04 (Newspaper Front Page, Filtering & Mobile Polish) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-10-01 — Phase 04 execution started
 
@@ -62,6 +62,7 @@ Progress: [████████████████████] 11/11 p
 |------|----------|-------|-------|
 | Phase 01 P04 | 28min | 3 tasks | 4 files |
 | Phase 04 P01 | 5 min | 2 tasks | 10 files |
+| Phase 04 P02 | 4 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,7 @@ Recent decisions affecting current work:
 - [Phase 04]: Phase 04-01: unpressed filter pill/control outline uses ring-zinc-500 (amends UI-SPEC zinc-400/zinc-600 for 3:1 non-text contrast); pending sign-off at 04-03
 - [Phase 04]: Phase 04-01: filtered sections hidden with hidden attribute, never unmounted; filter state in-memory only (D-09, D-10)
 - [Phase 04]: Phase 04: plan work committed on branch gsd/phase-04-newspaper-front-page-filtering-mobile-polish (main is protected); user merges to main
+- [Phase 04]: Phase 04-02: Updated text is UTC in server HTML/hydration and relative only after hydration via useSyncExternalStore (D-13); collapsed overflow cards use plain hidden (find-in-page limitation accepted)
 
 ### Pending Todos
 
@@ -104,6 +106,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-01T07:24:09.681Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-10-01T07:29:04.692Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
