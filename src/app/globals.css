@@ -42,3 +42,13 @@ h3 {
 p {
   line-height: 1.6;
 }
+
+/*
+ * Keep keyboard focus clear of the sticky filter bar (WCAG 2.2 SC 2.4.11,
+ * focus not obscured). The bar is at most ~96px tall at md+ when its row
+ * wraps to two lines, so 6rem offsets scrolled-into-view targets. The filter
+ * bar's scrollIntoView({ block: "start" }) after a toggle relies on this.
+ */
+html {
+  scroll-padding-top: 6rem;
+}
