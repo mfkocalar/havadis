@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
 current_phase: 04
-current_phase_name: newspaper-front-page-filtering-mobile-polish
+current_phase_name: Newspaper Front Page, Filtering & Mobile Polish
 status: executing
-stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-10-01T07:14:22.799Z"
-last_activity: 2026-09-29
-last_activity_desc: Phase 03 complete, transitioned to Phase 4
-state_head: ee1bcadd8974d60d6473ed8f4cd3a450bb266f75
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-10-01T07:24:09.733Z"
+last_activity: 2026-10-01
+last_activity_desc: Phase 04 execution started
+state_head: 0522de8588a242a30e498e649cb6e190c6e5f034
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 25
 ---
 
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** Security experts get a fast, reliable, always-current front page of what's happening across the industry — without visiting a dozen sites, and without the app doing redundant work on every page load.
-**Current focus:** Phase 4 — Newspaper Front Page, Filtering & Mobile Polish
+**Current focus:** Phase 04 — Newspaper Front Page, Filtering & Mobile Polish
 
 ## Current Position
 
-Phase: 04 (newspaper-front-page-filtering-mobile-polish) — READY TO EXECUTE
-Plan: Not started
+Phase: 04 (Newspaper Front Page, Filtering & Mobile Polish) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-09-29 — Phase 03 complete, transitioned to Phase 4
+Last activity: 2026-10-01 — Phase 04 execution started
 
 Progress: [████████████████████] 11/11 plans ([███░░░░░░░] 25%)
 
@@ -61,6 +61,7 @@ Progress: [████████████████████] 11/11 p
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P04 | 28min | 3 tasks | 4 files |
+| Phase 04 P01 | 5 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 03]: CVE chip `href` is built only from a re-validated, anchored ID match (`^CVE-\d{4}-\d{4,7}$`, `CVE_PATTERN` uses a `(?!\d)` lookahead per WR-02), never from feed-supplied URLs; 3-visible + "+N" overflow cap (D-13/D-14)
 - [Phase 03]: Code review 5/5 warnings fixed (WR-01..05); live e2e suite now gated behind `E2E=1` opt-in (`npm test` → 201/208 hermetic, `E2E=1 npm test` → 208/208 incl. live feeds)
 - [Phase 03]: Security review — 18 threats registered (12 closed by confirmed mitigations, 6 accepted as documented risks), `threats_open: 0`; UI audit scored 24/24, no blockers
+- [Phase 04]: Phase 04-01: unpressed filter pill/control outline uses ring-zinc-500 (amends UI-SPEC zinc-400/zinc-600 for 3:1 non-text contrast); pending sign-off at 04-03
+- [Phase 04]: Phase 04-01: filtered sections hidden with hidden attribute, never unmounted; filter state in-memory only (D-09, D-10)
+- [Phase 04]: Phase 04: plan work committed on branch gsd/phase-04-newspaper-front-page-filtering-mobile-polish (main is protected); user merges to main
 
 ### Pending Todos
 
@@ -100,6 +104,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-30T12:08:51.626Z
-Stopped at: Phase 4 UI-SPEC approved
-Resume file: .planning/phases/04-newspaper-front-page-filtering-mobile-polish/04-UI-SPEC.md
+Last session: 2026-10-01T07:24:09.681Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None

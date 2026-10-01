@@ -132,12 +132,12 @@ Plans:
   3. The layout is readable and fully usable on narrow mobile viewports (~360–390px) as well as desktop, verified at real device widths, not just a resized desktop browser window.
   4. A user can filter the visible front page down to one or more sections entirely client-side — over the already-rendered snapshot, with no full page reload and no new server fetch.
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Tracer: count-bearing sticky section pills narrow the page client-side (DOM-less provider, hidden wrappers, route stays static at 900 s), then the 1/2/3-column grid in one aligned 7xl container with an AA contrast gate over the real Tailwind palette
+- [x] 04-01-PLAN.md — Tracer: count-bearing sticky section pills narrow the page client-side (DOM-less provider, hidden wrappers, route stays static at 900 s), then the 1/2/3-column grid in one aligned 7xl container with an AA contrast gate over the real Tailwind palette
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -159,4 +159,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Single-Source Pipeline (Vertical Slice) | 4/4 | Complete    | 2026-09-21 |
 | 2. Full Ingestion & Failure Isolation | 4/4 | Complete    | 2026-09-23 |
 | 3. Deduplication, Classification & Ranking | 3/3 | Complete    | 2026-09-29 |
-| 4. Newspaper Front Page, Filtering & Mobile Polish | 0/3 | Planned | - |
+| 4. Newspaper Front Page, Filtering & Mobile Polish | 1/3 | In Progress|  |
