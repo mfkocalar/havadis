@@ -26,8 +26,16 @@
  * Environment: VIEWPORT_PORT overrides the port (default 3200). The server
  * binds 127.0.0.1 only.
  *
- * Exit codes: 0 everything passed (prints VIEWPORTS_OK), 1 at least one check
- * failed (prints VIEWPORTS_FAILED <count>), 2 Playwright is not installed.
+ * Flags: --allow-no-expander downgrades "no section had 9 or more articles, so
+ * the expander was never exercised" from a failure to an explicit SKIP (use it
+ * on a quiet day when the build genuinely has no expandable section).
+ *
+ * Exit codes: 0 everything passed AND the checks were actually performed
+ * (prints VIEWPORTS_OK), 1 at least one check failed (prints VIEWPORTS_FAILED
+ * <count>), 2 Playwright is not installed. A build that renders the empty
+ * state is a failure, not a pass: no layout check can run against it, and a
+ * green result would be a false green. The same holds for an expander that was
+ * never exercised, unless --allow-no-expander is given.
  *
  * focus-not-obscured moves focus with the locator's focus() method (the
  * programmatic path was reliable in Chromium 153; no Shift+Tab fallback
@@ -61,7 +69,10 @@ const CONFIGS = [
 ];
 const SCREENSHOT_CONFIGS = new Set(["mobile-360", "desktop-1024", "desktop-1280"]);
 
+const ALLOW_NO_EXPANDER = process.argv.includes("--allow-no-expander");
+
 let failures = 0;
+let expanderExercised = 0;
 const pass = (cfg, check) => console.log(`PASS ${cfg} ${check}`);
 const skip = (cfg, check, why) => console.log(`SKIP ${cfg} ${check}: ${why}`);
 const fail = (cfg, check, detail) => {
@@ -161,6 +172,13 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
   const sectionCount = await page.locator(SECTION_SEL).count();
   if (sectionCount === 0) {
     console.log(`NOTE ${name}: EMPTY STATE on this build (no section[data-section])`);
+    // The layout checks below cannot run against the empty state. Verifying
+    // nothing is a failure, never a pass (review WR-02).
+    fail(
+      name,
+      "page-has-sections",
+      "empty state rendered: filter bar, grid, sticky and expander checks could not run",
+    );
     await check(name, "empty-state-no-bar", async () =>
       (await page.locator(BAR_SEL).count()) === 0 ? null : "filter bar rendered in the empty state",
     );
@@ -367,6 +385,7 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
       if (!label.startsWith("Show all")) return `label after collapse was "${label}" (was "${total}")`;
       return requests === before ? null : `${requests - before} network request(s) while expanding`;
     });
+    expanderExercised += 1;
     console.log("EXPANDER_EXERCISED yes");
   } else {
     skip(name, "expander-zero-network", "no section had 9 or more articles on this build");
@@ -423,6 +442,17 @@ try {
     console.log(`SCREENSHOTS ${dir}`);
   } finally {
     await browser.close();
+  }
+  if (expanderExercised === 0) {
+    if (ALLOW_NO_EXPANDER) {
+      console.log("EXPANDER_NEVER_EXERCISED allowed by --allow-no-expander");
+    } else {
+      fail(
+        "all",
+        "expander-exercised",
+        "no config exercised the expander (no section had 9 or more articles); pass --allow-no-expander to accept this",
+      );
+    }
   }
   if (failures === 0) {
     console.log("VIEWPORTS_OK");
