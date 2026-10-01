@@ -1,6 +1,8 @@
 {
   "name": "havadis",
   "version": "0.1.0",
+  "description": "A public, source-independent daily security newspaper: 13 curated cybersecurity feeds, deduplicated and sorted into urgency-ordered sections.",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev",
