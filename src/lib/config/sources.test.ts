@@ -27,8 +27,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 13 entries", () => {
-  assert.equal(SOURCES.length, 13);
+test("SOURCES has exactly 27 entries", () => {
+  assert.equal(SOURCES.length, 27);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {

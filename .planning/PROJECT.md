@@ -2,11 +2,11 @@
 
 ## What This Is
 
-Havadis is a public, source-independent daily security newspaper for security experts. It aggregates articles from 13 curated cybersecurity RSS feeds, normalizes and deduplicates them, sorts them into 7 newspaper-style sections, and serves them as a fast, mobile-friendly, server-rendered front page. There are no user accounts — anyone can visit and read.
+Havadis is a public, source-independent daily security newspaper for security experts. It aggregates articles from 27 curated cybersecurity RSS feeds, normalizes and deduplicates them, sorts them into 7 newspaper-style sections, and serves them as a fast, mobile-friendly, server-rendered front page. There are no user accounts — anyone can visit and read.
 
 ## Core Value
 
-Security experts get a fast, reliable, always-current front page of what's happening across the industry — without visiting a dozen sites, and without the app doing redundant work (fetching all 13 sources) on every single page load.
+Security experts get a fast, reliable, always-current front page of what's happening across the industry — without visiting a dozen sites, and without the app doing redundant work (fetching all 27 sources) on every single page load.
 
 ## Requirements
 
@@ -42,7 +42,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
 ## Context
 
 - Reference implementation: https://github.com/mfksec/SecureNewspaper — a Python/Slack-webhook "security gazette" generator. Havadis ports its **source list** and **section taxonomy** (not its Slack delivery mechanism, which is irrelevant to a public web app).
-- 13 sources for v1 (fixed, hardcoded — no source-management UI):
+- 27 sources (13 at v1.0 plus 14 added 2026-10-02; fixed, hardcoded — no source-management UI). Original 13:
 
   | Tier | Source | Feed URL |
   |---|---|---|
@@ -59,6 +59,25 @@ Security experts get a fast, reliable, always-current front page of what's happe
   | Tech & General | TechCrunch Security | https://techcrunch.com/category/security/feed/ |
   | Tech & General | Ars Technica | https://feeds.arstechnica.com/arstechnica/index |
   | Executive News | CSO Online | https://www.csoonline.com/feed/ |
+
+  Added 2026-10-02 (live-probed: HTTP 200, valid XML, items within 24h; URLs at final redirect hop):
+
+  | Tier | Source | Feed URL |
+  |---|---|---|
+  | Government | CIS Advisories | https://www.cisecurity.org/feed/advisories |
+  | Government | CERT/CC Vulnerability Notes | https://www.kb.cert.org/vulfeed/ |
+  | Government | NIST Cybersecurity Insights | https://www.nist.gov/blogs/cybersecurity-insights/rss.xml |
+  | Security Research | Graham Cluley | https://grahamcluley.com/feed/ |
+  | Security Research | Schneier on Security | https://www.schneier.com/feed/atom/ |
+  | Security Research | Bishop Fox | https://bishopfox.com/feeds/blog.rss |
+  | Security Research | ReversingLabs | https://www.reversinglabs.com/blog/rss.xml |
+  | Enterprise Security | Heimdal Security | https://heimdalsecurity.com/blog/feed/ |
+  | Threat Intelligence | GBHackers | https://gbhackers.com/feed/ |
+  | Threat Intelligence | Hackread | https://hackread.com/feed/ |
+  | Threat Intelligence | DataBreaches.net | https://databreaches.net/feed/ |
+  | Threat Intelligence | UpGuard Breaches | https://www.upguard.com/breaches/rss.xml |
+  | Tech & General | EFF Updates | https://www.eff.org/rss/updates.xml |
+  | Executive News | Computer Weekly Security | https://www.computerweekly.com/rss/IT-security.xml |
 
 - 7 sections for classification (ported from reference repo's `config.yaml`, keyword/regex-based, case-insensitive, first-match-wins, default = INDUSTRY_POLICY):
   - ⚠️ THREAT_INTELLIGENCE — APT, threat actor, TA\d+, state-sponsored, campaign, malicious, threat
@@ -79,7 +98,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
 - **Tech stack**: Next.js (App Router, TypeScript) + Tailwind CSS, deployed on Vercel — decided with the user before project init, not open for re-litigation without a clear reason.
 - **Cost**: Must run on Vercel's free tier — no paid database, no paid KV, no paid cron beyond free-tier allowances.
 - **Statelessness**: No database. The only "state" is Next.js's own derived-data cache (a disposable, regenerable artifact), not source-of-truth state. Any feature that needs true persistence (archive, accounts) is explicitly out of scope for this reason.
-- **Sources**: Fixed list of 13 RSS/Atom feeds (see Context). No source-management UI in v1; adding/removing a source is a code change.
+- **Sources**: Fixed list of 27 RSS/Atom feeds (see Context). No source-management UI in v1; adding/removing a source is a code change.
 - **Public**: No authentication anywhere in v1.
 
 ## Key Decisions
@@ -108,7 +127,7 @@ Security experts get a fast, reliable, always-current front page of what's happe
 
 ## Current State
 
-Shipped **v1.0 MVP** on 2026-10-01: 4 phases, 14 plans, ~5.7K lines of TypeScript in `src/`. All 17 v1 requirements are complete. The site is a static, ISR-style Next.js 16 page (900s revalidate) aggregating 13 feeds, deduplicated, classified into 7 urgency-ordered sections, with a client-side section filter and verified mobile layout.
+Shipped **v1.0 MVP** on 2026-10-01: 4 phases, 14 plans, ~5.7K lines of TypeScript in `src/`. All 17 v1 requirements are complete. The site is a static, ISR-style Next.js 16 page (900s revalidate) aggregating 27 feeds (13 at v1.0 plus 14 added 2026-10-02), deduplicated, classified into 7 urgency-ordered sections, with a client-side section filter and verified mobile layout.
 
 Known follow-ups carried out of v1.0 (none block use):
 - Phases 1, 3 and 4 were closed with stale verification reports (an override closeout); no milestone audit was run.

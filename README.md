@@ -1,10 +1,10 @@
 # Havadis
 
-A public, source-independent daily security newspaper for security practitioners. Havadis aggregates 13 curated cybersecurity feeds, normalizes and deduplicates them, sorts them into urgency-ordered sections, and serves a fast, mobile-friendly, server-rendered front page. No accounts, no database.
+A public, source-independent daily security newspaper for security practitioners. Havadis aggregates 27 curated cybersecurity feeds, normalizes and deduplicates them, sorts them into urgency-ordered sections, and serves a fast, mobile-friendly, server-rendered front page. No accounts, no database.
 
 ## Features
 
-- **13 curated sources** (government advisories, security research, enterprise security, threat intelligence, tech and executive news), fetched in parallel. One failing feed never takes the page down.
+- **27 curated sources** (government advisories, security research, enterprise security, threat intelligence, tech and executive news), fetched in parallel. One failing feed never takes the page down.
 - **Deduplication:** the same story from several outlets appears once (canonical URL or normalized title match; the earliest copy wins).
 - **Seven urgency-ordered sections:** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy. Classification is deterministic and keyword-based (see `src/lib/config/sections.ts`).
 - **Ranking** within a section by source tier weight and recency.
@@ -16,7 +16,7 @@ A public, source-independent daily security newspaper for security practitioners
 ## How it works
 
 ```
-13 RSS/Atom feeds
+27 RSS/Atom feeds
    → fetchSource (validated redirects, size cap, per-source timeout)
    → normalize → 24h lookback filter → dedupe → classify → rank → group by section
    → server-rendered page (revalidated every 15 minutes)

@@ -1,7 +1,8 @@
 import type { SourceConfig } from "../types.ts";
 
 /**
- * The complete, fixed list of 13 ingestion sources (PROJECT.md's table).
+ * The complete, fixed list of 27 ingestion sources (PROJECT.md's table of 13,
+ * plus 14 live-verified additions at the end of the array).
  * Phase 1 wired the first entry (Krebs on Security, per CONTEXT.md D-01);
  * Plan 02-01 added the second (CISA Alerts) to prove the multi-source
  * fan-out end to end; this array (Plan 02-02) appends the remaining eleven,
@@ -129,4 +130,24 @@ export const SOURCES: SourceConfig[] = [
     tier: "Executive News",
     url: "https://www.csoonline.com/feed/",
   },
+  // Sources 14-27 were added 2026-10-02 after a live probe of a candidate
+  // list (HavadisBot UA, 8s budget, 2MB cap): each returned 200 with valid
+  // XML and published within the prior 24h. URLs are configured at the
+  // final redirect hop (Pitfall 2 above); Schneier's legacy `atom.xml`
+  // redirects to `/feed/atom/`, and Graham Cluley, Hackread and
+  // databreaches.net drop their `www.` prefix.
+  { id: "gbhackers", name: "GBHackers", tier: "Threat Intelligence", url: "https://gbhackers.com/feed/" },
+  { id: "hackread", name: "Hackread", tier: "Threat Intelligence", url: "https://hackread.com/feed/" },
+  { id: "databreaches", name: "DataBreaches.net", tier: "Threat Intelligence", url: "https://databreaches.net/feed/" },
+  { id: "upguard-breaches", name: "UpGuard Breaches", tier: "Threat Intelligence", url: "https://www.upguard.com/breaches/rss.xml" },
+  { id: "cis-advisories", name: "CIS Advisories", tier: "Government", url: "https://www.cisecurity.org/feed/advisories" },
+  { id: "cert-cc", name: "CERT/CC Vulnerability Notes", tier: "Government", url: "https://www.kb.cert.org/vulfeed/" },
+  { id: "nist-cybersecurity", name: "NIST Cybersecurity Insights", tier: "Government", url: "https://www.nist.gov/blogs/cybersecurity-insights/rss.xml" },
+  { id: "graham-cluley", name: "Graham Cluley", tier: "Security Research", url: "https://grahamcluley.com/feed/" },
+  { id: "schneier", name: "Schneier on Security", tier: "Security Research", url: "https://www.schneier.com/feed/atom/" },
+  { id: "bishop-fox", name: "Bishop Fox", tier: "Security Research", url: "https://bishopfox.com/feeds/blog.rss" },
+  { id: "reversinglabs", name: "ReversingLabs", tier: "Security Research", url: "https://www.reversinglabs.com/blog/rss.xml" },
+  { id: "heimdal", name: "Heimdal Security", tier: "Enterprise Security", url: "https://heimdalsecurity.com/blog/feed/" },
+  { id: "eff", name: "EFF Updates", tier: "Tech & General", url: "https://www.eff.org/rss/updates.xml" },
+  { id: "computer-weekly", name: "Computer Weekly Security", tier: "Executive News", url: "https://www.computerweekly.com/rss/IT-security.xml" },
 ];
