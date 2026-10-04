@@ -205,3 +205,23 @@ test("no url hostname is an IP literal, loopback/local name, or non-registrable"
     );
   }
 });
+
+test("no source sets maxItems (D-07)", () => {
+  for (const source of SOURCES) {
+    assert.equal(
+      source.maxItems,
+      undefined,
+      `${source.id}: maxItems is not set until a live probe shows a flood`
+    );
+  }
+});
+
+test("any maxItems set on a source is a positive integer", () => {
+  for (const source of SOURCES) {
+    if (source.maxItems === undefined) continue;
+    assert.ok(
+      Number.isInteger(source.maxItems) && source.maxItems > 0,
+      `${source.id}: maxItems must be a positive integer`
+    );
+  }
+});

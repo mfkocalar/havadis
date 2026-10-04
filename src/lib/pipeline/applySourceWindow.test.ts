@@ -86,3 +86,54 @@ test("applySourceWindow and withSourceWindow never read the wall clock", async (
     spy.mock.restore();
   }
 });
+
+// ---- maxItems cap (D-07, T-05-12) ----
+
+function eightInWindow(source: SourceConfig): Article[] {
+  // Hours ago 1..8, deliberately shuffled so input order is not newest-first.
+  return [5, 2, 8, 1, 6, 3, 7, 4].map((h) => articleFor(source, hoursAgo(h), `cap story ${h}h`));
+}
+
+for (const k of [1, 2, 5]) {
+  test(`maxItems ${k} keeps exactly the ${k} newest in-window articles`, () => {
+    const source = makeSource({ sourceType: "news", maxItems: k });
+    const input = eightInWindow(source);
+    const kept = applySourceWindow(input, source, NOW);
+    assert.equal(kept.length, k);
+    const expected = new Set(
+      [...input]
+        .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+        .slice(0, k)
+        .map((a) => a.url)
+    );
+    assert.deepEqual(new Set(kept.map((a) => a.url)), expected);
+  });
+}
+
+test("maxItems larger than the in-window count returns every in-window article", () => {
+  const source = makeSource({ sourceType: "news", maxItems: 50 });
+  assert.equal(applySourceWindow(eightInWindow(source), source, NOW).length, 8);
+});
+
+test("out-of-window stragglers never use up the cap (lookback runs before the cap)", () => {
+  const source = makeSource({ sourceType: "news", maxItems: 3 });
+  const inWindow = [1, 2, 3].map((h) => articleFor(source, hoursAgo(h), `in ${h}h`));
+  const stale = [30, 40, 50, 60, 70].map((h) => articleFor(source, hoursAgo(h), `stale ${h}h`));
+  const kept = applySourceWindow([...stale, ...inWindow], source, NOW);
+  assert.deepEqual(new Set(kept.map((a) => a.url)), new Set(inWindow.map((a) => a.url)));
+});
+
+test("applySourceWindow does not mutate its input array", () => {
+  const source = makeSource({ sourceType: "news", maxItems: 2 });
+  const input = eightInWindow(source);
+  const before = input.map((a) => a.url);
+  applySourceWindow(input, source, NOW);
+  assert.deepEqual(input.map((a) => a.url), before);
+});
+
+test("a maxItems that is not a positive integer applies no cap and does not throw", () => {
+  for (const bad of [0, -1, 2.5]) {
+    const source = makeSource({ sourceType: "news", maxItems: bad });
+    assert.equal(applySourceWindow(eightInWindow(source), source, NOW).length, 8, `maxItems ${bad}`);
+  }
+});
