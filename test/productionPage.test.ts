@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
+import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
 
 /**
  * Drives a real `next start` production server and asserts the public
@@ -404,5 +405,32 @@ test("the front page is still statically prerendered with the 900-second revalid
   const route = manifest.routes["/"];
   assert.ok(route, 'expected "/" in the prerender manifest');
   assert.equal(route.initialRevalidateSeconds, 900);
+  assert.equal(route.compute, "static");
+});
+
+test("GET /about returns 200 with no cookie, names HavadisBot, shows the exact User-Agent and the contact channel", async () => {
+  const res = await fetch(`${BASE_URL}/about`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("set-cookie"), null, "/about must never set a cookie");
+  const body = await res.text();
+  assert.ok(body.includes("HavadisBot"), "expected the crawler name on /about");
+  assert.ok(body.includes(USER_AGENT), "expected the exact User-Agent string on /about");
+  assert.ok(
+    body.includes(CRAWLER_CONTACT_CHANNEL_URL),
+    "expected the contact/opt-out channel on /about"
+  );
+  if (!CRAWLER_CONTACT_CHANNEL_URL.startsWith("mailto:")) {
+    assert.ok(!body.includes("mailto:"), "/about must not publish a mailto: link");
+  }
+});
+
+test("/about is prerendered as a static route", () => {
+  const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    routes: Record<string, { initialRevalidateSeconds?: number | false; compute?: string }>;
+  };
+  const route = manifest.routes["/about"];
+  assert.ok(route, 'expected "/about" in the prerender manifest');
+  assert.equal(route.initialRevalidateSeconds, false);
   assert.equal(route.compute, "static");
 });
