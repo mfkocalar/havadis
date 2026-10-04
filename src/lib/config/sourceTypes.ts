@@ -32,3 +32,20 @@ export const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
   cert: "CERT",
   government: "Government",
 };
+
+/**
+ * Lookback window in hours for each source type (Phase 5 D-05, SRC-04).
+ *
+ * Resolved per source from its `sourceType`, never a global constant: CERT,
+ * government and vendor advisories are low-cadence and stay relevant for
+ * three days, while news and research churn daily. The window only decides
+ * inclusion, not order. Ranking stays tier x recency (D-06), so an old item
+ * still sorts low within its section.
+ */
+export const LOOKBACK_HOURS: Record<SourceType, number> = {
+  cert: 72,
+  government: 72,
+  vendor: 72,
+  news: 24,
+  research: 24,
+};

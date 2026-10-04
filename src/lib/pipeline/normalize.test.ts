@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type Parser from "rss-parser";
 import { normalize } from "./normalize.ts";
+import { parseFeedDate } from "./parseFeedDate.ts";
 import { SUMMARY_MAX_CHARS } from "./truncateSummary.ts";
 import { makeSource } from "../../../test/fixtures/makeArticle.ts";
 
@@ -97,8 +98,37 @@ test("returns null when link is missing", () => {
   assert.equal(normalize(item({ link: undefined }), source), null);
 });
 
-test("returns null when isoDate is missing", () => {
+test("returns null when neither isoDate nor a parseable pubDate is present", () => {
   assert.equal(normalize(item({ isoDate: undefined }), source), null);
+  assert.equal(normalize(item({ isoDate: undefined, pubDate: "not a date" }), source), null);
+});
+
+test("falls back to parseFeedDate for a CEST pubDate when isoDate is missing (SRC-03, D-10)", () => {
+  const pubDate = "Sun, 27 Sep 2026 19:40:52 CEST";
+  const article = normalize(item({ isoDate: undefined, pubDate }), source);
+  assert.ok(article !== null);
+  assert.equal(article.publishedAt, parseFeedDate(pubDate));
+});
+
+test("isoDate wins over pubDate when both are present", () => {
+  const article = normalize(
+    item({ isoDate: "2026-01-01T00:00:00.000Z", pubDate: "Sun, 27 Sep 2026 19:40:52 CEST" }),
+    source
+  );
+  assert.equal(article?.publishedAt, "2026-01-01T00:00:00.000Z");
+});
+
+test("a padded link is stored trimmed (SRC-03, D-10)", () => {
+  const article = normalize(item({ link: "\n   https://cert.europa.eu/x/\n  " }), source);
+  assert.equal(article?.url, "https://cert.europa.eu/x/");
+});
+
+test("a whitespace-only link returns null", () => {
+  assert.equal(normalize(item({ link: "  \n " }), source), null);
+});
+
+test("a padded javascript: link still returns null (T-05-10)", () => {
+  assert.equal(normalize(item({ link: "\n  javascript:alert(1)\n " }), source), null);
 });
 
 test("returns null when link protocol is neither http nor https", () => {

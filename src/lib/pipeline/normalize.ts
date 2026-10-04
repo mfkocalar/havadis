@@ -1,13 +1,19 @@
 import type Parser from "rss-parser";
 import type { Article, SourceConfig } from "../types.ts";
 import { decodeHtmlEntities } from "./decodeHtmlEntities.ts";
+import { parseFeedDate } from "./parseFeedDate.ts";
 import { truncateSummary } from "./truncateSummary.ts";
 
 /**
  * Normalizes one parsed feed item into the shared `Article` shape.
  *
  * Every field arriving from the feed is untrusted external input:
- * - Missing `title`, `link`, or `isoDate` drops the item entirely (`null`).
+ * - Missing `title`, `link`, or date drops the item entirely (`null`). The
+ *   date is `isoDate`, falling back to `parseFeedDate(pubDate)` for European
+ *   zone abbreviations (CET, CEST, ...) that V8 rejects, which leaves
+ *   `rss-parser` without an `isoDate` (SRC-03, D-10).
+ * - `link` is trimmed before the protocol gate and stored trimmed, so hrefs
+ *   and React keys carry no whitespace (SRC-03, D-10).
  * - `link` is parsed as a URL and dropped unless its protocol is `https:`
  *   or `http:` — this keeps a hostile feed from putting any other scheme
  *   into an `href` at render time (threat T-01-04).
@@ -46,11 +52,13 @@ import { truncateSummary } from "./truncateSummary.ts";
  * `contentSnippet` is therefore treated the same as a missing summary.
  */
 export function normalize(item: Parser.Item, source: SourceConfig): Article | null {
-  if (!item.title || !item.link || !item.isoDate) return null;
+  const link = item.link?.trim();
+  const publishedAt = item.isoDate || parseFeedDate(item.pubDate);
+  if (!item.title || !link || !publishedAt) return null;
 
   let parsedLink: URL;
   try {
-    parsedLink = new URL(item.link);
+    parsedLink = new URL(link);
   } catch {
     return null;
   }
@@ -63,11 +71,11 @@ export function normalize(item: Parser.Item, source: SourceConfig): Article | nu
 
   return {
     title,
-    url: item.link,
+    url: link,
     source: source.name,
     sourceTier: source.tier,
     sourceType: source.sourceType,
-    publishedAt: item.isoDate,
+    publishedAt,
     summary: truncateSummary((item.contentSnippet ?? "").trim()),
   };
 }
