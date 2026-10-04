@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type Parser from "rss-parser";
 import { normalize } from "./normalize.ts";
 import { SUMMARY_MAX_CHARS } from "./truncateSummary.ts";
-import type { SourceConfig } from "../types.ts";
+import { makeSource } from "../../../test/fixtures/makeArticle.ts";
 
 /**
  * Unit tests for normalize.ts's edge cases (NORM-01 adjacency/empty/ordering
@@ -12,12 +12,12 @@ import type { SourceConfig } from "../types.ts";
  * path against the real feed — these prove the defensive guards.
  */
 
-const source: SourceConfig = {
+const source = makeSource({
   id: "krebs",
   name: "Krebs on Security",
   tier: "Security Research",
   url: "https://krebsonsecurity.com/feed/",
-};
+});
 
 function item(overrides: Partial<Parser.Item>): Parser.Item {
   return {

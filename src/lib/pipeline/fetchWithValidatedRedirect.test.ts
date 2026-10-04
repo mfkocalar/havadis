@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { fetchWithValidatedRedirect } from "./fetchWithValidatedRedirect.ts";
 import { fetchSource } from "./fetchSource.ts";
 import { startHostileServer } from "../../../test/fixtures/hostileRedirectServer.ts";
-import type { SourceConfig } from "../types.ts";
+import { makeSource } from "../../../test/fixtures/makeArticle.ts";
 
 /**
  * Reject-path, timeout, and follow-path tests for `fetchWithValidatedRedirect`.
@@ -152,12 +152,12 @@ test("aborts a hanging origin at the per-hop timeout rather than hanging forever
 test("fetchSource resolves to the error variant on a hanging origin rather than rejecting or hanging the caller", async () => {
   const server = await startHostileServer();
   try {
-    const source: SourceConfig = {
+    const source = makeSource({
       id: "hostile-hang",
       name: "Hostile Hang Fixture",
       tier: "Security Research",
       url: `${server.baseUrl}/hang`,
-    };
+    });
     const result = await fetchSource(source);
     assert.equal(
       result.status,
@@ -180,12 +180,12 @@ test(
     const server = await startHostileServer();
     const start = Date.now();
     try {
-      const source: SourceConfig = {
+      const source = makeSource({
         id: "hostile-slow-body",
         name: "Hostile Slow Body Fixture",
         tier: "Security Research",
         url: `${server.baseUrl}/slow-body`,
-      };
+      });
       const result = await fetchSource(source);
       const elapsedMs = Date.now() - start;
       assert.equal(
@@ -218,12 +218,12 @@ test("fetchSource succeeds when the origin drips its body but finishes inside th
   const server = await startHostileServer();
   const start = Date.now();
   try {
-    const source: SourceConfig = {
+    const source = makeSource({
       id: "hostile-drip-complete",
       name: "Hostile Drip-Then-Complete Fixture",
       tier: "Security Research",
       url: `${server.baseUrl}/drip-then-complete`,
-    };
+    });
     const result = await fetchSource(source);
     const elapsedMs = Date.now() - start;
     assert.equal(
