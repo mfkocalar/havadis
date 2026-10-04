@@ -203,7 +203,9 @@ export const SOURCES: SourceConfig[] = [
   // (fixed by Plan 05-04's date fallback); links carry leading and trailing
   // newlines; ttl 1440; roughly one advisory every 5 to 17 days. The CERT-EU
   // Threat Intelligence (monthly Cyber Brief) feed is deliberately not
-  // configured (D-09). Vercel-preview egress probe: pending (Plan 05-05).
+  // configured (D-09). Local-egress probe through fetchSource (2026-10-04): ok,
+  // rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 165.8,
+  // inWindow 0. Vercel-preview egress probe: pending (Plan 05-05).
   {
     id: "cert-eu",
     name: "CERT-EU Security Advisories",
@@ -215,7 +217,9 @@ export const SOURCES: SourceConfig[] = [
   },
   // NCSC-UK, probed 2026-10-04 from a laptop: 200, application/rss+xml;
   // charset=utf-8, 11,631 bytes, 20 items, all with isoDate, fixed 12:00 UTC
-  // timestamps, roughly one item a week. Vercel-preview egress probe: pending
+  // timestamps, roughly one item a week. Local-egress probe through fetchSource
+  // (2026-10-04): ok, rawItems 20, datedItems 20, normalizedItems 20,
+  // newestAgeHours 147.5, inWindow 0. Vercel-preview egress probe: pending
   // (Plan 05-05).
   {
     id: "ncsc-uk",
