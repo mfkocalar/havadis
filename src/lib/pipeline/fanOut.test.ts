@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fanOut } from "./fanOut.ts";
 import { startHostileServer } from "../../../test/fixtures/hostileRedirectServer.ts";
+import { makeArticle, makeSource } from "../../../test/fixtures/makeArticle.ts";
 import type { FrontPageResult, SourceConfig } from "../types.ts";
 
 /**
@@ -24,7 +25,7 @@ after(() => server.close());
 /** Tier is irrelevant to `fanOut` — kept constant so this stays a failure-
  * isolation test, not an accidental tier test. */
 function fixtureSource(id: string, path: string): SourceConfig {
-  return { id, name: id, tier: "Security Research", url: `${server.baseUrl}${path}` };
+  return makeSource({ id, name: id, tier: "Security Research", url: `${server.baseUrl}${path}` });
 }
 
 test("mixed health: two healthy sources among four broken ones yield exactly the healthy sources' articles", async () => {
@@ -83,9 +84,9 @@ test("D-06: every source broken yields an empty array, and fanOut still resolves
 
 test("rejected settlement: a throwing fetcher for one source does not block the others' results", async () => {
   const sources: SourceConfig[] = [
-    { id: "throws", name: "throws", tier: "Security Research", url: "irrelevant://throws" },
-    { id: "ok-one", name: "ok-one", tier: "Security Research", url: "irrelevant://ok-one" },
-    { id: "ok-two", name: "ok-two", tier: "Security Research", url: "irrelevant://ok-two" },
+    makeSource({ id: "throws", name: "throws", tier: "Security Research", url: "irrelevant://throws" }),
+    makeSource({ id: "ok-one", name: "ok-one", tier: "Security Research", url: "irrelevant://ok-one" }),
+    makeSource({ id: "ok-two", name: "ok-two", tier: "Security Research", url: "irrelevant://ok-two" }),
   ];
 
   const fetcher = async (source: SourceConfig): Promise<FrontPageResult> => {
@@ -95,14 +96,14 @@ test("rejected settlement: a throwing fetcher for one source does not block the 
     return {
       status: "ok",
       articles: [
-        {
+        makeArticle({
           title: `Article from ${source.id}`,
           url: `irrelevant://${source.id}/article`,
           source: source.name,
           sourceTier: source.tier,
           publishedAt: "2026-01-01T00:00:00.000Z",
           summary: "",
-        },
+        }),
       ],
     };
   };
@@ -118,19 +119,20 @@ test("rejected settlement: a throwing fetcher for one source does not block the 
 
 test("injected error variant: a returned {status:'error'} value is swallowed identically to a thrown rejection", async () => {
   const sources: SourceConfig[] = [
-    { id: "throws", name: "throws", tier: "Security Research", url: "irrelevant://throws" },
-    { id: "errors", name: "errors", tier: "Security Research", url: "irrelevant://errors" },
-    { id: "ok-one", name: "ok-one", tier: "Security Research", url: "irrelevant://ok-one" },
+    makeSource({ id: "throws", name: "throws", tier: "Security Research", url: "irrelevant://throws" }),
+    makeSource({ id: "errors", name: "errors", tier: "Security Research", url: "irrelevant://errors" }),
+    makeSource({ id: "ok-one", name: "ok-one", tier: "Security Research", url: "irrelevant://ok-one" }),
   ];
 
-  const okArticle = (id: string) => ({
-    title: `Article from ${id}`,
-    url: `irrelevant://${id}/article`,
-    source: id,
-    sourceTier: "Security Research" as const,
-    publishedAt: "2026-01-01T00:00:00.000Z",
-    summary: "",
-  });
+  const okArticle = (id: string) =>
+    makeArticle({
+      title: `Article from ${id}`,
+      url: `irrelevant://${id}/article`,
+      source: id,
+      sourceTier: "Security Research",
+      publishedAt: "2026-01-01T00:00:00.000Z",
+      summary: "",
+    });
 
   const throwingFetcher = async (source: SourceConfig): Promise<FrontPageResult> => {
     if (source.id === "throws") throw new Error("simulated rejection");

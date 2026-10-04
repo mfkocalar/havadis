@@ -2,6 +2,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fanOut } from "./fanOut.ts";
 import { startHostileServer } from "../../../test/fixtures/hostileRedirectServer.ts";
+import { makeSource } from "../../../test/fixtures/makeArticle.ts";
 import type { Article, SourceConfig } from "../types.ts";
 
 /**
@@ -31,7 +32,7 @@ after(async () => {
 });
 
 function fixtureSource(id: string, baseUrl: string, path: string): SourceConfig {
-  return { id, name: id, tier: "Security Research", url: `${baseUrl}${path}` };
+  return makeSource({ id, name: id, tier: "Security Research", url: `${baseUrl}${path}` });
 }
 
 test("concurrency: three 900ms-delayed sources on three distinct origins resolve in well under their summed delay", async () => {

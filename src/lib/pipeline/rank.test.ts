@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { rankScore, rankWithinSection } from "./rank.ts";
 import { TIER_WEIGHT } from "../config/ranking.ts";
+import { makeArticle } from "../../../test/fixtures/makeArticle.ts";
 import type { Article, SourceTier } from "../types.ts";
 
 /**
@@ -16,14 +17,14 @@ const NOW = Date.parse("2026-09-23T12:00:00.000Z");
 let urlCounter = 0;
 function article(title: string, sourceTier: SourceTier, publishedAt: string): Article {
   urlCounter += 1;
-  return {
+  return makeArticle({
     title,
     url: `urn:test:${urlCounter}`,
     source: "Test Source",
     sourceTier,
     publishedAt,
     summary: "",
-  };
+  });
 }
 
 function hoursAgo(hours: number): string {
