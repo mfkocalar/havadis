@@ -34,7 +34,7 @@ Requires a current Node.js LTS.
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:4000
 ```
 
 Production build:
@@ -82,10 +82,6 @@ node scripts/verify-viewports.mjs
 ## Deployment
 
 Deploy to Vercel (`vercel` for a preview, `vercel --prod` for production). No environment variables are required.
-
-## Project history
-
-Design decisions, phase plans, research and verification reports from the v1.0 build are kept in [`.planning/`](.planning/). Start with `.planning/PROJECT.md` and `.planning/MILESTONES.md`.
 
 ## License
 
