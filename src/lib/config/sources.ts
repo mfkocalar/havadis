@@ -205,7 +205,10 @@ export const SOURCES: SourceConfig[] = [
   // Threat Intelligence (monthly Cyber Brief) feed is deliberately not
   // configured (D-09). Local-egress probe through fetchSource (2026-10-04): ok,
   // rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 165.8,
-  // inWindow 0. Vercel-preview egress probe: pending (Plan 05-05).
+  // inWindow 0. Vercel-preview egress probe: 2026-10-04: httpStatus 200,
+  // text/xml; charset=utf-8, 9,372 bytes, rawItems 10, datedItems 10,
+  // newestAgeHours 165.8, inWindow 0. Front-page presence depends on an advisory
+  // newer than 72h.
   {
     id: "cert-eu",
     name: "CERT-EU Security Advisories",
@@ -219,8 +222,10 @@ export const SOURCES: SourceConfig[] = [
   // charset=utf-8, 11,631 bytes, 20 items, all with isoDate, fixed 12:00 UTC
   // timestamps, roughly one item a week. Local-egress probe through fetchSource
   // (2026-10-04): ok, rawItems 20, datedItems 20, normalizedItems 20,
-  // newestAgeHours 147.5, inWindow 0. Vercel-preview egress probe: pending
-  // (Plan 05-05).
+  // newestAgeHours 147.5, inWindow 0. Vercel-preview egress probe: 2026-10-04:
+  // httpStatus 200, application/rss+xml; charset=utf-8, 11,631 bytes, rawItems
+  // 20, datedItems 20, newestAgeHours 147.5, inWindow 0. Front-page presence
+  // depends on an advisory newer than 72h.
   {
     id: "ncsc-uk",
     name: "NCSC-UK",

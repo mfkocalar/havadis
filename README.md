@@ -1,10 +1,12 @@
 # Havadis
 
-A public, source-independent daily security newspaper for security practitioners. Havadis aggregates 27 curated cybersecurity feeds, normalizes and deduplicates them, sorts them into urgency-ordered sections, and serves a fast, mobile-friendly, server-rendered front page. No accounts, no database.
+A public, source-independent daily security newspaper for security practitioners. Havadis aggregates 29 curated cybersecurity feeds, normalizes and deduplicates them, sorts them into urgency-ordered sections, and serves a fast, mobile-friendly, server-rendered front page. No accounts, no database.
 
 ## Features
 
-- **27 curated sources** (government advisories, security research, enterprise security, threat intelligence, tech and executive news), fetched in parallel. One failing feed never takes the page down.
+- **29 curated sources** (government and EU CERT advisories, security research, enterprise security, threat intelligence, tech and executive news), fetched in parallel. One failing feed never takes the page down.
+- **Source-type label** on every card (News, Research, Vendor, CERT, Government), set per source in config.
+- **Per-type lookback:** CERT, government and vendor items stay for 72 hours; news and research items for 24 hours. Low-cadence advisory feeds (CERT-EU, NCSC-UK) often have nothing inside the window on a given day, which is expected.
 - **Deduplication:** the same story from several outlets appears once (canonical URL or normalized title match; the earliest copy wins).
 - **Seven urgency-ordered sections:** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy. Classification is deterministic and keyword-based (see `src/lib/config/sections.ts`).
 - **Ranking** within a section by source tier weight and recency.
@@ -16,9 +18,9 @@ A public, source-independent daily security newspaper for security practitioners
 ## How it works
 
 ```
-27 RSS/Atom feeds
+29 RSS/Atom feeds
    → fetchSource (validated redirects, size cap, per-source timeout)
-   → normalize → 24h lookback filter → dedupe → classify → rank → group by section
+   → normalize → per-source lookback (72h cert/government/vendor, 24h news/research) → dedupe → classify → rank → group by section
    → server-rendered page (revalidated every 15 minutes)
 ```
 
@@ -74,7 +76,9 @@ node scripts/verify-viewports.mjs
 
 ## Configuration
 
-- Sources and their tiers: `src/lib/config/sources.ts` (adding or removing a source is a code change).
+- Sources, their tiers and source types: `src/lib/config/sources.ts` (adding or removing a source is a code change).
+- Source-type labels and lookback windows: `src/lib/config/sourceTypes.ts`.
+- Crawler identity (User-Agent, public contact URL and opt-out channel): `src/lib/config/crawler.ts`. The contact URL points at this site's `/about` page.
 - Section keywords: `src/lib/config/sections.ts`.
 - Ranking weights: `src/lib/config/ranking.ts`.
 - Per-section card cap: `src/lib/config/frontPageLayout.ts`.

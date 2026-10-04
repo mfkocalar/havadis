@@ -13,9 +13,10 @@ import { normalizeTitleForDedupe } from "./normalizeTitleForDedupe.ts";
  * transitive chain, e.g. A shares a URL with B and C shares a title with B
  * but not directly with A (03-RESEARCH.md "Alternatives Considered").
  *
- * Runs AFTER the 24h lookback filter (`getFrontPage.ts`'s stage order), so
- * an in-window copy of a story survives even when an older duplicate from
- * another outlet has already aged out of the 24h window.
+ * Runs AFTER each source's lookback window is applied (`getFrontPage.ts`'s
+ * stage order; 72h or 24h by source type), so an in-window copy of a story
+ * survives even when an older duplicate from another outlet has already
+ * aged out of its own window.
  *
  * D-02: the winner of each group is the earliest `publishedAt`; a tie goes
  * to the higher `TIER_WEIGHT[sourceTier]`; a further tie goes to the
