@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SOURCES } from "../config/sources.ts";
 import { SECTION_DISPLAY_ORDER } from "../config/sections.ts";
+import { LOOKBACK_HOURS, SOURCE_TYPES } from "../config/sourceTypes.ts";
 import { canonicalizeUrl } from "./canonicalizeUrl.ts";
 import { extractCves } from "./extractCves.ts";
 import { fetchSource } from "./fetchSource.ts";
@@ -39,7 +40,7 @@ test("fetchSource(Krebs) yields at least one normalized article before lookback 
   assert.equal(result.status, "ok", "expected fetchSource to succeed against the live feed");
   if (result.status !== "ok") return;
   // The feed always carries roughly ten entries regardless of their age —
-  // this asserts the raw parse worked, before any 24h trimming.
+  // this asserts the raw parse worked, before any lookback-window trimming.
   assert.ok(
     result.articles.length >= 1,
     "expected at least one normalized article from the live Krebs feed"
@@ -47,11 +48,11 @@ test("fetchSource(Krebs) yields at least one normalized article before lookback 
 });
 
 test("getFrontPage() resolves to the ok variant with well-formed, current articles from configured sources", e2eOptions, async () => {
-  const result = await getFrontPage();
+  const now = Date.now();
+  const result = await getFrontPage(now);
   assert.equal(result.status, "ok", "getFrontPage must never surface an error while at least one source is healthy");
   if (result.status !== "ok") return;
 
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   const names = new Set(SOURCES.map((s) => s.name));
   const tiers = new Set(SOURCES.map((s) => s.tier));
 
@@ -73,8 +74,13 @@ test("getFrontPage() resolves to the ok variant with well-formed, current articl
     const publishedMs = new Date(article.publishedAt).getTime();
     assert.ok(Number.isFinite(publishedMs), "publishedAt must parse as a valid date");
     assert.ok(
+      SOURCE_TYPES.includes(article.sourceType),
+      `expected ${article.sourceType} to be a member of SOURCE_TYPES`
+    );
+    const cutoff = now - LOOKBACK_HOURS[article.sourceType] * 60 * 60 * 1000;
+    assert.ok(
       publishedMs >= cutoff,
-      `article publishedAt ${article.publishedAt} should be within the last 24 hours`
+      `article publishedAt ${article.publishedAt} should be within its source type's lookback window`
     );
 
     assert.equal(typeof article.summary, "string");
@@ -86,7 +92,7 @@ test("getFrontPage() resolves to the ok variant with well-formed, current articl
 
   // Deliberately no minimum-count assertion on the post-filter list:
   // several configured sources legitimately post infrequently enough that
-  // a genuinely empty 24h window is a correct result for them, not a
+  // a genuinely empty lookback window is a correct result for them, not a
   // flaky test failure (RESEARCH.md Pitfall 4).
 });
 

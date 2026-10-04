@@ -51,6 +51,12 @@ export type SourceConfig = {
    * rather than re-loosening the content-type gate for all sources.
    */
   allowHtmlContentType?: boolean;
+  /**
+   * Positive-integer cap on how many articles this source may contribute
+   * (Phase 5 D-07). Applied after the lookback window, keeping the newest.
+   * No source sets it today; add one only when a live probe shows a flood.
+   */
+  maxItems?: number;
 };
 
 /** The common shape every feed item is normalized into. */
