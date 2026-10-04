@@ -30,6 +30,17 @@ export type SourceConfig = {
   tier: SourceTier;
   /** Exactly one source type per source (Phase 5 D-01). */
   sourceType: SourceType;
+  /**
+   * Feed language. Only English sources are active (Phase 5 D-11); non-English
+   * EU feeds stay out of config until SRC-05.
+   */
+  lang: "en";
+  /**
+   * Publisher-organisation slug (lowercase) that Phase 9 uses to count
+   * independent source families for corroboration (SCO-05, D-04). When unsure,
+   * keep families separate: over-splitting only under-counts corroboration.
+   */
+  family: string;
   url: string;
   /**
    * This source is known to serve a genuinely valid RSS/Atom body under a

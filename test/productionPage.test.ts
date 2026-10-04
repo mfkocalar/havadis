@@ -221,6 +221,51 @@ test("every NVD anchor on the real production page has the exact href shape and 
   }
 });
 
+// SRC-01 / D-02 label contract on the real production HTML: each card shows
+// exactly one plain-text source-type label, after the tier pill and before any
+// CVE chip, with none of the pill geometry classes.
+test("every article card shows exactly one source-type label after the tier pill and before any CVE chip", async (t) => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const main = mainHtml(body);
+
+  const cards = [...main.matchAll(/<article\b[^>]*>[\s\S]*?<\/article>/g)].map((m) => m[0]);
+  if (cards.length === 0) {
+    assert.ok(
+      body.includes("No articles in the last 24 hours"),
+      "no article cards rendered, so the page must show the empty state"
+    );
+    return;
+  }
+
+  const LABEL_RE =
+    /<span class="([^"]*)"><span class="sr-only">Source type: <\/span>(?:<!-- -->)?(News|Research|Vendor|CERT|Government)<\/span>/g;
+
+  for (const card of cards) {
+    const labels = [...card.matchAll(LABEL_RE)];
+    assert.equal(labels.length, 1, `expected exactly one source-type label in a card, got ${labels.length}`);
+    const label = labels[0];
+    const labelIndex = label.index as number;
+
+    for (const token of ["rounded-", "ring-", "bg-", "px-", "py-"]) {
+      assert.ok(
+        !label[1].includes(token),
+        `label class "${label[1]}" must not contain pill geometry token "${token}"`
+      );
+    }
+
+    const pillIndex = card.indexOf("rounded-full");
+    assert.ok(pillIndex !== -1, "expected the tier pill (rounded-full) in the card");
+    assert.ok(labelIndex > pillIndex, "the type label must come after the tier pill");
+
+    const nvdIndex = card.indexOf("nvd.nist.gov");
+    if (nvdIndex !== -1) {
+      assert.ok(labelIndex < nvdIndex, "the type label must come before the first CVE chip");
+    }
+  }
+  t.diagnostic(`checked ${cards.length} cards`);
+});
+
 test("two consecutive requests return byte-identical HTML", async () => {
   // Necessary, not sufficient: two independently-uncached renders taken
   // within the same second could also happen to match. The sufficient

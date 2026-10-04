@@ -38,6 +38,8 @@ export function makeSource(overrides: Partial<SourceConfig> = {}): SourceConfig 
     name: `Fixture ${n}`,
     tier: "Security Research",
     sourceType: "news",
+    lang: "en",
+    family: `fixture-${n}`,
     url: `https://fixture.test/feed-${n}.xml`,
     ...overrides,
   };
