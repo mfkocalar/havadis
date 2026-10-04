@@ -15,11 +15,32 @@ export type SourceTier =
   | "Tech & General"
   | "Executive News";
 
+/**
+ * What kind of outlet a source is. Orthogonal to `SourceTier`: the tier is
+ * the editorial grouping from PROJECT.md, the type is the publisher's role
+ * (CISA is tier Government but type cert). Exactly one value per source
+ * (Phase 5 D-01, D-02).
+ */
+export type SourceType = "news" | "research" | "vendor" | "cert" | "government";
+
 /** Static configuration for one RSS/Atom source. */
 export type SourceConfig = {
   id: string;
   name: string;
   tier: SourceTier;
+  /** Exactly one source type per source (Phase 5 D-01). */
+  sourceType: SourceType;
+  /**
+   * Feed language. Only English sources are active (Phase 5 D-11); non-English
+   * EU feeds stay out of config until SRC-05.
+   */
+  lang: "en";
+  /**
+   * Publisher-organisation slug (lowercase) that Phase 9 uses to count
+   * independent source families for corroboration (SCO-05, D-04). When unsure,
+   * keep families separate: over-splitting only under-counts corroboration.
+   */
+  family: string;
   url: string;
   /**
    * This source is known to serve a genuinely valid RSS/Atom body under a
@@ -38,6 +59,11 @@ export type Article = {
   url: string;
   source: string;
   sourceTier: SourceTier;
+  /**
+   * Copied from the source config in `normalize` only, never derived from
+   * feed text.
+   */
+  sourceType: SourceType;
   /** ISO 8601 published timestamp. */
   publishedAt: string;
   summary: string;
@@ -73,9 +99,10 @@ export type Section =
 
 /**
  * An `Article` after classification. Derived, not a widening of `Article`
- * itself — `Article` stays exactly six fields because `normalize`,
- * `fetchSource` and `fanOut` all construct it and `fanOut.test.ts` pins its
- * key set to exactly those six fields.
+ * itself — `Article` stays exactly seven fields (the seventh, `sourceType`,
+ * arrived in Phase 5) because `normalize`, `fetchSource` and `fanOut` all
+ * construct it and `fanOut.test.ts` and `dedupe.test.ts` pin its key set to
+ * exactly those seven fields.
  */
 export type ClassifiedArticle = Article & {
   section: Section;

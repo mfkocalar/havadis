@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SOURCES } from "./sources.ts";
-import type { SourceTier } from "../types.ts";
+import { SOURCE_TYPES } from "./sourceTypes.ts";
+import type { SourceTier, SourceType } from "../types.ts";
 
 /**
  * Hermetic config-integrity tests for SOURCES (no network, no fixture
@@ -27,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 27 entries", () => {
-  assert.equal(SOURCES.length, 27);
+test("SOURCES has exactly 29 entries", () => {
+  assert.equal(SOURCES.length, 29);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -68,6 +69,94 @@ test("every tier is a valid SourceTier, and all six tiers are represented", () =
       SOURCES.some((s) => s.tier === tier),
       `no configured source carries tier "${tier}" — its badge hue would be unreachable`
     );
+  }
+});
+
+test("every sourceType is a SOURCE_TYPES member, and every SOURCE_TYPES value is used", () => {
+  for (const source of SOURCES) {
+    assert.ok(
+      (SOURCE_TYPES as readonly string[]).includes(source.sourceType),
+      `${source.id}: sourceType "${source.sourceType}" is not a known SourceType`
+    );
+  }
+  for (const type of SOURCE_TYPES) {
+    assert.ok(
+      SOURCES.some((s) => s.sourceType === type),
+      `no configured source carries sourceType "${type}"`
+    );
+  }
+});
+
+// D-03 verbatim: the type each source must carry.
+const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
+  krebs: "news",
+  cisa: "cert",
+  "recorded-future": "vendor",
+  "microsoft-security": "vendor",
+  "sans-isc": "research",
+  "dark-reading": "news",
+  crowdstrike: "vendor",
+  "bleeping-computer": "news",
+  "hacker-news": "news",
+  "help-net-security": "news",
+  "techcrunch-security": "news",
+  "ars-technica": "news",
+  "cso-online": "news",
+  gbhackers: "news",
+  hackread: "news",
+  databreaches: "news",
+  "upguard-breaches": "vendor",
+  "cis-advisories": "cert",
+  "cert-cc": "cert",
+  "nist-cybersecurity": "government",
+  "graham-cluley": "research",
+  schneier: "research",
+  "bishop-fox": "vendor",
+  reversinglabs: "vendor",
+  heimdal: "vendor",
+  eff: "news",
+  "computer-weekly": "news",
+  "cert-eu": "cert",
+  "ncsc-uk": "cert",
+};
+
+test("D-03 mapping: every source carries exactly the type the table assigns it", () => {
+  assert.deepEqual(
+    SOURCES.map((s) => s.id).sort(),
+    Object.keys(EXPECTED_SOURCE_TYPE).sort(),
+    "SOURCES ids must equal the D-03 table's ids"
+  );
+  for (const source of SOURCES) {
+    assert.equal(
+      source.sourceType,
+      EXPECTED_SOURCE_TYPE[source.id],
+      `${source.id}: sourceType drifted from the D-03 table`
+    );
+  }
+});
+
+test("every lang is \"en\" (D-11)", () => {
+  for (const source of SOURCES) {
+    assert.equal(source.lang, "en", `${source.id}: only English sources are active`);
+  }
+});
+
+test("every family is a lowercase slug (D-04)", () => {
+  for (const source of SOURCES) {
+    assert.match(source.family, /^[a-z0-9-]+$/, `${source.id}: family "${source.family}" must be a lowercase slug`);
+  }
+});
+
+test("source names are unique (Phase 9 joins on Article.source)", () => {
+  const names = SOURCES.map((s) => s.name);
+  assert.equal(new Set(names).size, names.length, "all source names must be unique");
+});
+
+test("cert-eu and ncsc-uk are configured as cert sources (D-08)", () => {
+  for (const id of ["cert-eu", "ncsc-uk"]) {
+    const source = SOURCES.find((s) => s.id === id);
+    assert.ok(source, `${id} must be configured`);
+    assert.equal(source.sourceType, "cert");
   }
 });
 

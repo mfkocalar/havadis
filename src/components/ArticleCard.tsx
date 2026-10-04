@@ -1,5 +1,6 @@
 import { formatUtcDateTime } from "@/lib/formatUtcTime";
 import { SourceTierBadge } from "@/components/SourceTierBadge";
+import { SourceTypeLabel } from "@/components/SourceTypeLabel";
 import { CveChips } from "@/components/CveChips";
 import type { ClassifiedArticle } from "@/lib/types";
 
@@ -10,8 +11,10 @@ import type { ClassifiedArticle } from "@/lib/types";
  * a hover treatment — closer to a modern tech-news site than a broadsheet
  * pastiche or a dark terminal look.
  *
- * All six UI-02 fields, plus the CVE chips (UI-03, a seventh rendered
- * element built from validated IDs, see `CveChips.tsx`), are rendered as
+ * All six UI-02 fields, plus the source-type label (SRC-01, a plain neutral
+ * word between the tier pill and the CVE chips, see `SourceTypeLabel.tsx`)
+ * and the CVE chips (UI-03, built from validated IDs, see `CveChips.tsx`),
+ * are rendered as
  * ordinary JSX text nodes — no raw-HTML injection prop is used anywhere in
  * this file. `rss-parser` already delivers an HTML-stripped snippet, and
  * feed fields are untrusted external input (threat T-01-07). This stays a
@@ -46,6 +49,7 @@ export function ArticleCard({ article }: { article: ClassifiedArticle }) {
           {article.source}
         </span>
         <SourceTierBadge tier={article.sourceTier} />
+        <SourceTypeLabel type={article.sourceType} />
         <CveChips cves={article.cves} />
       </div>
 

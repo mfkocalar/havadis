@@ -173,8 +173,8 @@ test("D-05: returned Article objects carry no failure, status, count, or diagnos
   assert.equal(articles.length, 1, "expected exactly one article from the single healthy fixture source");
   assert.deepEqual(
     Object.keys(articles[0]).sort(),
-    ["publishedAt", "source", "sourceTier", "summary", "title", "url"],
-    "the returned Article must carry exactly the six Article fields — no health, status, or diagnostic metadata smuggled in"
+    ["publishedAt", "source", "sourceTier", "sourceType", "summary", "title", "url"],
+    "the returned Article must carry exactly the seven Article fields — no health, status, or diagnostic metadata smuggled in"
   );
 });
 
