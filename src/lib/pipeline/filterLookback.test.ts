@@ -1,6 +1,7 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { filterLookback } from "./filterLookback.ts";
+import { makeArticle } from "../../../test/fixtures/makeArticle.ts";
 import type { Article } from "../types.ts";
 
 /**
@@ -10,14 +11,14 @@ import type { Article } from "../types.ts";
  */
 
 function article(publishedAt: string): Article {
-  return {
+  return makeArticle({
     title: "t",
     url: "https://krebsonsecurity.com/x",
     source: "Krebs on Security",
     sourceTier: "Security Research",
     publishedAt,
     summary: "",
-  };
+  });
 }
 
 test("Date.now is sampled exactly once per call, regardless of array length", () => {

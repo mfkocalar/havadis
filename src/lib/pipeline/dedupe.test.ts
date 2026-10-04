@@ -1,19 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { makeArticle } from "../../../test/fixtures/makeArticle.ts";
 import type { Article } from "../types.ts";
 import { dedupe } from "./dedupe.ts";
 
 /**
  * Hermetic fixture tests for dedupe() (NORM-02, D-01/D-02/D-03). One
  * test() per behavior bullet in 03-02-PLAN.md's Task 2 <behavior> block.
- * Fixtures are full six-field Article objects built by a local helper, with
+ * Fixtures are full Article objects built via the shared makeArticle() builder, with
  * fixed ISO timestamps and `.test` hostnames only — no clock, no network.
  */
 
 let counter = 0;
 function article(overrides: Partial<Article>): Article {
   counter += 1;
-  return {
+  return makeArticle({
     title: `Fixture Article ${counter}`,
     url: `https://source${counter}.test/story-${counter}`,
     source: `Source ${counter}`,
@@ -21,7 +22,7 @@ function article(overrides: Partial<Article>): Article {
     publishedAt: "2026-01-01T00:00:00.000Z",
     summary: "A fixture summary.",
     ...overrides,
-  };
+  });
 }
 
 test("same URL and same title from two sources collapse to one survivor", () => {

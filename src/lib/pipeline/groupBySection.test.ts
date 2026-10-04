@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { groupBySection } from "./groupBySection.ts";
 import { rankWithinSection } from "./rank.ts";
 import { SECTION_DISPLAY_ORDER } from "../config/sections.ts";
+import { makeArticle } from "../../../test/fixtures/makeArticle.ts";
 import type { Article, Section, SourceTier } from "../types.ts";
 
 /**
@@ -25,12 +26,14 @@ function article(
 ): Article & { section: Section } {
   urlCounter += 1;
   return {
-    title,
-    url: `urn:test:${urlCounter}`,
-    source: "Test Source",
-    sourceTier,
-    publishedAt,
-    summary: "",
+    ...makeArticle({
+      title,
+      url: `urn:test:${urlCounter}`,
+      source: "Test Source",
+      sourceTier,
+      publishedAt,
+      summary: "",
+    }),
     section,
   };
 }

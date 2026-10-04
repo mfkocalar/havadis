@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { makeArticle } from "../../../test/fixtures/makeArticle.ts";
 import type { Article } from "../types.ts";
 import { SECTION_DISPLAY_ORDER } from "../config/sections.ts";
 import { composeFrontPage } from "./getFrontPage.ts";
@@ -8,8 +9,9 @@ import { composeFrontPage } from "./getFrontPage.ts";
  * Hermetic tests proving the composed pipeline (dedupe -> classify ->
  * group/rank) end to end (ROADMAP SC-1). Importing `composeFrontPage`
  * performs no network I/O — this test never touches the live feeds.
- * Fixed `NOW` so results are deterministic; fixtures are full six-field
- * `Article` objects with `publishedAt` derived arithmetically from `NOW`.
+ * Fixed `NOW` so results are deterministic; fixtures are full
+ * `Article` objects built via the shared makeArticle() builder, with
+ * `publishedAt` derived arithmetically from `NOW`.
  * Assertions are on selected fields only, never a whole-object deepEqual
  * on a classified article — Plan 03-03 adds a `cves` field to every
  * classified article, and a whole-object assertion here would break then.
@@ -19,7 +21,7 @@ const NOW = Date.parse("2026-09-23T12:00:00.000Z");
 const HOUR = 60 * 60 * 1000;
 
 function article(overrides: Partial<Article>): Article {
-  return {
+  return makeArticle({
     title: "Fixture Article",
     url: "https://fixture.test/story",
     source: "Fixture Source",
@@ -27,7 +29,7 @@ function article(overrides: Partial<Article>): Article {
     publishedAt: new Date(NOW).toISOString(),
     summary: "A fixture summary.",
     ...overrides,
-  };
+  });
 }
 
 test("three-outlet Foo Corp fixture collapses to exactly one Breaches article, the earliest copy", () => {
