@@ -2,16 +2,11 @@ import Parser from "rss-parser";
 import type { SourceConfig, FrontPageResult } from "../types.ts";
 import { fetchWithValidatedRedirect } from "./fetchWithValidatedRedirect.ts";
 import { normalize } from "./normalize.ts";
+import { USER_AGENT } from "../config/crawler.ts";
 
-/**
- * Sent on every source fetch. Carries browser-compatible tokens (to clear a
- * source's bot-management layer, per RESEARCH.md Assumption A1) while still
- * naming Havadis as an automated aggregator with a contact URL, so a
- * publisher inspecting logs can see who is fetching and how to reach the
- * operator. Update the contact URL once the site has a live domain.
- */
-const USER_AGENT =
-  "Mozilla/5.0 (compatible; HavadisBot/0.1; +https://havadis.app/about) automated cybersecurity news aggregator";
+// The User-Agent sent on every source fetch (the crawler's public identity and
+// contact URL) lives in config/crawler.ts so the host and contact channel are
+// a one-line edit in one module.
 
 const ACCEPT_HEADER =
   "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.1";
