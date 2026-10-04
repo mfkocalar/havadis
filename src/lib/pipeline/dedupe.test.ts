@@ -193,7 +193,7 @@ test("dedupe is idempotent: dedupe(dedupe(x)) deep-equals dedupe(x)", () => {
   assert.deepEqual(twice, once);
 });
 
-test("survivors are the same object references as the inputs, with exactly six keys and an unchanged url", () => {
+test("survivors are the same object references as the inputs, with exactly seven keys and an unchanged url", () => {
   const a = article({ title: "Solo Story", url: "https://solo.test/story" });
   const result = dedupe([a]);
   assert.strictEqual(result[0], a);
@@ -201,6 +201,7 @@ test("survivors are the same object references as the inputs, with exactly six k
     "publishedAt",
     "source",
     "sourceTier",
+    "sourceType",
     "summary",
     "title",
     "url",

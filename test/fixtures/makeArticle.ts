@@ -23,6 +23,7 @@ export function makeArticle(overrides: Partial<Article> = {}): Article {
     url: `https://fixture.test/story-${n}`,
     source: `Source ${n}`,
     sourceTier: "Tech & General",
+    sourceType: "news",
     publishedAt: "2026-01-01T00:00:00.000Z",
     summary: "A fixture summary.",
     ...overrides,
@@ -36,6 +37,7 @@ export function makeSource(overrides: Partial<SourceConfig> = {}): SourceConfig 
     id: `fixture-${n}`,
     name: `Fixture ${n}`,
     tier: "Security Research",
+    sourceType: "news",
     url: `https://fixture.test/feed-${n}.xml`,
     ...overrides,
   };

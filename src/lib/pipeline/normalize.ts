@@ -66,6 +66,7 @@ export function normalize(item: Parser.Item, source: SourceConfig): Article | nu
     url: item.link,
     source: source.name,
     sourceTier: source.tier,
+    sourceType: source.sourceType,
     publishedAt: item.isoDate,
     summary: truncateSummary((item.contentSnippet ?? "").trim()),
   };

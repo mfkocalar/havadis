@@ -16,6 +16,7 @@ const source = makeSource({
   id: "krebs",
   name: "Krebs on Security",
   tier: "Security Research",
+  sourceType: "news",
   url: "https://krebsonsecurity.com/feed/",
 });
 
@@ -43,9 +44,15 @@ test("a well-formed item normalizes to an Article with every field populated and
     url: "https://krebsonsecurity.com/2026/09/microsoft-plugs-nearly-1000-security-holes/",
     source: "Krebs on Security",
     sourceTier: "Security Research",
+    sourceType: "news",
     publishedAt: "2026-09-08T21:44:22.000Z",
     summary: "Microsoft Corp. today issued updates to plug at least 974 security holes.",
   });
+});
+
+test("carries the source's sourceType onto the normalized article", () => {
+  const article = normalize(item({}), makeSource({ sourceType: "cert" }));
+  assert.equal(article?.sourceType, "cert");
 });
 
 test("title's HTML entities decode exactly once (D-04); non-entity markup stays literal", () => {

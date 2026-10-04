@@ -158,12 +158,12 @@ test("D-08: CISA gets no source-based override — every source travels the same
     "Vulnerabilities"
   );
 
-  const allowedKeys = new Set(["id", "name", "tier", "url", "allowHtmlContentType"]);
+  const allowedKeys = new Set(["id", "name", "tier", "sourceType", "url", "allowHtmlContentType"]);
   for (const source of SOURCES) {
     for (const key of Object.keys(source)) {
       assert.ok(
         allowedKeys.has(key),
-        `expected ${source.id}'s key "${key}" to be one of id/name/tier/url/allowHtmlContentType — no source gets a default-section override (D-08)`
+        `expected ${source.id}'s key "${key}" to be one of id/name/tier/sourceType/url/allowHtmlContentType — no source gets a default-section override (D-08)`
       );
     }
   }
