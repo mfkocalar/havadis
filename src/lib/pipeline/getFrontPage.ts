@@ -4,8 +4,9 @@ import { classify } from "./classify.ts";
 import { dedupe } from "./dedupe.ts";
 import { extractCves } from "./extractCves.ts";
 import { fanOut } from "./fanOut.ts";
-import { filterLookback } from "./filterLookback.ts";
+import { fetchSource } from "./fetchSource.ts";
 import { groupBySection } from "./groupBySection.ts";
+import { withSourceWindow } from "./applySourceWindow.ts";
 
 /**
  * Pure, synchronous seam composing the post-fetch pipeline stages:
@@ -53,7 +54,8 @@ export function composeFrontPage(
 /**
  * The single orchestrator: fans `SOURCES` out concurrently via `fanOut`
  * (a `Promise.allSettled` fan-out over the never-throwing `fetchSource`),
- * applies the 24h lookback filter, then composes the classify/rank/group
+ * applies each source's type-based lookback window (`LOOKBACK_HOURS`) per
+ * source through `withSourceWindow`, then composes the classify/rank/group
  * stages via `composeFrontPage`, and returns the discriminated result.
  * Never throws. `now` defaults to `Date.now()`, sampled once per render
  * (D-09) — never read again inside the composed pipeline.
@@ -61,14 +63,14 @@ export function composeFrontPage(
  * A per-source failure is swallowed inside `fanOut` rather than
  * propagated here — a failure yields zero articles for that source and
  * the page renders CONTEXT.md D-03's quiet empty-state message, the same
- * treatment as a genuinely empty 24h window.
+ * treatment as a genuinely empty lookback window.
  */
 export async function getFrontPage(now: number = Date.now()): Promise<SectionedFrontPageResult> {
   try {
-    return composeFrontPage(filterLookback(await fanOut(SOURCES)), now);
+    return composeFrontPage(await fanOut(SOURCES, withSourceWindow(fetchSource, now)), now);
   } catch (err) {
     // WR-03: page.tsx discards `reason` and renders the same quiet empty
-    // state as a genuinely quiet 24h window (D-03), so this log line is the
+    // state as a genuinely empty lookback window (D-03), so this log line is the
     // only operator-visible trail a total pipeline failure leaves behind.
     console.error("getFrontPage failed:", err);
     return {
