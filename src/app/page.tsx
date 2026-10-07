@@ -1,4 +1,4 @@
-import { getFrontPage } from "@/lib/pipeline/getFrontPage";
+import { getSnapshot } from "@/lib/snapshot";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FrontPageFilter, SectionVisibility } from "@/components/FrontPageFilter";
 import { SectionExpander } from "@/components/SectionExpander";
@@ -15,7 +15,8 @@ import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3";
 
 /**
- * The public front page. Awaits `getFrontPage()` once and branches only on
+ * The public front page. Awaits `getSnapshot()` once (the shared cached
+ * edition from `src/lib/snapshot.ts`) and branches only on
  * its discriminant -- none of the error variant's internal diagnostic detail
  * is ever surfaced in the rendered output (threat T-01-10 / T-03-04). Both
  * the error variant and the ok-but-empty variant get the same quiet
@@ -23,8 +24,8 @@ const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
  * so a timeout and a genuinely quiet feed look the same to a reader. That
  * branch mounts no filter provider and no bar.
  *
- * Sections and within-section order arrive fully resolved from
- * `getFrontPage()` (classification, ranking, dedupe stay upstream pipeline
+ * Sections and within-section order arrive fully resolved from that
+ * edition (classification, ranking, dedupe stay upstream pipeline
  * concerns, not this file's). Otherwise this page lays the front page out:
  * a sticky bar of count-bearing section pills (D-08, D-11), then one
  * urgency-ordered section per non-empty group (D-12/D-16), each with its
@@ -38,13 +39,13 @@ const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
  * cross into client components (T-01-07); the cards are server-rendered and
  * passed through as children.
  *
- * The route MUST stay statically prerendered with the 900-second revalidation
- * window of the fetch cache: no request-time APIs (cookies, headers, search
+ * The route MUST stay statically prerendered with the snapshot's 900-second
+ * revalidation window: no request-time APIs (cookies, headers, search
  * params) and no route segment config exports here, or in any client
  * component this page mounts.
  */
 export default async function Home() {
-  const result = await getFrontPage();
+  const result = await getSnapshot();
 
   if (result.status !== "ok" || result.sections.length === 0) {
     return (
