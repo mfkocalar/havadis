@@ -21,10 +21,10 @@ A public, source-independent daily security newspaper for security practitioners
 29 RSS/Atom feeds
    → fetchSource (validated redirects, size cap, per-source timeout)
    → normalize → per-source lookback (72h cert/government/vendor, 24h news/research) → dedupe → classify → rank → group by section
-   → server-rendered page (revalidated every 15 minutes)
+   → one cached edition (src/lib/snapshot.ts, 900 s) → static, server-rendered page
 ```
 
-Each feed is fetched with Next.js `fetch(url, { next: { revalidate: 900 } })`, so Vercel's Data Cache serves all visitors and sources are refetched at most once per 15-minute window. Parsing uses `rss-parser` on the already-fetched XML text. The front page is a static route; the filter and clock are the only client code.
+The whole composed edition is cached once through Next's `unstable_cache` in `src/lib/snapshot.ts` (`getSnapshot`, `SNAPSHOT_REVALIDATE_SECONDS` = 900 seconds) and shared by every reader. Inside it each feed is fetched uncached, so a feed that fails during a refresh is missing from that edition until the next good refresh. A refresh that errors or composes zero articles keeps the previous edition, whose "Updated" time then shows its age. Parsing uses `rss-parser` on the fetched XML text. The front page is a static route; the filter and clock are the only client code.
 
 ## Tech stack
 
@@ -56,11 +56,11 @@ The build prerenders from live feeds, so it needs outbound network access.
 | `npm run build` | Production build |
 | `npm start` | Serve the production build |
 | `npm run lint` | ESLint |
-| `npm test` | Unit and production-page tests (Node's built-in test runner) |
+| `npm test` | Unit and production-page tests (build first: `npm run build && npm test`) |
 
 ## Testing
 
-`npm test` runs hermetic tests, including a production-build test that asserts the page is static, public and correctly ordered. Live-network end-to-end tests are opt-in:
+`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/` or `next.config.ts` is newer than `.next/BUILD_ID`. Live-network end-to-end tests are opt-in:
 
 ```bash
 E2E=1 node --test src/lib/pipeline/frontpage.e2e.test.ts

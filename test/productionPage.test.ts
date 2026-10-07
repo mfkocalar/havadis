@@ -2,9 +2,15 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
+import {
+  assertStaticRoute,
+  findStaleSources,
+  type PrerenderManifest,
+  type SourceStamp,
+} from "./fixtures/staticRouteGate.ts";
 
 /**
  * Drives a real `next start` production server and asserts the public
@@ -442,15 +448,43 @@ test("sections of 9 or more articles show exactly 6 cards before a hidden overfl
   t.diagnostic(`expanders on this build: ${expanders} of ${chunks.length} sections`);
 });
 
+/**
+ * Every file the production build is made from: all non-test files under src/
+ * plus next.config.ts. Test files are excluded so editing a test never demands
+ * a rebuild.
+ */
+function nonTestSourceStamps(): SourceStamp[] {
+  const root = process.cwd();
+  const stamps: SourceStamp[] = [];
+  for (const entry of readdirSync(path.join(root, "src"), { recursive: true })) {
+    const rel = path.join("src", String(entry));
+    const stat = statSync(path.join(root, rel));
+    if (!stat.isFile() || rel.endsWith(".test.ts")) continue;
+    stamps.push({ path: rel.split(path.sep).join("/"), mtimeMs: stat.mtimeMs });
+  }
+  stamps.push({
+    path: "next.config.ts",
+    mtimeMs: statSync(path.join(root, "next.config.ts")).mtimeMs,
+  });
+  return stamps;
+}
+
 test("the front page is still statically prerendered with the 900-second revalidation window", () => {
+  let buildMtimeMs: number;
+  try {
+    buildMtimeMs = statSync(path.join(process.cwd(), ".next", "BUILD_ID")).mtimeMs;
+  } catch {
+    assert.fail("no production build in .next: run npm run build before npm test");
+  }
+  assert.deepStrictEqual(
+    findStaleSources(buildMtimeMs, nonTestSourceStamps()),
+    [],
+    "stale .next build: run npm run build before npm test (these files are newer than .next/BUILD_ID)"
+  );
+
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-    routes: Record<string, { initialRevalidateSeconds?: number | false; compute?: string }>;
-  };
-  const route = manifest.routes["/"];
-  assert.ok(route, 'expected "/" in the prerender manifest');
-  assert.equal(route.initialRevalidateSeconds, 900);
-  assert.equal(route.compute, "static");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
+  assertStaticRoute(manifest, "/", 900);
 });
 
 test("GET /about returns 200 with no cookie, names HavadisBot, shows the exact User-Agent and the contact channel", async () => {
