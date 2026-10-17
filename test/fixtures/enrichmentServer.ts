@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 /**
  * A hermetic, local-only HTTP fixture used exclusively by the test suite to
  * prove the enrichment fetchers' failure isolation against real sockets
- * (Phase 7, ROADMAP SC2): EPSS routes here, and Plan 07-04 adds the KEV routes.
+ * (Phase 7, ROADMAP SC2): EPSS routes and the KEV routes (Plan 07-04).
  * A sibling of `hostileRedirectServer.ts`, which is deliberately not grown.
  *
  * Binds to `127.0.0.1` only, on an OS-assigned ephemeral port (`0`), so it can
@@ -23,6 +23,13 @@ import type { AddressInfo } from "node:net";
  * EPSS routes read the `cve` query parameter (a comma-separated ID list, as
  * FIRST's API takes it) and every request's path plus query is appended to
  * `requests`, so a test can assert the request count and shape.
+ *
+ * KEV routes answer JSON with the real CISA field names (title, catalogVersion,
+ * dateReleased, count, vulnerabilities and, per entry, cveID, vendorProject,
+ * product, vulnerabilityName, dateAdded, shortDescription, requiredAction,
+ * dueDate, knownRansomwareCampaignUse, notes, cwes). They are small on purpose:
+ * a test lowers the production floors (`minEntries`, `maxSlimBytes`) through
+ * `produceKev` deps, so the same rejection rules run over a tiny feed.
  */
 
 /** IDs the consistent EPSS routes answer without a row (FIRST's "no EPSS yet"). */
@@ -38,6 +45,54 @@ export const EPSS_FAIL_IDS: ReadonlySet<string> = new Set(["CVE-2024-10100"]);
 export function epssFixtureScore(id: string): string {
   const digits = Number(id.replace(/\D/g, "")) || 0;
   return ((digits % 999_983) / 999_983).toFixed(9);
+}
+
+/** The five CVE IDs `/kev-ok` lists, all valid, in answer order. */
+export const KEV_FIXTURE_IDS: readonly string[] = [
+  "CVE-2024-20001",
+  "CVE-2024-20002",
+  "CVE-2024-20003",
+  "CVE-2024-20004",
+  "CVE-2024-20005",
+];
+
+/** The valid-shaped ID that `/kev-hostile` dates in 2099, so `parseKev` must skip it. */
+export const KEV_HOSTILE_FUTURE_ID = "CVE-2024-29999";
+
+/** A KEV `dateAdded` between 2024-01-01 and 2026-06-19, derived from the index. */
+function kevDate(i: number): string {
+  return new Date(Date.UTC(2024, 0, 1) + ((i * 7) % 900) * 86_400_000).toISOString().slice(0, 10);
+}
+
+function kevEntry(cveID: string, dateAdded: string, i: number) {
+  return {
+    cveID,
+    vendorProject: "Fixture Vendor",
+    product: "Fixture Product",
+    vulnerabilityName: "Fixture Product Remote Code Execution Vulnerability",
+    dateAdded,
+    shortDescription: "A fixture entry that exists only in the test suite.",
+    requiredAction: "Apply mitigations per vendor instructions.",
+    dueDate: new Date(Date.parse(dateAdded) + 21 * 86_400_000).toISOString().slice(0, 10),
+    knownRansomwareCampaignUse: i % 2 === 0 ? "Known" : "Unknown",
+    notes: "",
+    cwes: ["CWE-79"],
+  };
+}
+
+/** `n` valid entries with IDs CVE-2024-30000 and up (disjoint from KEV_FIXTURE_IDS and the EPSS fixture IDs). */
+function kevGenerated(n: number): unknown[] {
+  return Array.from({ length: n }, (_, i) => kevEntry(`CVE-2024-${30_000 + i}`, kevDate(i), i));
+}
+
+function kevBody(entries: unknown[], count: number = entries.length): string {
+  return JSON.stringify({
+    title: "CISA Catalog of Known Exploited Vulnerabilities",
+    catalogVersion: "2026.06.30",
+    dateReleased: "2026-06-30T15:00:00.000Z",
+    count,
+    vulnerabilities: entries,
+  });
 }
 
 export type EnrichmentServer = {
@@ -137,6 +192,50 @@ export async function startEnrichmentServer(): Promise<EnrichmentServer> {
         data.push(epssRow("__proto__", "0.5"));
         data.push(epssRow(`<img src=x onerror=alert(1)>${requested[0] ?? "CVE-2024-0001"}`, "0.5"));
         sendJson(res, 200, epssBody(data));
+        return;
+      }
+
+      case "/kev-ok": {
+        const entries = KEV_FIXTURE_IDS.map((id, i) => kevEntry(id, kevDate(i), i));
+        sendJson(res, 200, kevBody(entries));
+        return;
+      }
+
+      case "/kev-collapse": {
+        // A feed that shrank to 3 valid entries: below any sane floor.
+        sendJson(res, 200, kevBody(kevGenerated(3)));
+        return;
+      }
+
+      case "/kev-drift": {
+        // 100 entries, 5 with a malformed cveID: schema drift past the 1 percent limit.
+        const entries = kevGenerated(100).map((e, i) =>
+          i % 20 === 0 ? { ...(e as object), cveID: `NOT-A-CVE-${i}` } : e
+        );
+        sendJson(res, 200, kevBody(entries));
+        return;
+      }
+
+      case "/kev-count-mismatch": {
+        // `count` claims one more entry than the array carries.
+        const entries = kevGenerated(50);
+        sendJson(res, 200, kevBody(entries, entries.length + 1));
+        return;
+      }
+
+      case "/kev-big": {
+        // 200 valid entries: fine for the default cap, over a tiny slim-map cap.
+        sendJson(res, 200, kevBody(kevGenerated(200)));
+        return;
+      }
+
+      case "/kev-hostile": {
+        // 199 valid entries among 201: a "__proto__" cveID and a valid-shaped ID
+        // dated 2099 are the only bad ones (2 of 201, under the 1 percent limit).
+        const entries = kevGenerated(199);
+        entries.push(kevEntry("__proto__", "2025-01-01", 0));
+        entries.push(kevEntry(KEV_HOSTILE_FUTURE_ID, "2099-01-01", 1));
+        sendJson(res, 200, kevBody(entries, 201));
         return;
       }
 
