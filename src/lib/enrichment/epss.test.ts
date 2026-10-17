@@ -1,8 +1,16 @@
-import { test } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { USER_AGENT } from "../config/crawler.ts";
-import type { EpssState } from "../types.ts";
+import type { EpssState, KevMap } from "../types.ts";
+import { enrichCves } from "./enrich.ts";
 import { fetchEpss, epssUrl, parseEpssChunk, selectEpssIds, sortedBatches } from "./epss.ts";
+import {
+  EPSS_FAIL_IDS,
+  EPSS_NO_ROW_IDS,
+  epssFixtureScore,
+  startEnrichmentServer,
+  type EnrichmentServer,
+} from "../../../test/fixtures/enrichmentServer.ts";
 
 /**
  * Hermetic tests for the EPSS batcher, URL builder and row validator (ENR-02,
@@ -281,4 +289,162 @@ test("fetchEpss never throws on a hostile fetcher or hostile input", async () =>
   });
   const hostile = { get length(): never { throw new Error("boom"); } } as unknown as string[];
   assert.deepStrictEqual(await fetchEpss(hostile, { url: BASE }), {});
+});
+
+/**
+ * Failure isolation against real sockets (ROADMAP SC2, ENR-03, D-11, D-18).
+ * One fixture server backs this block; every case asserts bands and
+ * properties (counts, set membership, elapsed bounds), never raw scores.
+ */
+
+let server: EnrichmentServer;
+before(async () => {
+  server = await startEnrichmentServer();
+});
+after(async () => {
+  await server.close();
+});
+
+const FAST = { timeoutMs: 300, maxBytes: 256 * 1024 };
+const fixtureIds = (n: number) => Array.from({ length: n }, (_, i) => `CVE-2024-${String(10000 + i)}`);
+
+function allUnavailable(out: Record<string, EpssState>, input: readonly string[]) {
+  assert.deepStrictEqual(Object.keys(out).sort(), [...input].sort());
+  for (const c of input) assert.deepStrictEqual(out[c], { state: "unavailable" }, c);
+}
+
+test("/epss-ok with 120 IDs: exactly 3 sorted, de-duplicated requests under 900 characters", async () => {
+  const input = fixtureIds(120);
+  server.requests.length = 0;
+  const out = await fetchEpss([...input].reverse(), { url: `${server.baseUrl}/epss-ok`, ...FAST });
+  assert.equal(server.requests.length, 3);
+  for (const line of server.requests) {
+    assert.ok(line.length < 900, `request line is ${line.length} characters`);
+    const m = line.match(/^\/epss-ok\?cve=([^&]*)&limit=100$/);
+    assert.ok(m, line);
+    const list = (m as RegExpMatchArray)[1].split(",");
+    assert.ok(list.length <= 50);
+    assert.deepStrictEqual(list, [...new Set(list)].sort());
+  }
+  assert.deepStrictEqual(Object.keys(out).sort(), input);
+  for (const c of input) {
+    if (EPSS_NO_ROW_IDS.has(c)) {
+      assert.deepStrictEqual(out[c], { state: "no-row" }, c);
+    } else {
+      const e = out[c];
+      assert.equal(e.state, "scored", c);
+      if (e.state === "scored") {
+        assert.ok(Math.abs(e.score - Number(epssFixtureScore(c))) < 1e-9, c);
+        assert.equal(e.date, "2026-10-09");
+      }
+    }
+  }
+});
+
+test("/epss-partial: only the batch holding a failing ID is unavailable, health is partial", async () => {
+  const input = fixtureIds(120);
+  const deps = { url: `${server.baseUrl}/epss-partial`, ...FAST };
+  const out = await fetchEpss(input, deps);
+  const failingBatch = sortedBatches(input, 50).find((b) => b.some((c) => EPSS_FAIL_IDS.has(c))) as string[];
+  assert.ok(failingBatch.length > 0 && failingBatch.length < input.length);
+  for (const c of input) {
+    if (failingBatch.includes(c)) {
+      assert.deepStrictEqual(out[c], { state: "unavailable" }, c);
+    } else {
+      assert.notEqual(out[c].state, "unavailable", c);
+    }
+  }
+  const kev: KevMap = { version: 1, fetchedAt: new Date().toISOString(), catalogVersion: "x", entries: {} };
+  const snap = await enrichCves(input, { kev: { status: "ok", map: kev } }, Date.now(), { epss: deps });
+  assert.deepStrictEqual(snap.health.epss, {
+    status: "partial",
+    requested: 120,
+    unavailable: failingBatch.length,
+  });
+});
+
+test("/epss-inconsistent: every ID unavailable, never no-row", async () => {
+  const input = fixtureIds(5);
+  allUnavailable(await fetchEpss(input, { url: `${server.baseUrl}/epss-inconsistent`, ...FAST }), input);
+});
+
+test("/epss-hostile: no key outside the requested IDs, clamped and invalid rows handled", async () => {
+  const input = fixtureIds(12);
+  const out = await fetchEpss(input, { url: `${server.baseUrl}/epss-hostile`, ...FAST });
+  assert.deepStrictEqual(Object.keys(out).sort(), input);
+  assert.equal(Object.getPrototypeOf(out), Object.prototype);
+  for (const bad of input.slice(0, 3)) assert.deepStrictEqual(out[bad], { state: "unavailable" }, bad);
+  assert.deepStrictEqual(out[input[3]], { state: "scored", score: 1, date: "2026-10-09" });
+  assert.deepStrictEqual(out[input[4]], { state: "scored", score: 0.4, date: "2026-10-09" });
+  for (const c of input.slice(5)) assert.deepStrictEqual(out[c], { state: "no-row" }, c);
+});
+
+test("/hang with a 300 ms budget resolves quickly with every ID unavailable", async (t) => {
+  const input = fixtureIds(60);
+  const start = Date.now();
+  const out = await fetchEpss(input, { url: `${server.baseUrl}/hang`, ...FAST });
+  const elapsed = Date.now() - start;
+  t.diagnostic(`/hang elapsed ${elapsed} ms`);
+  assert.ok(elapsed < 2000, `took ${elapsed} ms`);
+  allUnavailable(out, input);
+});
+
+test("/slow-body with a 300 ms budget resolves quickly with every ID unavailable", async (t) => {
+  const input = fixtureIds(60);
+  const start = Date.now();
+  const out = await fetchEpss(input, { url: `${server.baseUrl}/slow-body`, ...FAST });
+  const elapsed = Date.now() - start;
+  t.diagnostic(`/slow-body elapsed ${elapsed} ms`);
+  assert.ok(elapsed < 2000, `took ${elapsed} ms`);
+  allUnavailable(out, input);
+});
+
+test("/oversize with a 16 KiB cap resolves with every ID unavailable", async (t) => {
+  const input = fixtureIds(5);
+  const start = Date.now();
+  const out = await fetchEpss(input, { url: `${server.baseUrl}/oversize`, timeoutMs: 5000, maxBytes: 16_384 });
+  t.diagnostic(`/oversize elapsed ${Date.now() - start} ms`);
+  allUnavailable(out, input);
+});
+
+test("/status-500, /malformed and /html: every ID unavailable", async () => {
+  const input = fixtureIds(5);
+  for (const route of ["/status-500", "/malformed", "/html", "/missing"]) {
+    allUnavailable(await fetchEpss(input, { url: `${server.baseUrl}${route}`, ...FAST }), input);
+  }
+});
+
+test("a refused connection leaves every ID unavailable", async () => {
+  const closed = await startEnrichmentServer();
+  const dead = closed.baseUrl;
+  await closed.close();
+  const input = fixtureIds(5);
+  allUnavailable(await fetchEpss(input, { url: `${dead}/epss-ok`, ...FAST }), input);
+});
+
+test("every failure route resolves with a state per ID and never no-row", async () => {
+  const input = fixtureIds(8);
+  for (const route of ["/hang", "/slow-body", "/oversize", "/status-500", "/malformed", "/html", "/epss-inconsistent"]) {
+    const out = await fetchEpss(input, { url: `${server.baseUrl}${route}`, timeoutMs: 300, maxBytes: 16_384 });
+    assert.deepStrictEqual(Object.keys(out).sort(), input, route);
+    for (const c of input) assert.notEqual(out[c].state, "no-row", `${route} ${c}`);
+  }
+});
+
+test("enrichCves against /hang resolves with EPSS unavailable and the KEV states untouched", async () => {
+  const kev: KevMap = {
+    version: 1,
+    fetchedAt: new Date().toISOString(),
+    catalogVersion: "x",
+    entries: { "CVE-2024-10000": { added: "2026-10-03", due: "2026-10-24", ransomware: false } },
+  };
+  const input = fixtureIds(3);
+  const snap = await enrichCves(input, { kev: { status: "ok", map: kev } }, Date.now(), {
+    epss: { url: `${server.baseUrl}/hang`, ...FAST },
+  });
+  assert.deepStrictEqual(snap.health.epss, { status: "unavailable", requested: 3, unavailable: 3 });
+  assert.equal(snap.health.kev.status, "ok");
+  assert.equal(snap.byCve["CVE-2024-10000"].kev.state, "listed");
+  assert.equal(snap.byCve["CVE-2024-10001"].kev.state, "not-listed");
+  for (const c of input) assert.deepStrictEqual(snap.byCve[c].epss, { state: "unavailable" });
 });
