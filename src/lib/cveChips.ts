@@ -1,9 +1,19 @@
 /**
- * CVE chip cap and NVD link-integrity model (D-13, D-14). Plain TypeScript,
- * no React import, so `node --test` can exercise it hermetically without a
- * DOM or React runtime — the visual chip rendering lives in
- * `src/components/CveChips.tsx`, which imports from here.
+ * CVE chip cap, ordering and NVD link-integrity model (D-03, D-13, D-14).
+ * Plain TypeScript, no React import, so `node --test` can exercise it
+ * hermetically without a DOM or React runtime — the visual chip rendering
+ * lives in `src/components/CveChips.tsx`, which imports from here.
+ *
+ * D-03: before the `MAX_VISIBLE_CVE_CHIPS` cut, a card's CVEs are ordered
+ * KEV-listed first (newest `added` first), then CVEs with an EPSS score
+ * (higher first), then the rest in extraction order, so a KEV-listed CVE is
+ * never folded behind "+N" while a plain CVE is visible. Assumption A4
+ * (accepted by the user): among KEV-listed CVEs with the same `added` date,
+ * the higher EPSS score comes first, then extraction order.
  */
+
+import type { CveEnrichment } from "./types.ts";
+import { EPSS_EMPHASIS_THRESHOLD } from "./enrichment/config.ts";
 
 /** D-13: a card shows at most this many visible chips before a "+N" overflow chip. */
 export const MAX_VISIBLE_CVE_CHIPS = 3;
@@ -33,26 +43,91 @@ export function nvdUrl(id: string): string | null {
   return CVE_ID_SHAPE.test(id) ? NVD_CVE_DETAIL_BASE + id : null;
 }
 
-/** The plan for rendering a card's CVE chips: up to `MAX_VISIBLE_CVE_CHIPS` links, plus an overflow count. */
+/**
+ * One CVE's chip: the NVD link plus the validated enrichment that decides the
+ * KEV and EPSS chips after it. `kev` is non-null only for a listed CVE; `epss`
+ * is null when the lookup was unavailable (D-09, D-11), `none-yet` only after a
+ * consistent FIRST answer without a row (D-07). Only `href` is ever a link.
+ */
+export type CveChip = {
+  id: string;
+  href: string;
+  kev: { added: string } | null;
+  epss:
+    | { kind: "score"; label: string; strong: boolean; date: string }
+    | { kind: "none-yet" }
+    | null;
+};
+
+/** The plan for rendering a card's CVE chips: up to `MAX_VISIBLE_CVE_CHIPS` chips, plus an overflow count. */
 export type CveChipPlan = {
-  visible: Array<{ id: string; href: string }>;
+  visible: CveChip[];
   overflow: number;
 };
 
+type Ranked = { chip: CveChip; index: number; score: number | null };
+
+/**
+ * D-03 comparator. Every tie ends in the original extraction index, so the
+ * order never depends on the engine's sort stability.
+ */
+function compareRanked(a: Ranked, b: Ranked): number {
+  const aKev = a.chip.kev;
+  const bKev = b.chip.kev;
+  if (aKev !== null && bKev === null) return -1;
+  if (aKev === null && bKev !== null) return 1;
+  if (aKev !== null && bKev !== null && aKev.added !== bKev.added) {
+    // ISO dates compare as text: the later date (newer addition) first.
+    return aKev.added < bKev.added ? 1 : -1;
+  }
+  if (a.score !== null && b.score === null) return -1;
+  if (a.score === null && b.score !== null) return 1;
+  if (a.score !== null && b.score !== null && a.score !== b.score) {
+    return b.score - a.score;
+  }
+  return a.index - b.index;
+}
+
 /**
  * Turns a raw list of CVE IDs into a chip render plan. Any ID whose
- * `nvdUrl` is `null` is dropped entirely — it never counts toward `visible`
- * or `overflow`, so a malformed ID can never surface as a bare chip with no
- * link and can never inflate the "+N" count either.
+ * `nvdUrl` is `null` is dropped entirely, before ordering — it never counts
+ * toward `visible` or `overflow`, so a malformed ID can never surface as a
+ * bare chip with no link and can never inflate the "+N" count either. The
+ * valid chips are then ordered by D-03 and cut to `MAX_VISIBLE_CVE_CHIPS`.
+ * `byCve` is optional: without it every chip is plain and extraction order
+ * is kept.
  */
-export function planCveChips(cves: readonly string[]): CveChipPlan {
-  const valid = cves
-    .map((id) => ({ id, href: nvdUrl(id) }))
-    .filter((entry): entry is { id: string; href: string } => entry.href !== null);
+export function planCveChips(
+  cves: readonly string[],
+  byCve: Readonly<Record<string, CveEnrichment>> = {}
+): CveChipPlan {
+  const ranked: Ranked[] = [];
+  cves.forEach((id, index) => {
+    const href = nvdUrl(id);
+    if (href === null) return;
+    const entry = Object.hasOwn(byCve, id) ? byCve[id] : null;
+    const kev = entry !== null && entry.kev.state === "listed" ? { added: entry.kev.added } : null;
+    let epss: CveChip["epss"] = null;
+    let score: number | null = null;
+    if (entry !== null && entry.epss.state === "scored") {
+      score = entry.epss.score;
+      epss = {
+        kind: "score",
+        label: formatEpss(entry.epss.score),
+        strong: entry.epss.score >= EPSS_EMPHASIS_THRESHOLD,
+        date: entry.epss.date,
+      };
+    } else if (entry !== null && entry.epss.state === "no-row") {
+      epss = { kind: "none-yet" };
+    }
+    ranked.push({ chip: { id, href, kev, epss }, index, score });
+  });
+
+  ranked.sort(compareRanked);
 
   return {
-    visible: valid.slice(0, MAX_VISIBLE_CVE_CHIPS),
-    overflow: Math.max(0, valid.length - MAX_VISIBLE_CVE_CHIPS),
+    visible: ranked.slice(0, MAX_VISIBLE_CVE_CHIPS).map((r) => r.chip),
+    overflow: Math.max(0, ranked.length - MAX_VISIBLE_CVE_CHIPS),
   };
 }
 

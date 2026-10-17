@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { formatEpss, planCveChips } from "@/lib/cveChips";
+import { planCveChips } from "@/lib/cveChips";
 import type { CveEnrichment } from "@/lib/types";
 
 /**
@@ -59,7 +59,7 @@ export function CveChips({
   cves: string[];
   byCve?: Readonly<Record<string, CveEnrichment>>;
 }) {
-  const plan = planCveChips(cves);
+  const plan = planCveChips(cves, byCve);
 
   if (plan.visible.length === 0) {
     return null;
@@ -67,52 +67,46 @@ export function CveChips({
 
   return (
     <>
-      {plan.visible.map((chip) => {
-        const entry =
-          byCve !== undefined && Object.hasOwn(byCve, chip.id) ? byCve[chip.id] : null;
-        const kev = entry === null ? null : entry.kev;
-        const epss = entry === null ? null : entry.epss;
-        return (
-          <Fragment key={chip.id}>
-            <a
-              href={chip.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={CHIP_CLASSES}
+      {plan.visible.map((chip) => (
+        <Fragment key={chip.id}>
+          <a
+            href={chip.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={CHIP_CLASSES}
+          >
+            {chip.id}
+          </a>
+          {chip.kev !== null ? (
+            <span
+              data-kev-chip=""
+              title={`Listed in the CISA Known Exploited Vulnerabilities catalog, added ${chip.kev.added}`}
+              className={KEV_CHIP_CLASSES}
             >
-              {chip.id}
-            </a>
-            {kev !== null && kev.state === "listed" ? (
-              <span
-                data-kev-chip=""
-                title={`Listed in the CISA Known Exploited Vulnerabilities catalog, added ${kev.added}`}
-                className={KEV_CHIP_CLASSES}
-              >
-                <span className="sr-only">Known exploited, </span>
-                {`KEV · ${kev.added}`}
-              </span>
-            ) : null}
-            {epss !== null && epss.state === "scored" ? (
-              <span
-                data-epss-chip="score"
-                title={`FIRST EPSS exploitation probability, scored ${epss.date}`}
-                className={EPSS_CHIP_CLASSES}
-              >
-                {`EPSS ${formatEpss(epss.score)}`}
-              </span>
-            ) : null}
-            {epss !== null && epss.state === "no-row" ? (
-              <span
-                data-epss-chip="none-yet"
-                title="FIRST has published no EPSS score for this CVE yet"
-                className={EPSS_NONE_YET_CHIP_CLASSES}
-              >
-                no EPSS yet
-              </span>
-            ) : null}
-          </Fragment>
-        );
-      })}
+              <span className="sr-only">Known exploited, </span>
+              {`KEV · ${chip.kev.added}`}
+            </span>
+          ) : null}
+          {chip.epss !== null && chip.epss.kind === "score" ? (
+            <span
+              data-epss-chip="score"
+              title={`FIRST EPSS exploitation probability, scored ${chip.epss.date}`}
+              className={EPSS_CHIP_CLASSES}
+            >
+              {`EPSS ${chip.epss.label}`}
+            </span>
+          ) : null}
+          {chip.epss !== null && chip.epss.kind === "none-yet" ? (
+            <span
+              data-epss-chip="none-yet"
+              title="FIRST has published no EPSS score for this CVE yet"
+              className={EPSS_NONE_YET_CHIP_CLASSES}
+            >
+              no EPSS yet
+            </span>
+          ) : null}
+        </Fragment>
+      ))}
       {plan.overflow > 0 ? <span className={CHIP_CLASSES}>+{plan.overflow}</span> : null}
     </>
   );
