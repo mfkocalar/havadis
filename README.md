@@ -11,6 +11,7 @@ A public, source-independent daily security newspaper for security practitioners
 - **Seven urgency-ordered sections:** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy. Classification is deterministic and keyword-based (see `src/lib/config/sections.ts`).
 - **Ranking** within a section by source tier weight and recency.
 - **CVE chips** on cards that mention a CVE ID, linking to the NVD entry.
+- **Exploitation signals:** a CVE chip is followed by a KEV chip with the date CISA added the CVE to its Known Exploited Vulnerabilities catalog, and an EPSS chip with the FIRST exploitation probability (a muted "no EPSS yet" for brand-new CVEs). The strongest signal is shown first. When KEV or EPSS data is unavailable, stale or partial, a small notice appears beside "Updated"; nothing on the page ever says a CVE is safe or not exploited.
 - **Client-side section filter:** multi-select pills with per-section counts. Filtering never triggers a network request.
 - **Freshness:** the sticky bar shows when the snapshot was built ("Updated 14:05 UTC", relative after load).
 - **Responsive layout:** 1, 2 or 3 card columns; verified from 360px phones to 1440px desktops.
@@ -21,10 +22,15 @@ A public, source-independent daily security newspaper for security practitioners
 29 RSS/Atom feeds
    → fetchSource (validated redirects, size cap, per-source timeout)
    → normalize → per-source lookback (72h cert/government/vendor, 24h news/research) → dedupe → classify → rank → group by section
-   → one cached edition (src/lib/snapshot.ts, 900 s) → static, server-rendered page
+   → one cached edition (src/lib/snapshot.ts, 900 s) ─┐
+   CISA KEV catalogue → validated, slim map (6 h)  ───┼→ merged at render with EPSS (FIRST) → static, server-rendered page
 ```
 
 The whole composed edition is cached once through Next's `unstable_cache` in `src/lib/snapshot.ts` (`getSnapshot`, `SNAPSHOT_REVALIDATE_SECONDS` = 900 seconds) and shared by every reader. Inside it each feed is fetched uncached, so a feed that fails during a refresh is missing from that edition until the next good refresh. A refresh that errors or composes zero articles keeps the previous edition, whose "Updated" time then shows its age. Parsing uses `rss-parser` on the fetched XML text. The front page is a static route; the filter and clock are the only client code.
+
+Exploitation signals are merged with the cached edition at render, so the page stays static. The CISA KEV catalogue is validated, slimmed to about 135 KB (at today's catalogue size) and cached for 6 hours under its own key; EPSS is requested at render in sorted batches of at most 50 CVEs with a 1-hour fetch cache.
+
+Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Vercel keeps the previous deployment. Enrichment: a stale KEV map beats an empty one, otherwise KEV and EPSS degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
 
 ## Tech stack
 
@@ -46,7 +52,7 @@ npm run build
 npm start
 ```
 
-The build prerenders from live feeds, so it needs outbound network access.
+The build prerenders from live feeds, so it needs outbound network access, including to `www.cisa.gov` (KEV) and `api.first.org` (EPSS).
 
 ## Scripts
 
@@ -60,7 +66,7 @@ The build prerenders from live feeds, so it needs outbound network access.
 
 ## Testing
 
-`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/` or `next.config.ts` is newer than `.next/BUILD_ID`. Live-network end-to-end tests are opt-in:
+`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/` or `next.config.ts` is newer than `.next/BUILD_ID`. Enrichment tests run against a local fixture server on 127.0.0.1 and never call CISA or FIRST. Live-network end-to-end tests are opt-in:
 
 ```bash
 E2E=1 node --test src/lib/pipeline/frontpage.e2e.test.ts
@@ -82,6 +88,7 @@ node scripts/verify-viewports.mjs
 - Section keywords: `src/lib/config/sections.ts`.
 - Ranking weights: `src/lib/config/ranking.ts`.
 - Per-section card cap: `src/lib/config/frontPageLayout.ts`.
+- KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size): `src/lib/enrichment/config.ts`.
 
 ## Deployment
 

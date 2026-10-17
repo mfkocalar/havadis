@@ -1,9 +1,9 @@
 import { unstable_cache } from "next/cache";
-import { EDITION_CACHE_KEY, produceEdition } from "./edition.ts";
+import { EDITION_CACHE_KEY, produceEdition, type OkEdition } from "./edition.ts";
 import { KEV_REVALIDATE_SECONDS } from "./enrichment/config.ts";
 import { enrichCves, uniqueCves } from "./enrichment/enrich.ts";
 import { KEV_CACHE_KEY, produceKev } from "./enrichment/kev.ts";
-import type { EnrichmentSnapshot, KevRead, SectionedFrontPageResult } from "./types.ts";
+import type { EnrichmentSnapshot, KevRead } from "./types.ts";
 
 /**
  * The single read path the front page uses, and that `/cve/[id]`, the RSS
@@ -37,9 +37,23 @@ import type { EnrichmentSnapshot, KevRead, SectionedFrontPageResult } from "./ty
  * 6. With one reader, the Updated time equals the regeneration time. Once
  *    `/cve/[id]` or the feeds also read the entry, an edition can be up to
  *    about two windows old (RESEARCH Pitfall 8, Phase 10).
- * 7. A cold start with no entry and a failing refresh renders the quiet empty
- *    state (RESEARCH Pitfall 7, v1.0 D-03 behaviour). Covered by design, not
- *    exercised live.
+ * 7. One failure policy for the edition and the KEV map (Phase 7 D-16, which
+ *    closes Phase 6 review warning WR-03):
+ *    (1) A refresh is rejected by throwing, and any returned value, even an
+ *        empty one, overwrites the entry for its whole window.
+ *    (2) With a previous entry, a failed refresh is invisible: the stale
+ *        edition or map is served (verified in Phase 6 and Plan 07-01).
+ *    (3) With no entry, the edition rethrows. ISR keeps serving the last good
+ *        HTML and retries on the next request. A cold build, the first build
+ *        after a cache-key bump, or a build after Data Cache eviction fails
+ *        loudly during a total feed outage, and Vercel keeps the previous
+ *        deployment live. Proven locally and on a Vercel preview in Plan
+ *        07-01. This replaces v1.0 D-03's quiet empty state at build time.
+ *    (4) KEV and EPSS are non-fatal: with no entry or a failed request they
+ *        degrade to unavailable, every article still renders, and unavailable
+ *        is never presented as absence from KEV.
+ *    (5) Every non-edition key passes its own tag, so purging one tag never
+ *        purges another entry (Phase 6 IN-03).
  * 8. One regeneration costs about 373 ms of CPU. That is a local cold-compose
  *    upper-bound proxy (user plus system time, 2026-10-07), not a Vercel
  *    measurement: Vercel's CPU metric needed a paid add-on. The worst case of
@@ -49,8 +63,9 @@ import type { EnrichmentSnapshot, KevRead, SectionedFrontPageResult } from "./ty
  *    and a 6-hour window (D-12). It is read in parallel with the edition by
  *    `getFrontPageData`, never from inside another cached callback (a nested
  *    call bypasses the cache). EPSS is fetched at render, also outside every
- *    cached callback. KEV is non-fatal: `getKev` reports `unavailable` instead
- *    of throwing, and an outage never reads as "not listed" (ENR-03).
+ *    cached callback. KEV is non-fatal (item 7): `getKev` reports
+ *    `unavailable` instead of throwing, and an outage never reads as "not
+ *    listed" (ENR-03).
  */
 
 /** The shared cache window, and so the route's ISR window, in seconds. */
@@ -84,19 +99,21 @@ export function cachedSnapshot<T>(
 const readEdition = cachedSnapshot(EDITION_CACHE_KEY, () => produceEdition(Date.now()));
 
 /**
- * Returns the shared cached edition. Never throws: when a refresh is rejected
- * and there is no previous edition to fall back on, it returns the error
- * variant, which the page renders as its quiet empty state.
+ * Returns the shared cached edition. Per the failure policy in the header
+ * (item 7), it THROWS when a refresh is rejected and there is no previous
+ * edition to fall back on: ISR then keeps the last good HTML, and a cold build
+ * during a total feed outage fails instead of publishing an empty page. It
+ * logs the error's message only, then rethrows the same error.
  */
-export async function getSnapshot(): Promise<SectionedFrontPageResult> {
+export async function getSnapshot(): Promise<OkEdition> {
   try {
     return await readEdition();
   } catch (err) {
-    console.error("getSnapshot failed (no previous edition to serve):", err);
-    return {
-      status: "error",
-      reason: err instanceof Error ? err.message : "unknown snapshot error",
-    };
+    console.error(
+      "getSnapshot failed (no previous edition to serve):",
+      err instanceof Error ? err.message : "unknown"
+    );
+    throw err;
   }
 }
 
@@ -130,7 +147,7 @@ export async function getKev(): Promise<KevRead> {
 
 /** What the front page renders: the cached edition plus its render-time enrichment. */
 export type FrontPageData = {
-  result: SectionedFrontPageResult;
+  result: OkEdition;
   enrichment: EnrichmentSnapshot;
 };
 
@@ -143,10 +160,6 @@ export type FrontPageData = {
 export async function getFrontPageData(): Promise<FrontPageData> {
   const [result, kev] = await Promise.all([getSnapshot(), getKev()]);
   const now = Date.now();
-  const enrichment = await enrichCves(
-    result.status === "ok" ? uniqueCves(result.articles) : [],
-    { kev },
-    now
-  );
+  const enrichment = await enrichCves(uniqueCves(result.articles), { kev }, now);
   return { result, enrichment };
 }

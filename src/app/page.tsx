@@ -18,13 +18,16 @@ const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
 /**
  * The public front page. Awaits `getFrontPageData()` once (the shared cached
  * edition from `src/lib/snapshot.ts`, plus KEV and EPSS enrichment merged at
- * render; enrichment never removes an article) and branches only on
- * its edition's discriminant -- none of the error variant's internal diagnostic detail
- * is ever surfaced in the rendered output (threat T-01-10 / T-03-04). Both
- * the error variant and the ok-but-empty variant get the same quiet
- * empty-state treatment (CONTEXT.md D-03): there is no per-source health UI,
- * so a timeout and a genuinely quiet feed look the same to a reader. That
- * branch mounts no filter provider and no bar.
+ * render; enrichment never removes an article). The error variant no longer
+ * reaches this page: `getSnapshot` throws when no edition exists, so ISR keeps
+ * serving the last good HTML and a cold build during a total feed outage fails
+ * (failure policy, `snapshot.ts` header item 7; Phase 6 WR-03). The empty-state
+ * branch below stays as a typed guard for an edition with no sections: it
+ * mounts no filter provider and no bar, and none of any failure's internal
+ * diagnostic detail is ever surfaced in the rendered output (threat T-01-10 /
+ * T-03-04). The notice beside "Updated" and the CVE chips come from the
+ * render-time enrichment merge; the notice is a fixed-vocabulary string about
+ * data availability only.
  *
  * Sections and within-section order arrive fully resolved from that
  * edition (classification, ranking, dedupe stay upstream pipeline
