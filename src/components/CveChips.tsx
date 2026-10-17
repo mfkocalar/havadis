@@ -1,5 +1,11 @@
 import { Fragment } from "react";
 import { planCveChips } from "@/lib/cveChips";
+import {
+  EPSS_CHIP_CLASSES,
+  EPSS_NONE_YET_CHIP_CLASSES,
+  EPSS_STRONG_CHIP_CLASSES,
+  KEV_CHIP_CLASSES,
+} from "@/lib/cveChipStyles";
 import type { CveEnrichment } from "@/lib/types";
 
 /**
@@ -24,6 +30,10 @@ import type { CveEnrichment } from "@/lib/types";
  * The EPSS chip is likewise a non-link span after the KEV chip: `EPSS 0.91`
  * for a scored CVE, a muted `no EPSS yet` only when FIRST answered consistently
  * without a row, and nothing when the lookup was unavailable (D-07, D-11).
+ * A score at or above the emphasis threshold uses the strong tone (D-06).
+ *
+ * Order, cut and per-chip KEV/EPSS fields all come from `planCveChips` (D-03);
+ * tones are the whole-literal constants in `cveChipStyles.ts`.
  */
 
 /**
@@ -35,22 +45,6 @@ import type { CveEnrichment } from "@/lib/types";
  */
 const CHIP_CLASSES =
   "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 font-mono";
-
-/**
- * KEV chip: the pill geometry of `CHIP_CLASSES` with a solid red tone (white
- * on red-700 measures 6.42:1, RESEARCH Pattern 4). Plan 07-03 moves it into
- * `cveChipStyles.ts` under a contrast test.
- */
-const KEV_CHIP_CLASSES =
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-700 text-white tabular-nums";
-
-/** EPSS score chip: the pill geometry of `CHIP_CLASSES` in a neutral zinc tone. Plan 07-03 moves it into `cveChipStyles.ts`. */
-const EPSS_CHIP_CLASSES =
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 ring-1 ring-inset ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700 tabular-nums";
-
-/** "no EPSS yet" chip: the same geometry in a muted tone. Plan 07-03 moves it into `cveChipStyles.ts`. */
-const EPSS_NONE_YET_CHIP_CLASSES =
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-zinc-50 text-zinc-600 ring-1 ring-inset ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:ring-zinc-700";
 
 export function CveChips({
   cves,
@@ -91,7 +85,7 @@ export function CveChips({
             <span
               data-epss-chip="score"
               title={`FIRST EPSS exploitation probability, scored ${chip.epss.date}`}
-              className={EPSS_CHIP_CLASSES}
+              className={chip.epss.strong ? EPSS_STRONG_CHIP_CLASSES : EPSS_CHIP_CLASSES}
             >
               {`EPSS ${chip.epss.label}`}
             </span>
