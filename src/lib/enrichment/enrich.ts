@@ -81,6 +81,41 @@ function safeIds(cves: readonly string[]): string[] {
   }
 }
 
+/**
+ * The page's one-line notice about degraded enrichment (ENR-05, D-08, D-10,
+ * D-11), or null when both providers are healthy. Built from a fixed
+ * vocabulary plus one date re-serialised by `toISOString`, so no upstream text
+ * or error message can reach a visitor. The KEV part comes first, parts are
+ * joined with " · ". Pure and clock-free.
+ *
+ * The wording describes the availability of a data source only. It never says
+ * or implies anything about a CVE's KEV membership or safety (D-09): a CVE
+ * that is simply not listed has no visual at all.
+ */
+export function enrichmentNotice(health: EnrichmentHealth): string | null {
+  const parts: string[] = [];
+
+  if (health.kev.status === "unavailable") {
+    parts.push("KEV data unavailable");
+  } else if (health.kev.status === "stale") {
+    const fetchedMs =
+      typeof health.kev.fetchedAt === "string" ? Date.parse(health.kev.fetchedAt) : NaN;
+    parts.push(
+      Number.isFinite(fetchedMs)
+        ? `KEV data from ${new Date(fetchedMs).toISOString().slice(0, 10)}`
+        : "KEV data unavailable"
+    );
+  }
+
+  if (health.epss.status === "unavailable") {
+    parts.push("EPSS data unavailable");
+  } else if (health.epss.status === "partial") {
+    parts.push("EPSS partially unavailable");
+  }
+
+  return parts.length === 0 ? null : parts.join(" · ");
+}
+
 /** Injectable pieces of `enrichCves`, for hermetic tests. */
 export type EnrichDeps = { epss?: EpssDeps };
 

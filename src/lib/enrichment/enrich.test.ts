@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { KevMap, KevRead } from "../types.ts";
-import { enrichCves, kevHealth, uniqueCves, type EnrichDeps } from "./enrich.ts";
+import type { EnrichmentHealth, KevMap, KevRead } from "../types.ts";
+import { enrichCves, enrichmentNotice, kevHealth, uniqueCves, type EnrichDeps } from "./enrich.ts";
 
 /**
  * Hermetic tests for the render-time join (ENR-03, D-09, D-10): no network,
@@ -210,4 +210,66 @@ test("prototype-named and malformed IDs are dropped, never joined", async () => 
   assert.deepStrictEqual(Object.keys(snap.byCve), ["CVE-2024-0001"]);
   assert.deepStrictEqual(snap.byCve["CVE-2024-0001"].kev, { state: "not-listed" });
   assert.equal(Object.getPrototypeOf(snap.byCve), Object.prototype);
+});
+
+function healthOf(
+  kev: EnrichmentHealth["kev"]["status"],
+  epss: EnrichmentHealth["epss"]["status"]
+): EnrichmentHealth {
+  return {
+    kev:
+      kev === "unavailable"
+        ? { status: kev, fetchedAt: null }
+        : { status: kev, fetchedAt: "2026-10-06T08:00:00.000Z" },
+    epss: { status: epss, requested: 4, unavailable: epss === "ok" ? 0 : epss === "partial" ? 1 : 4 },
+  };
+}
+
+test("enrichmentNotice is null when KEV and EPSS are ok, including nothing requested", () => {
+  assert.equal(enrichmentNotice(healthOf("ok", "ok")), null);
+  const none = healthOf("ok", "ok");
+  none.epss = { status: "ok", requested: 0, unavailable: 0 };
+  assert.equal(enrichmentNotice(none), null);
+});
+
+test("enrichmentNotice names each single-provider state with the fixed wording", () => {
+  assert.equal(enrichmentNotice(healthOf("unavailable", "ok")), "KEV data unavailable");
+  assert.equal(enrichmentNotice(healthOf("stale", "ok")), "KEV data from 2026-10-06");
+  assert.equal(enrichmentNotice(healthOf("ok", "unavailable")), "EPSS data unavailable");
+  assert.equal(enrichmentNotice(healthOf("ok", "partial")), "EPSS partially unavailable");
+});
+
+test("enrichmentNotice joins the KEV part before the EPSS part with a middle dot", () => {
+  assert.equal(
+    enrichmentNotice(healthOf("unavailable", "unavailable")),
+    "KEV data unavailable · EPSS data unavailable"
+  );
+  assert.equal(
+    enrichmentNotice(healthOf("stale", "partial")),
+    "KEV data from 2026-10-06 · EPSS partially unavailable"
+  );
+});
+
+test("enrichmentNotice falls back to unavailable for an unparseable stale date", () => {
+  const h = healthOf("stale", "ok");
+  h.kev = { status: "stale", fetchedAt: "not a date <b>x</b>" };
+  assert.equal(enrichmentNotice(h), "KEV data unavailable");
+  h.kev = { status: "stale", fetchedAt: null };
+  assert.equal(enrichmentNotice(h), "KEV data unavailable");
+});
+
+test("enrichmentNotice output is null or fixed vocabulary for every status combination, never false assurance", () => {
+  const fixed = /^(KEV data unavailable|KEV data from \d{4}-\d{2}-\d{2})?( · )?(EPSS data unavailable|EPSS partially unavailable)?$/;
+  for (const kev of ["ok", "stale", "unavailable"] as const) {
+    for (const epss of ["ok", "partial", "unavailable"] as const) {
+      const out = enrichmentNotice(healthOf(kev, epss));
+      if (out === null) {
+        assert.equal(kev === "ok" && epss === "ok", true);
+        continue;
+      }
+      assert.match(out, fixed);
+      assert.doesNotMatch(out, /not (?:in|listed in) kev|not exploited|safe/i);
+      assert.equal(out.includes(" · "), kev !== "ok" && epss !== "ok");
+    }
+  }
 });

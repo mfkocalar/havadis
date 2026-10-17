@@ -34,16 +34,20 @@ import {
  * row below 768px, at the trailing edge and centred on the first pill row from
  * 768px up.
  *
- * Props are limited to section names, emoji, counts and the server-generated
- * snapshot timestamp: feed text and article data never reach this client
- * component (T-01-07, T-04-02).
+ * Props are limited to section names, emoji, counts, the server-generated
+ * snapshot timestamp and one server-built notice string from a fixed
+ * vocabulary (or null): feed text, article data and enrichment objects never
+ * reach this client component (T-01-07, T-04-02, T-07-23). The notice is not
+ * announced through the `role="status"` region, which is for filter changes.
  */
 export function SectionFilterBar({
   pills,
   generatedAt,
+  enrichmentNotice,
 }: {
   pills: readonly FilterPill[];
   generatedAt: string;
+  enrichmentNotice: string | null;
 }) {
   const { selected, toggle } = useSectionFilter();
   const barRef = useRef<HTMLDivElement>(null);
@@ -127,8 +131,25 @@ export function SectionFilterBar({
             );
           })}
         </div>
-        <div className="flex shrink-0 items-center pb-1 md:mt-1 md:min-h-8 md:pb-0">
+        <div className="flex min-w-0 shrink-0 items-center gap-x-2 pb-1 md:mt-1 md:min-h-8 md:flex-col md:items-end md:justify-center md:gap-x-0 md:pb-0">
           <LastUpdated generatedAt={generatedAt} />
+          {enrichmentNotice !== null && (
+            <>
+              <span aria-hidden="true" className="md:hidden">
+                ·
+              </span>
+              <span
+                data-enrichment-notice=""
+                title={enrichmentNotice}
+                className={clsx(
+                  "min-w-0 truncate text-xs md:max-w-56 md:whitespace-normal md:text-right",
+                  MUTED_CONTROL_TEXT_CLASSES,
+                )}
+              >
+                {enrichmentNotice}
+              </span>
+            </>
+          )}
         </div>
         <p role="status" className="sr-only">
           {filterStatusMessage(selected.size, pills.length)}

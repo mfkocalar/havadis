@@ -4,6 +4,7 @@ import { FrontPageFilter, SectionVisibility } from "@/components/FrontPageFilter
 import { SectionExpander } from "@/components/SectionExpander";
 import { SectionFilterBar } from "@/components/SectionFilterBar";
 import { SECTION_EMOJI } from "@/lib/config/sections";
+import { enrichmentNotice } from "@/lib/enrichment/enrich";
 import { planSectionCap } from "@/lib/planSectionCap";
 import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 
@@ -69,7 +70,11 @@ export default async function Home() {
 
   return (
     <FrontPageFilter>
-      <SectionFilterBar pills={pills} generatedAt={result.generatedAt} />
+      <SectionFilterBar
+        pills={pills}
+        generatedAt={result.generatedAt}
+        enrichmentNotice={enrichmentNotice(enrichment.health)}
+      />
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
         {/*
          * D-16 swaps the single visible "Latest" label for per-section
