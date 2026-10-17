@@ -12,12 +12,14 @@ export const MAX_VISIBLE_CVE_CHIPS = 3;
 export const NVD_CVE_DETAIL_BASE = "https://nvd.nist.gov/vuln/detail/";
 
 /**
- * Anchored, flagless CVE-ID shape check, module-private. Distinct from
- * `extractCves.ts`'s global-flag `CVE_PATTERN` (which scans for matches
- * anywhere in free text): this pattern validates that an entire string is
- * exactly one well-formed CVE ID, uppercase, with nothing before or after.
+ * Anchored, flagless CVE-ID shape check. Distinct from `extractCves.ts`'s
+ * global-flag `CVE_PATTERN` (which scans for matches anywhere in free text):
+ * this pattern validates that an entire string is exactly one well-formed CVE
+ * ID, uppercase, with nothing before or after. Exported so the enrichment
+ * modules (`kev.ts`, `enrich.ts`) key every upstream value with the exact
+ * anchored shape that gates NVD links.
  */
-const CVE_ID_SHAPE = /^CVE-\d{4}-\d{4,7}$/;
+export const CVE_ID_SHAPE = /^CVE-\d{4}-\d{4,7}$/;
 
 /**
  * Builds the NVD detail URL for a CVE ID, but only when `id` is itself

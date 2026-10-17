@@ -1,4 +1,4 @@
-import { getSnapshot } from "@/lib/snapshot";
+import { getFrontPageData } from "@/lib/snapshot";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FrontPageFilter, SectionVisibility } from "@/components/FrontPageFilter";
 import { SectionExpander } from "@/components/SectionExpander";
@@ -15,9 +15,10 @@ import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3";
 
 /**
- * The public front page. Awaits `getSnapshot()` once (the shared cached
- * edition from `src/lib/snapshot.ts`) and branches only on
- * its discriminant -- none of the error variant's internal diagnostic detail
+ * The public front page. Awaits `getFrontPageData()` once (the shared cached
+ * edition from `src/lib/snapshot.ts`, plus KEV and EPSS enrichment merged at
+ * render; enrichment never removes an article) and branches only on
+ * its edition's discriminant -- none of the error variant's internal diagnostic detail
  * is ever surfaced in the rendered output (threat T-01-10 / T-03-04). Both
  * the error variant and the ok-but-empty variant get the same quiet
  * empty-state treatment (CONTEXT.md D-03): there is no per-source health UI,
@@ -45,7 +46,7 @@ const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
  * component this page mounts.
  */
 export default async function Home() {
-  const result = await getSnapshot();
+  const { result, enrichment } = await getFrontPageData();
 
   if (result.status !== "ok" || result.sections.length === 0) {
     return (
@@ -108,14 +109,14 @@ export default async function Home() {
                   <div className="flex flex-col gap-6">
                     <div className={CARD_GRID_CLASSES}>
                       {group.articles.slice(0, visibleCount).map((article) => (
-                        <ArticleCard key={article.url} article={article} />
+                        <ArticleCard key={article.url} article={article} byCve={enrichment.byCve} />
                       ))}
                     </div>
                     {hiddenCount > 0 && (
                       <SectionExpander section={group.section} total={total}>
                         <div className={CARD_GRID_CLASSES}>
                           {group.articles.slice(visibleCount).map((article) => (
-                            <ArticleCard key={article.url} article={article} />
+                            <ArticleCard key={article.url} article={article} byCve={enrichment.byCve} />
                           ))}
                         </div>
                       </SectionExpander>

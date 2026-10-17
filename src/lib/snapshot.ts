@@ -1,6 +1,9 @@
 import { unstable_cache } from "next/cache";
 import { EDITION_CACHE_KEY, produceEdition } from "./edition.ts";
-import type { SectionedFrontPageResult } from "./types.ts";
+import { KEV_REVALIDATE_SECONDS } from "./enrichment/config.ts";
+import { enrichCves, uniqueCves } from "./enrichment/enrich.ts";
+import { KEV_CACHE_KEY, produceKev } from "./enrichment/kev.ts";
+import type { EnrichmentSnapshot, KevRead, SectionedFrontPageResult } from "./types.ts";
 
 /**
  * The single read path the front page uses, and that `/cve/[id]`, the RSS
@@ -42,6 +45,12 @@ import type { SectionedFrontPageResult } from "./types.ts";
  *    measurement: Vercel's CPU metric needed a paid add-on. The worst case of
  *    one regeneration per window all month is about 7.5% of the Hobby plan's
  *    4 hours of Active CPU (D-11).
+ * 9. The KEV slim map is a second entry under KEV_CACHE_KEY with its own tag
+ *    and a 6-hour window (D-12). It is read in parallel with the edition by
+ *    `getFrontPageData`, never from inside another cached callback (a nested
+ *    call bypasses the cache). EPSS is fetched at render, also outside every
+ *    cached callback. KEV is non-fatal: `getKev` reports `unavailable` instead
+ *    of throwing, and an outage never reads as "not listed" (ENR-03).
  */
 
 /** The shared cache window, and so the route's ISR window, in seconds. */
@@ -89,4 +98,55 @@ export async function getSnapshot(): Promise<SectionedFrontPageResult> {
       reason: err instanceof Error ? err.message : "unknown snapshot error",
     };
   }
+}
+
+/** Cache tag carried by the KEV map entry; purging the edition tag never purges it. */
+export const KEV_TAG = "havadis-kev";
+
+// The callback's source text is part of the cache key: never edit this arrow
+// function, put logic in `produceKev` instead. The KEV key carries its own tag
+// so purging SNAPSHOT_TAG never purges it.
+const readKev = cachedSnapshot(KEV_CACHE_KEY, () => produceKev(Date.now()), {
+  revalidate: KEV_REVALIDATE_SECONDS,
+  tags: [KEV_TAG],
+});
+
+/**
+ * Returns the shared cached KEV map. Never throws (KEV is non-fatal): when a
+ * refresh is rejected and there is no previous map to fall back on, it returns
+ * `unavailable`, which downstream reads as "unknown", never "not listed".
+ */
+export async function getKev(): Promise<KevRead> {
+  try {
+    return { status: "ok", map: await readKev() };
+  } catch (err) {
+    console.error(
+      "getKev failed (no previous KEV map):",
+      err instanceof Error ? err.message : "unknown"
+    );
+    return { status: "unavailable" };
+  }
+}
+
+/** What the front page renders: the cached edition plus its render-time enrichment. */
+export type FrontPageData = {
+  result: SectionedFrontPageResult;
+  enrichment: EnrichmentSnapshot;
+};
+
+/**
+ * The one read the page makes: the cached edition and the KEV map are read in
+ * parallel (never one inside the other), then joined at render. The clock is
+ * sampled once here, at the render boundary, because the page component may
+ * not read it. Enrichment never removes an article.
+ */
+export async function getFrontPageData(): Promise<FrontPageData> {
+  const [result, kev] = await Promise.all([getSnapshot(), getKev()]);
+  const now = Date.now();
+  const enrichment = await enrichCves(
+    result.status === "ok" ? uniqueCves(result.articles) : [],
+    { kev },
+    now
+  );
+  return { result, enrichment };
 }

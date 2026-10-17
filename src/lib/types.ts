@@ -142,3 +142,61 @@ export type SectionedFrontPageResult =
       generatedAt: string;
     }
   | { status: "error"; reason: string };
+
+/**
+ * One CISA KEV catalog entry, slimmed to what the UI and later phases need
+ * (Phase 7). Both dates are `YYYY-MM-DD`; `due` is the empty string when the
+ * catalog lists no due date. JSON-safe by contract (D-17): no Map, Set or Date.
+ */
+export type KevEntry = { added: string; due: string; ransomware: boolean };
+
+/**
+ * The validated, slimmed KEV catalog the shared cache holds under
+ * `havadis-kev-v1`. `entries` is keyed by anchored-validated CVE ID only.
+ * `fetchedAt` is the ISO time the map was built, sampled inside the cached
+ * callback (D-10).
+ */
+export type KevMap = {
+  version: 1;
+  fetchedAt: string;
+  catalogVersion: string;
+  entries: Record<string, KevEntry>;
+};
+
+/** The result of reading the KEV map: never throws, failure is `unavailable`. */
+export type KevRead = { status: "ok"; map: KevMap } | { status: "unavailable" };
+
+/**
+ * One CVE's KEV standing. `not-listed` is constructed ONLY when a KEV map was
+ * read (health `ok` or `stale`), never on a failed read: an outage must show
+ * as `unavailable`, not as "not exploited" (ENR-03, D-09).
+ */
+export type KevState =
+  | { state: "listed"; added: string; due: string; ransomware: boolean }
+  | { state: "not-listed" }
+  | { state: "unavailable" };
+
+/** One CVE's EPSS standing: a score, no published row yet, or the lookup failed. */
+export type EpssState =
+  | { state: "scored"; score: number; date: string }
+  | { state: "no-row" }
+  | { state: "unavailable" };
+
+/** Both providers' standing for one CVE. */
+export type CveEnrichment = { kev: KevState; epss: EpssState };
+
+/** How healthy each provider's data is, for the page notice (Plan 07-04). */
+export type EnrichmentHealth = {
+  kev: { status: "ok" | "stale" | "unavailable"; fetchedAt: string | null };
+  epss: {
+    status: "ok" | "partial" | "unavailable";
+    requested: number;
+    unavailable: number;
+  };
+};
+
+/** The render-time join of the edition's CVEs with KEV and EPSS. */
+export type EnrichmentSnapshot = {
+  byCve: Record<string, CveEnrichment>;
+  health: EnrichmentHealth;
+};

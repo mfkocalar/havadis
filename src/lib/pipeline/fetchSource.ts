@@ -1,6 +1,7 @@
 import Parser from "rss-parser";
 import type { SourceConfig, FrontPageResult } from "../types.ts";
 import { fetchWithValidatedRedirect } from "./fetchWithValidatedRedirect.ts";
+import { readBodyWithCap } from "./boundedFetch.ts";
 import { normalize } from "./normalize.ts";
 import { USER_AGENT } from "../config/crawler.ts";
 
@@ -24,61 +25,6 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const SOURCE_TIMEOUT_MS = 8_000;
 
 const parser = new Parser();
-
-/**
- * Reads a Response body up to `maxBytes`, erroring rather than exhausting
- * the function on an unbounded stream. `signal` carries the same
- * per-source budget the caller armed before this response existed: the
- * load-bearing mechanism is that the runtime tears down the response body
- * stream when `signal` aborts, so a pending `reader.read()` rejects on its
- * own. The `signal.aborted` check at the top of the loop is a narrow safety
- * net only — it covers the case where a chunk lands in the same tick the
- * abort fires — not the fix itself.
- *
- * Both the streaming path (below) and the no-stream path (when the
- * response exposes no readable stream) enforce `maxBytes` and observe
- * `signal` — neither path can return an uncapped or unabortable body.
- */
-async function readBodyWithCap(
-  res: Response,
-  maxBytes: number,
-  signal: AbortSignal
-): Promise<string> {
-  if (!res.body) {
-    if (signal.aborted) {
-      throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
-    }
-    const text = await res.text();
-    if (Buffer.byteLength(text, "utf-8") > maxBytes) {
-      throw new Error(`Response body exceeded ${maxBytes} byte cap`);
-    }
-    return text;
-  }
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    for (;;) {
-      if (signal.aborted) {
-        throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
-      }
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        total += value.byteLength;
-        if (total > maxBytes) {
-          const err = new Error(`Response body exceeded ${maxBytes} byte cap`);
-          await reader.cancel(err).catch(() => {});
-          throw err;
-        }
-        chunks.push(value);
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8");
-}
 
 /**
  * Fetches and parses one source. NEVER throws — every failure path (the

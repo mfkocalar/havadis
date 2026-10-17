@@ -1,4 +1,6 @@
+import { Fragment } from "react";
 import { planCveChips } from "@/lib/cveChips";
+import type { CveEnrichment } from "@/lib/types";
 
 /**
  * Red, monospace CVE-ID chips rendered next to the tier badge in an
@@ -12,6 +14,12 @@ import { planCveChips } from "@/lib/cveChips";
  * prop anywhere in this file. Every `href` is built exclusively from
  * `planCveChips`/`nvdUrl`'s regex-matched, anchored-validated ID — never
  * from feed-supplied URL text (D-14, T-03-11).
+ *
+ * The KEV chip text comes only from the validated slim KEV map (its
+ * `YYYY-MM-DD` date, as a single JSX text node), and it is never a link: a
+ * non-link span right after its CVE anchor, so it adds no outbound-link
+ * surface (D-19). A CVE that is not listed, or whose KEV state is unavailable,
+ * renders nothing extra (D-09).
  */
 
 /**
@@ -24,7 +32,21 @@ import { planCveChips } from "@/lib/cveChips";
 const CHIP_CLASSES =
   "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 font-mono";
 
-export function CveChips({ cves }: { cves: string[] }) {
+/**
+ * KEV chip: the pill geometry of `CHIP_CLASSES` with a solid red tone (white
+ * on red-700 measures 6.42:1, RESEARCH Pattern 4). Plan 07-03 moves it into
+ * `cveChipStyles.ts` under a contrast test.
+ */
+const KEV_CHIP_CLASSES =
+  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-700 text-white tabular-nums";
+
+export function CveChips({
+  cves,
+  byCve,
+}: {
+  cves: string[];
+  byCve?: Readonly<Record<string, CveEnrichment>>;
+}) {
   const plan = planCveChips(cves);
 
   if (plan.visible.length === 0) {
@@ -33,17 +55,32 @@ export function CveChips({ cves }: { cves: string[] }) {
 
   return (
     <>
-      {plan.visible.map((chip) => (
-        <a
-          key={chip.id}
-          href={chip.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={CHIP_CLASSES}
-        >
-          {chip.id}
-        </a>
-      ))}
+      {plan.visible.map((chip) => {
+        const kev =
+          byCve !== undefined && Object.hasOwn(byCve, chip.id) ? byCve[chip.id].kev : null;
+        return (
+          <Fragment key={chip.id}>
+            <a
+              href={chip.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={CHIP_CLASSES}
+            >
+              {chip.id}
+            </a>
+            {kev !== null && kev.state === "listed" ? (
+              <span
+                data-kev-chip=""
+                title={`Listed in the CISA Known Exploited Vulnerabilities catalog, added ${kev.added}`}
+                className={KEV_CHIP_CLASSES}
+              >
+                <span className="sr-only">Known exploited, </span>
+                {`KEV · ${kev.added}`}
+              </span>
+            ) : null}
+          </Fragment>
+        );
+      })}
       {plan.overflow > 0 ? <span className={CHIP_CLASSES}>+{plan.overflow}</span> : null}
     </>
   );

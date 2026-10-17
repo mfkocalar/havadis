@@ -2,7 +2,7 @@ import { formatUtcDateTime } from "@/lib/formatUtcTime";
 import { SourceTierBadge } from "@/components/SourceTierBadge";
 import { SourceTypeLabel } from "@/components/SourceTypeLabel";
 import { CveChips } from "@/components/CveChips";
-import type { ClassifiedArticle } from "@/lib/types";
+import type { ClassifiedArticle, CveEnrichment } from "@/lib/types";
 
 /**
  * The complete UI-02 article card, built to the "Modern editorial"
@@ -39,7 +39,13 @@ import type { ClassifiedArticle } from "@/lib/types";
  * an ordinary JSX text node with no raw-HTML injection prop anywhere in
  * it. Do not reinstate the old no-clamp gate as a "fix" — read D-08 first.
  */
-export function ArticleCard({ article }: { article: ClassifiedArticle }) {
+export function ArticleCard({
+  article,
+  byCve,
+}: {
+  article: ClassifiedArticle;
+  byCve?: Readonly<Record<string, CveEnrichment>>;
+}) {
   const publishedLabel = formatUtcDateTime(article.publishedAt);
 
   return (
@@ -50,7 +56,7 @@ export function ArticleCard({ article }: { article: ClassifiedArticle }) {
         </span>
         <SourceTierBadge tier={article.sourceTier} />
         <SourceTypeLabel type={article.sourceType} />
-        <CveChips cves={article.cves} />
+        <CveChips cves={article.cves} byCve={byCve} />
       </div>
 
       {/*
