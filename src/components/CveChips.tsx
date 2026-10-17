@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { planCveChips } from "@/lib/cveChips";
+import { formatEpss, planCveChips } from "@/lib/cveChips";
 import type { CveEnrichment } from "@/lib/types";
 
 /**
@@ -20,6 +20,10 @@ import type { CveEnrichment } from "@/lib/types";
  * non-link span right after its CVE anchor, so it adds no outbound-link
  * surface (D-19). A CVE that is not listed, or whose KEV state is unavailable,
  * renders nothing extra (D-09).
+ *
+ * The EPSS chip is likewise a non-link span after the KEV chip: `EPSS 0.91`
+ * for a scored CVE, a muted `no EPSS yet` only when FIRST answered consistently
+ * without a row, and nothing when the lookup was unavailable (D-07, D-11).
  */
 
 /**
@@ -40,6 +44,14 @@ const CHIP_CLASSES =
 const KEV_CHIP_CLASSES =
   "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-700 text-white tabular-nums";
 
+/** EPSS score chip: the pill geometry of `CHIP_CLASSES` in a neutral zinc tone. Plan 07-03 moves it into `cveChipStyles.ts`. */
+const EPSS_CHIP_CLASSES =
+  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 ring-1 ring-inset ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700 tabular-nums";
+
+/** "no EPSS yet" chip: the same geometry in a muted tone. Plan 07-03 moves it into `cveChipStyles.ts`. */
+const EPSS_NONE_YET_CHIP_CLASSES =
+  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-zinc-50 text-zinc-600 ring-1 ring-inset ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:ring-zinc-700";
+
 export function CveChips({
   cves,
   byCve,
@@ -56,8 +68,10 @@ export function CveChips({
   return (
     <>
       {plan.visible.map((chip) => {
-        const kev =
-          byCve !== undefined && Object.hasOwn(byCve, chip.id) ? byCve[chip.id].kev : null;
+        const entry =
+          byCve !== undefined && Object.hasOwn(byCve, chip.id) ? byCve[chip.id] : null;
+        const kev = entry === null ? null : entry.kev;
+        const epss = entry === null ? null : entry.epss;
         return (
           <Fragment key={chip.id}>
             <a
@@ -76,6 +90,24 @@ export function CveChips({
               >
                 <span className="sr-only">Known exploited, </span>
                 {`KEV · ${kev.added}`}
+              </span>
+            ) : null}
+            {epss !== null && epss.state === "scored" ? (
+              <span
+                data-epss-chip="score"
+                title={`FIRST EPSS exploitation probability, scored ${epss.date}`}
+                className={EPSS_CHIP_CLASSES}
+              >
+                {`EPSS ${formatEpss(epss.score)}`}
+              </span>
+            ) : null}
+            {epss !== null && epss.state === "no-row" ? (
+              <span
+                data-epss-chip="none-yet"
+                title="FIRST has published no EPSS score for this CVE yet"
+                className={EPSS_NONE_YET_CHIP_CLASSES}
+              >
+                no EPSS yet
               </span>
             ) : null}
           </Fragment>

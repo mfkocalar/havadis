@@ -3,15 +3,17 @@ import type {
   CveEnrichment,
   EnrichmentHealth,
   EnrichmentSnapshot,
+  EpssState,
   KevRead,
   KevState,
 } from "../types.ts";
 import { KEV_MAX_AGE_HOURS } from "./config.ts";
+import { fetchEpss, type EpssDeps } from "./epss.ts";
 
 /**
- * The render-time join of an edition's CVEs with KEV (and, from Plan 07-02,
- * EPSS). Plain TypeScript, no React import, so `node --test` can exercise it
- * hermetically. Never throws and never reads the clock: `now` is the caller's.
+ * The render-time join of an edition's CVEs with KEV and EPSS. Plain
+ * TypeScript, no React import, so `node --test` can exercise it hermetically.
+ * Never throws and never reads the clock: `now` is the caller's.
  */
 
 const KEV_MAX_AGE_MS = KEV_MAX_AGE_HOURS * 60 * 60 * 1000;
@@ -79,6 +81,9 @@ function safeIds(cves: readonly string[]): string[] {
   }
 }
 
+/** Injectable pieces of `enrichCves`, for hermetic tests. */
+export type EnrichDeps = { epss?: EpssDeps };
+
 /**
  * Joins the edition's CVEs with the KEV read (ENR-03). Each unique valid ID
  * gets `listed` (fields copied into a fresh literal, looked up with
@@ -86,9 +91,11 @@ function safeIds(cves: readonly string[]): string[] {
  * `stale`), or `unavailable` otherwise: `not-listed` is never produced on a
  * failed read, so an outage can never read as "not exploited" (D-09).
  *
- * EPSS lands in Plan 07-02. Until then every ID's `epss` is `unavailable` and
- * `health.epss` is `ok` only when nothing was requested: an honest gap, and
- * `unavailable` shows no EPSS chip (D-07).
+ * EPSS comes from `fetchEpss` (sorted batches, per-batch failure isolation):
+ * each ID is `scored`, `no-row` (only after a consistent FIRST answer) or
+ * `unavailable`, which shows no EPSS chip (D-07, D-11). `health.epss` is `ok`
+ * when nothing was requested or nothing is unavailable, `unavailable` when
+ * every ID is, and `partial` otherwise.
  *
  * Never throws: on any unexpected error every ID comes back `unavailable` in
  * both providers. Never reads the clock.
@@ -96,7 +103,8 @@ function safeIds(cves: readonly string[]): string[] {
 export async function enrichCves(
   cves: readonly string[],
   sources: { kev: KevRead },
-  now: number
+  now: number,
+  deps: EnrichDeps = {}
 ): Promise<EnrichmentSnapshot> {
   try {
     const ids = uniqueCves([{ cves }]);
@@ -106,7 +114,10 @@ export async function enrichCves(
         ? sources.kev.map.entries
         : null;
 
+    const epss = await fetchEpss(ids, deps.epss);
+
     const byCve: Record<string, CveEnrichment> = {};
+    let epssUnavailable = 0;
     for (const id of ids) {
       let kev: KevState;
       if (entries === null) {
@@ -117,7 +128,9 @@ export async function enrichCves(
       } else {
         kev = { state: "not-listed" };
       }
-      byCve[id] = { kev, epss: { state: "unavailable" } };
+      const e: EpssState = Object.hasOwn(epss, id) ? epss[id] : { state: "unavailable" };
+      if (e.state === "unavailable") epssUnavailable++;
+      byCve[id] = { kev, epss: e };
     }
 
     return {
@@ -125,9 +138,14 @@ export async function enrichCves(
       health: {
         kev: health,
         epss: {
-          status: ids.length === 0 ? "ok" : "unavailable",
+          status:
+            ids.length === 0 || epssUnavailable === 0
+              ? "ok"
+              : epssUnavailable === ids.length
+                ? "unavailable"
+                : "partial",
           requested: ids.length,
-          unavailable: ids.length,
+          unavailable: epssUnavailable,
         },
       },
     };

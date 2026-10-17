@@ -32,3 +32,24 @@ export const KEV_EARLIEST_DATE_ADDED = "2021-11-03";
 
 /** KEV fetch budget in milliseconds, spanning connect, redirects and the body read. */
 export const KEV_TIMEOUT_MS = 10_000;
+
+/** FIRST's EPSS API (BETA, no key). */
+export const EPSS_URL = "https://api.first.org/data/v1/epss";
+
+/** At most this many CVE IDs per EPSS request: 50 IDs are at most 849 characters of `cve` value, under FIRST's 2000 (ENR-02). */
+export const EPSS_BATCH_SIZE = 50;
+
+/** Per-edition ceiling on EPSS lookups: 10 requests of 50; IDs past it are unavailable (D-13). */
+export const EPSS_MAX_IDS = 500;
+
+/** Fetch Data Cache window per EPSS batch URL, in seconds: 1 hour, so a cached "no row" cannot outlive the next hourly refresh. */
+export const EPSS_REVALIDATE_SECONDS = 3600;
+
+/** Per-batch EPSS budget in milliseconds, spanning connect, redirects and the body read. */
+export const EPSS_TIMEOUT_MS = 5_000;
+
+/** Per-batch EPSS body cap: 256 KiB (a 50-row answer is about 5 KB). */
+export const EPSS_MAX_BYTES = 256 * 1024;
+
+/** An EPSS score at or above this gets the strong chip tone (D-06, consumed by Plan 07-03). */
+export const EPSS_EMPHASIS_THRESHOLD = 0.1;

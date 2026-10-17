@@ -55,3 +55,12 @@ export function planCveChips(cves: readonly string[]): CveChipPlan {
     overflow: Math.max(0, valid.length - MAX_VISIBLE_CVE_CHIPS),
   };
 }
+
+/**
+ * The EPSS score label (D-05): the exploitation probability to two decimals,
+ * never `0.00` (a score below 0.01 reads `<0.01`, branching on the raw score so
+ * 0.0099 is `<0.01` and 0.01 is `0.01`), and never a percentile or a percent.
+ */
+export function formatEpss(score: number): string {
+  return score < 0.01 ? "<0.01" : score.toFixed(2);
+}

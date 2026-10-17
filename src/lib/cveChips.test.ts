@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NVD_CVE_DETAIL_BASE, nvdUrl, planCveChips } from "./cveChips.ts";
+import { NVD_CVE_DETAIL_BASE, formatEpss, nvdUrl, planCveChips } from "./cveChips.ts";
 
 /**
  * Hermetic fixture tests for the chip cap and link-integrity model (D-13,
@@ -77,5 +77,22 @@ test("every visible href starts with the fixed NVD detail base plus CVE-", () =>
   const plan = planCveChips(["CVE-2026-0001", "CVE-2026-0002", "CVE-2026-0003", "CVE-2026-0004"]);
   for (const chip of plan.visible) {
     assert.ok(chip.href.startsWith("https://nvd.nist.gov/vuln/detail/CVE-"));
+  }
+});
+
+test("formatEpss: below 0.01 reads <0.01 and never 0.00 (D-05)", () => {
+  assert.equal(formatEpss(0), "<0.01");
+  assert.equal(formatEpss(0.0099), "<0.01");
+  assert.equal(formatEpss(0.004), "<0.01");
+});
+
+test("formatEpss: two decimals from 0.01 up, 1.00 at the top", () => {
+  assert.equal(formatEpss(0.01), "0.01");
+  assert.equal(formatEpss(0.91), "0.91");
+  assert.equal(formatEpss(0.999), "1.00");
+  assert.equal(formatEpss(1), "1.00");
+  for (const score of [0, 0.0001, 0.0099, 0.01, 0.5, 1]) {
+    assert.notEqual(formatEpss(score), "0.00");
+    assert.ok(!formatEpss(score).includes("%"));
   }
 });
