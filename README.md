@@ -10,10 +10,13 @@ A public, source-independent daily security newspaper for security practitioners
 - **Deduplication:** the same story from several outlets appears once (canonical URL or normalized title match; the earliest copy wins).
 - **Seven urgency-ordered sections:** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy. Classification is deterministic and keyword-based (see `src/lib/config/sections.ts`).
 - **Ranking** within a section by source tier weight and recency.
+- **Importance triage:** every article is scored Critical, High or Normal by deterministic rules, and the card shows the reason. Critical means act today (actively exploited, zero-day, CISA KEV, emergency patch). High means plan for it (critical severity, remote compromise, public exploit, supply-chain attack, ransomware, any CVE, or a Breaches story). Critical and High cards get a coloured leading edge and a badge.
 - **CVE chips** on cards that mention a CVE ID, linking to the NVD entry.
 - **Exploitation signals:** a CVE chip is followed by a KEV chip with the date CISA added the CVE to its Known Exploited Vulnerabilities catalog, and an EPSS chip with the FIRST exploitation probability (a muted "no EPSS yet" for brand-new CVEs). The strongest signal is shown first. When KEV or EPSS data is unavailable, stale or partial, a small notice appears beside "Updated"; nothing on the page ever says a CVE is safe or not exploited.
 - **Client-side section filter:** multi-select pills with per-section counts. Filtering never triggers a network request.
-- **Freshness:** the sticky bar shows when the snapshot was built ("Updated 14:05 UTC", relative after load).
+- **Reader triage:** show All, High+ or Critical only, unread only or flagged only; flag or mark any card read, or mark everything shown as read. Choices and marks are kept in the browser's localStorage (marks for a week); nothing is sent to a server.
+- **Outbound feeds:** RSS 2.0 and JSON Feed for the whole front page, by importance, or by section (see [Feeds](#feeds)).
+- **Freshness:** the sticky bar shows when the snapshot was built ("Updated 14:05 UTC") and each card its publication time; both switch to relative ages after load and tick every minute.
 - **Responsive layout:** 1, 2 or 3 card columns; verified from 360px phones to 1440px desktops.
 
 ## How it works
@@ -21,12 +24,12 @@ A public, source-independent daily security newspaper for security practitioners
 ```
 29 RSS/Atom feeds
    → fetchSource (validated redirects, size cap, per-source timeout)
-   → normalize → per-source lookback (72h cert/government/vendor, 24h news/research) → dedupe → classify → rank → group by section
+   → normalize → per-source lookback (72h cert/government/vendor, 24h news/research) → dedupe → classify + CVEs + importance → rank → group by section
    → one cached edition (src/lib/snapshot.ts, 900 s) ─┐
    CISA KEV catalogue → validated, slim map (6 h)  ───┼→ merged at render with EPSS (FIRST) → static, server-rendered page
 ```
 
-The whole composed edition is cached once through Next's `unstable_cache` in `src/lib/snapshot.ts` (`getSnapshot`, `SNAPSHOT_REVALIDATE_SECONDS` = 900 seconds) and shared by every reader. Inside it each feed is fetched uncached, so a feed that fails during a refresh is missing from that edition until the next good refresh. A refresh that errors or composes zero articles keeps the previous edition, whose "Updated" time then shows its age. Parsing uses `rss-parser` on the fetched XML text. The front page is a static route; the filter and clock are the only client code.
+The whole composed edition is cached once through Next's `unstable_cache` in `src/lib/snapshot.ts` (`getSnapshot`, `SNAPSHOT_REVALIDATE_SECONDS` = 900 seconds) and shared by every reader. Inside it each feed is fetched uncached, so a feed that fails during a refresh is missing from that edition until the next good refresh. A refresh that errors or composes zero articles keeps the previous edition, whose "Updated" time then shows its age. Parsing uses `rss-parser` on the fetched XML text. The front page is a static route. Client code is limited to the filters, triage controls, read and flag marks, and clocks; it receives only opaque article ids, closed enums, counts and timestamps, never feed text.
 
 Exploitation signals are merged with the cached edition at render, so the page stays static. The CISA KEV catalogue is validated, slimmed to about 135 KB (at today's catalogue size) and cached for 6 hours under its own key; EPSS is requested at render in sorted batches of at most 50 CVEs with a 1-hour fetch cache.
 
