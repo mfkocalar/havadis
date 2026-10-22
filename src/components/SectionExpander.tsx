@@ -7,6 +7,8 @@ import {
   CONTROL_FOCUS_CLASSES,
   NEUTRAL_CONTROL_CLASSES,
 } from "@/lib/filterControlStyles";
+import { useReaderState } from "@/components/useReaderState";
+import { hasArticleFilters } from "@/lib/readerState";
 import type { Section } from "@/lib/types";
 
 /**
@@ -44,6 +46,10 @@ export function SectionExpander({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // While importance/unread/flagged filters narrow the cards, the 6-card cap
+  // would hide matches behind the button, so the whole section shows and the
+  // button steps aside. The reader's own `open` choice is kept for later.
+  const filtering = hasArticleFilters(useReaderState().prefs);
   const regionId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -57,12 +63,13 @@ export function SectionExpander({
 
   return (
     <>
-      <div id={regionId} hidden={!open} data-overflow={section}>
+      <div id={regionId} hidden={!open && !filtering} data-overflow={section}>
         {children}
       </div>
       <button
         ref={buttonRef}
         type="button"
+        hidden={filtering}
         data-expander={section}
         aria-expanded={open}
         aria-controls={regionId}

@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start -p 4000",
     "lint": "eslint",
-    "test": "node --test"
+    "test": "node --experimental-strip-types --test"
   },
   "dependencies": {
     "clsx": "2.1.1",

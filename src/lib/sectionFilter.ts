@@ -1,3 +1,4 @@
+import type { ArticleMeta } from "./readerState.ts";
 import type { Section } from "./types.ts";
 
 /**
@@ -13,8 +14,17 @@ import type { Section } from "./types.ts";
  * which also exports every classification keyword list.
  */
 
-/** One filter pill: all props are closed-enum / constant / number (T-01-07). */
-export type FilterPill = { section: Section; emoji: string; count: number };
+/**
+ * One filter pill: all props are closed-enum / constant / number / opaque id
+ * (T-01-07). `count` is the section total; `articles` lets the pill show how
+ * many of them the reader's importance/unread/flagged filters leave.
+ */
+export type FilterPill = {
+  section: Section;
+  emoji: string;
+  count: number;
+  articles: readonly ArticleMeta[];
+};
 
 /** Returns a NEW set with `section` added when absent, removed when present. */
 export function toggleSection(

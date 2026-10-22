@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { SOURCES } from "../config/sources.ts";
 import type { Article, SectionedFrontPageResult } from "../types.ts";
 import { classify } from "./classify.ts";
@@ -7,6 +8,17 @@ import { fanOut } from "./fanOut.ts";
 import { fetchSource } from "./fetchSource.ts";
 import { groupBySection } from "./groupBySection.ts";
 import { withSourceWindow } from "./applySourceWindow.ts";
+import { scoreImportance } from "./importance.ts";
+
+/**
+ * A short, stable key for a story's client-side read/flag state. Hashing keeps
+ * the feed-supplied URL itself out of client component props (T-01-07) and
+ * out of the reader's localStorage. Dedupe already guarantees one card per
+ * URL, so the key is unique on the page.
+ */
+function articleId(url: string): string {
+  return createHash("sha256").update(url).digest("base64url").slice(0, 12);
+}
 
 /**
  * Pure, synchronous seam composing the post-fetch pipeline stages:
@@ -26,7 +38,7 @@ import { withSourceWindow } from "./applySourceWindow.ts";
  * this plan's own tests) can prove the composed pipeline hermetically,
  * without touching the network.
  *
- * Stage order: dedupe -> classify + extractCves -> groupBySection (ranking
+ * Stage order: dedupe -> classify + extractCves + scoreImportance -> groupBySection (ranking
  * within). Dedupe runs first so classification, CVE extraction and ranking
  * only ever see one card per story — this is also what makes `page.tsx`'s
  * `key={article.url}` safe to rely on for uniqueness (dedupe guarantees no
@@ -37,11 +49,19 @@ export function composeFrontPage(
   now: number
 ): Extract<SectionedFrontPageResult, { status: "ok" }> {
   const deduped = dedupe(articles);
-  const classified = deduped.map((article) => ({
-    ...article,
-    section: classify(article),
-    cves: extractCves(article),
-  }));
+  const classified = deduped.map((article) => {
+    const section = classify(article);
+    const cves = extractCves(article);
+    const { importance, reason } = scoreImportance(article, section, cves);
+    return {
+      ...article,
+      section,
+      cves,
+      importance,
+      importanceReason: reason,
+      id: articleId(article.url),
+    };
+  });
   const sections = groupBySection(classified, now);
   return {
     status: "ok",

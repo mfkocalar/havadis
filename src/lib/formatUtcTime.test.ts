@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatUtcDateTime, formatUtcTime } from "./formatUtcTime.ts";
+import { formatUtcDateTime, formatUtcShortDateTime, formatUtcTime } from "./formatUtcTime.ts";
 
 /**
  * Unit tests for formatUtcTime.ts (D-13): deterministic, locale-free UTC
@@ -26,6 +26,18 @@ test("formatUtcDateTime renders YYYY-MM-DD HH:MM UTC", () => {
 test("both formatters return 'unknown time' for an unparseable string and never throw", () => {
   assert.equal(formatUtcTime("not a date"), "unknown time");
   assert.equal(formatUtcDateTime("not a date"), "unknown time");
+});
+
+test("formatUtcShortDateTime renders Mon D, HH:MM UTC without a leading-zero day", () => {
+  assert.equal(formatUtcShortDateTime("2026-10-02T09:05:00.000Z"), "Oct 2, 09:05 UTC");
+});
+
+test("formatUtcShortDateTime normalises an offset timestamp across the year boundary", () => {
+  assert.equal(formatUtcShortDateTime("2026-01-01T01:30:00+02:00"), "Dec 31, 23:30 UTC");
+});
+
+test("formatUtcShortDateTime returns 'unknown time' for an unparseable string", () => {
+  assert.equal(formatUtcShortDateTime("not a date"), "unknown time");
 });
 
 test("both formatters return 'unknown time' for an empty string and never throw", () => {

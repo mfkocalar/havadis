@@ -1,8 +1,9 @@
 import { getFrontPage } from "@/lib/pipeline/getFrontPage";
 import { ArticleCard } from "@/components/ArticleCard";
-import { FrontPageFilter, SectionVisibility } from "@/components/FrontPageFilter";
+import { FrontPageFilter, SectionCount, SectionVisibility } from "@/components/FrontPageFilter";
 import { SectionExpander } from "@/components/SectionExpander";
 import { SectionFilterBar } from "@/components/SectionFilterBar";
+import { TriageToolbar, type TriageArticle } from "@/components/TriageToolbar";
 import { SECTION_EMOJI } from "@/lib/config/sections";
 import { planSectionCap } from "@/lib/planSectionCap";
 import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
@@ -59,14 +60,26 @@ export default async function Home() {
 
   // One count per section, reused for the pill, the heading and the markup
   // hooks (Pitfall 9).
+  // Client components get only these opaque ids and closed enums, never feed
+  // text (T-01-07).
+  const metasBySection = new Map(
+    result.sections.map((group) => [
+      group.section,
+      group.articles.map((a) => ({ id: a.id, importance: a.importance })),
+    ]),
+  );
   const pills: FilterPill[] = result.sections.map((group) => ({
     section: group.section,
     emoji: SECTION_EMOJI[group.section],
     count: group.articles.length,
+    articles: metasBySection.get(group.section)!,
   }));
+  const triageArticles: TriageArticle[] = result.sections.flatMap((group) =>
+    metasBySection.get(group.section)!.map((meta) => ({ ...meta, section: group.section })),
+  );
 
   return (
-    <FrontPageFilter>
+    <FrontPageFilter sections={result.sections.map((group) => group.section)}>
       <SectionFilterBar pills={pills} generatedAt={result.generatedAt} />
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
         {/*
@@ -77,34 +90,40 @@ export default async function Home() {
          */}
         <h1 className="sr-only">Latest</h1>
 
-        <div className="flex flex-col gap-12">
+        <TriageToolbar articles={triageArticles} />
+
+        <div className="flex flex-col gap-14">
           {result.sections.map((group, index) => {
             const total = group.articles.length;
             const { visibleCount, hiddenCount } = planSectionCap(total);
             const headingId = `section-heading-${index}`;
             return (
-              <SectionVisibility key={group.section} section={group.section}>
+              <SectionVisibility
+                key={group.section}
+                section={group.section}
+                articles={metasBySection.get(group.section)!}
+              >
                 <section
                   data-section={group.section}
                   data-count={total}
                   aria-labelledby={headingId}
-                  className="flex flex-col gap-4"
+                  className="flex flex-col gap-5"
                 >
                   <h2
                     id={headingId}
-                    className="text-sm font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
+                    className="flex items-center gap-2.5 border-b border-zinc-200 pb-3 text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl dark:border-zinc-800 dark:text-zinc-50"
                   >
                     <span aria-hidden="true">{SECTION_EMOJI[group.section]}</span> {group.section}
                     <span
                       aria-hidden="true"
                       data-heading-count={total}
-                      className="ml-2 font-medium tabular-nums"
+                      className="rounded-full bg-zinc-200/70 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                     >
-                      {total}
+                      <SectionCount total={total} articles={metasBySection.get(group.section)!} />
                     </span>
                     <span className="sr-only">{articleCountLabel(total)}</span>
                   </h2>
-                  <div className="flex flex-col gap-6">
+                  <div data-card-stack="" className="flex flex-col gap-6">
                     <div className={CARD_GRID_CLASSES}>
                       {group.articles.slice(0, visibleCount).map((article) => (
                         <ArticleCard key={article.url} article={article} />

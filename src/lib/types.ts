@@ -110,8 +110,16 @@ export type Section =
  * construct it and `fanOut.test.ts` and `dedupe.test.ts` pin its key set to
  * exactly those seven fields.
  */
+/** How urgently a reader should see an article, strongest first. */
+export type Importance = "critical" | "high" | "normal";
+
 export type ClassifiedArticle = Article & {
   section: Section;
+  /** Urgency level from `scoreImportance`, and the signal that set it (null for normal). */
+  importance: Importance;
+  importanceReason: string | null;
+  /** Stable, opaque per-story key for client-side read/flag state (a hash of the URL). */
+  id: string;
   /**
    * CVE IDs found in this article's title and capped summary (UI-03, D-13):
    * uppercase, de-duplicated, kept in first-appearance order with title IDs

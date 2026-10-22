@@ -55,6 +55,41 @@
 }
 
 /*
+ * While importance/unread/flagged filters are active (`data-filtering`, set by
+ * SectionVisibility), a section's primary grid and its overflow grid merge into
+ * one grid. Otherwise a card hidden in the first six would leave a hole and
+ * the overflow cards would start a fresh row. The column counts mirror
+ * page.tsx's CARD_GRID_CLASSES (1 / 2 from 768px / 3 from 1024px).
+ *
+ * Unlayered on purpose: these must beat the `flex` / `grid` utilities on the
+ * same elements, and Tailwind's utilities layer beats any layered rule here.
+ * The `:not([hidden])` guard keeps a collapsed overflow region hidden.
+ */
+[data-filtering] [data-card-stack] {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+[data-filtering] [data-card-stack] > .grid,
+[data-filtering] [data-card-stack] > [data-overflow]:not([hidden]),
+[data-filtering] [data-card-stack] > [data-overflow] > .grid {
+  display: contents;
+}
+
+@media (width >= 48rem) {
+  [data-filtering] [data-card-stack] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width >= 64rem) {
+  [data-filtering] [data-card-stack] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/*
  * Keep keyboard focus clear of the sticky filter bar (WCAG 2.2 SC 2.4.11,
  * focus not obscured). The bar is at most ~96px tall at md+ when its row
  * wraps to two lines, so 6rem offsets scrolled-into-view targets. The filter

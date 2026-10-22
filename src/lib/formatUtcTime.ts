@@ -22,3 +22,16 @@ export function formatUtcDateTime(iso: string): string {
   const canonical = date.toISOString();
   return `${canonical.slice(0, 10)} ${canonical.slice(11, 16)} UTC`;
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * `Mon D, HH:MM UTC` (e.g. `Oct 22, 09:05 UTC`) for an ISO 8601 timestamp: the
+ * readable card form. Same determinism as above: English month abbreviations
+ * from a fixed table, never `toLocaleString`, so server and hydration agree.
+ */
+export function formatUtcShortDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "unknown time";
+  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.toISOString().slice(11, 16)} UTC`;
+}
