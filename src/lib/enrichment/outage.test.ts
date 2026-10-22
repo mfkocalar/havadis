@@ -138,7 +138,7 @@ const EDITION_CVES = [
 ];
 
 function article(cves: string[]): ClassifiedArticle {
-  return { ...makeArticle(), section: "Vulnerabilities", cves };
+  return { ...makeArticle(), section: "Vulnerabilities", importance: "normal", importanceReason: null, id: "id", cves };
 }
 
 /** Articles covering every edition CVE (so every EPSS batch is exercised), plus awkward lists. */

@@ -2,7 +2,7 @@ import { getFrontPage } from "./pipeline/getFrontPage.ts";
 import type { SectionedFrontPageResult } from "./types.ts";
 
 /**
- * Cache key of the shared front-page snapshot. The `-v1` suffix is the
+ * Cache key of the shared front-page snapshot. The `-vN` suffix is the
  * snapshot schema version: any phase that changes the shape of the cached
  * edition bumps it, because the key otherwise depends only on the callback's
  * source text and an old-shape entry would be served to new code (RESEARCH
@@ -11,7 +11,7 @@ import type { SectionedFrontPageResult } from "./types.ts";
  * so hermetic tests can import it (`snapshot.ts` cannot load under
  * `node --test`).
  */
-export const EDITION_CACHE_KEY = "havadis-snapshot-v1";
+export const EDITION_CACHE_KEY = "havadis-snapshot-v2";
 
 /** The publishable variant of the front-page result: at least one article. */
 export type OkEdition = Extract<SectionedFrontPageResult, { status: "ok" }>;

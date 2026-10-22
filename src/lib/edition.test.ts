@@ -196,6 +196,11 @@ const PINNED_SHAPES: Record<string, { edition: string[]; group: string[]; articl
     group: ["articles", "section"],
     article: ["cves", "publishedAt", "section", "source", "sourceTier", "sourceType", "summary", "title", "url"],
   },
+  "havadis-snapshot-v2": {
+    edition: ["articles", "generatedAt", "sections", "status"],
+    group: ["articles", "section"],
+    article: ["cves", "id", "importance", "importanceReason", "publishedAt", "section", "source", "sourceTier", "sourceType", "summary", "title", "url"],
+  },
 };
 
 test("schema pin: a shape change must ship with a new snapshot key (Pitfall 5)", async () => {

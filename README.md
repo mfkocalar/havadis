@@ -89,6 +89,27 @@ node scripts/verify-viewports.mjs
 - Ranking weights: `src/lib/config/ranking.ts`.
 - Per-section card cap: `src/lib/config/frontPageLayout.ts`.
 - KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size): `src/lib/enrichment/config.ts`.
+- Importance rules (critical / high / normal): `src/lib/pipeline/importance.ts`.
+- `SITE_URL` environment variable: the public origin used for absolute links in feeds and metadata (e.g. `https://havadis.app`). Falls back to Vercel's production domain, then `http://localhost:4000`. Set it in production.
+
+## Feeds
+
+Other services and agents can subscribe to the front page. Every feed covers the last 24 hours, newest first, is prerendered and refreshed every 15 minutes, needs no key, and allows cross-origin requests.
+
+| Feed | RSS 2.0 | JSON Feed 1.1 |
+|------|---------|---------------|
+| All stories | `/feed.xml` | `/feed.json` |
+| High and critical | `/feed/high.xml` | `/feed/high.json` |
+| Critical only | `/feed/critical.xml` | `/feed/critical.json` |
+| One section | `/feed/<section>.xml` | `/feed/<section>.json` |
+
+Section slugs: `vulnerabilities`, `advisories`, `ransomware`, `breaches`, `threat-intelligence`, `tools-techniques`, `industry-policy`.
+
+Each item carries Havadis's triage fields: section, importance, importance reason, CVE IDs, source and source tier. JSON Feed items have them in a `_havadis` object; RSS items have them as `havadis:` namespaced elements and `<category>` tags. The site's HTML advertises the feeds via `<link rel="alternate">`, and `/feeds` lists every endpoint.
+
+```bash
+curl -s https://havadis.app/feed/critical.json | jq '.items[] | {title, url, why: ._havadis.importance_reason}'
+```
 
 ## Deployment
 
