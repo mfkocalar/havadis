@@ -22,7 +22,7 @@ import { planCveChips } from "@/lib/cveChips";
  * control.
  */
 const CHIP_CLASSES =
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 font-mono";
+  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 font-mono dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/30";
 
 export function CveChips({ cves }: { cves: string[] }) {
   const plan = planCveChips(cves);

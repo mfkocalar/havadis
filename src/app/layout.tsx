@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { siteUrl } from "@/lib/config/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,9 +14,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: "Havadis — Security News, Aggregated",
   description:
     "Havadis is a public, source-independent security newspaper for security experts, aggregating current cybersecurity coverage into one fast front page.",
+  // Feed autodiscovery: readers and agents given the site URL find the feeds.
+  alternates: {
+    types: {
+      "application/rss+xml": [{ url: "/feed.xml", title: "Havadis: security news (RSS)" }],
+      "application/feed+json": [{ url: "/feed.json", title: "Havadis: security news (JSON Feed)" }],
+    },
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -34,6 +43,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         {children}
+        <footer className="border-t border-zinc-200 dark:border-zinc-800">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-6 text-sm text-zinc-600 sm:px-6 dark:text-zinc-400">
+            <span>Connect a reader or agent:</span>
+            <a href="/feed.xml" className="font-medium underline-offset-4 hover:underline">RSS</a>
+            <a href="/feed.json" className="font-medium underline-offset-4 hover:underline">JSON Feed</a>
+            <a href="/feeds" className="font-medium underline-offset-4 hover:underline">All feeds</a>
+          </div>
+        </footer>
       </body>
     </html>
   );

@@ -5,6 +5,8 @@ import { flushSync } from "react-dom";
 import clsx from "clsx";
 import { useSectionFilter } from "@/components/FrontPageFilter";
 import { LastUpdated } from "@/components/LastUpdated";
+import { useReaderState } from "@/components/useReaderState";
+import { countVisible, hasArticleFilters } from "@/lib/readerState";
 import {
   articleCountLabel,
   filterStatusMessage,
@@ -46,6 +48,8 @@ export function SectionFilterBar({
   generatedAt: string;
 }) {
   const { selected, toggle } = useSectionFilter();
+  const { prefs, read, flags } = useReaderState();
+  const filtering = hasArticleFilters(prefs);
   const barRef = useRef<HTMLDivElement>(null);
 
   function handleToggle(section: FilterPill["section"]) {
@@ -91,19 +95,21 @@ export function SectionFilterBar({
           aria-label="Filter by section"
           className="relative -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 py-1 max-lg:scrollbar-none sm:-mx-6 sm:px-6 md:mx-0 md:flex-1 md:px-1 lg:flex-wrap lg:overflow-visible lg:px-0"
         >
-          {pills.map(({ section, emoji, count }) => {
+          {pills.map(({ section, emoji, count: total, articles }) => {
             const pressed = selected.has(section);
+            const count = filtering ? countVisible(articles, prefs, read, flags) : total;
             return (
               <button
                 key={section}
                 type="button"
                 aria-pressed={pressed}
                 data-filter-pill={section}
-                data-count={count}
+                data-count={total}
                 onClick={() => handleToggle(section)}
                 className={clsx(
                   PILL_BASE_CLASSES,
                   CONTROL_FOCUS_CLASSES,
+                  count === 0 && !pressed && "opacity-50",
                   pressed
                     ? PILL_PRESSED_CLASSES
                     : [PILL_UNPRESSED_CLASSES, NEUTRAL_CONTROL_CLASSES],
