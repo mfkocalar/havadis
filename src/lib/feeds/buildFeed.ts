@@ -105,7 +105,7 @@ function rfc822(iso: string): string {
   return new Date(iso).toUTCString();
 }
 
-export const HAVADIS_NS = "https://havadis.app/ns/feed/1.0";
+export const HAVADIS_NS = "https://havadis.netlify.app/ns/feed/1.0";
 
 export function toRss(ctx: FeedContext): string {
   const { siteUrl, generatedAt } = ctx;
