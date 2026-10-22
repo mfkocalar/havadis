@@ -13,7 +13,7 @@
  */
 
 /** Public page describing the crawler; served by `src/app/about/page.tsx`. */
-export const CRAWLER_CONTACT_URL = "https://security-news-dun.vercel.app/about";
+export const CRAWLER_CONTACT_URL = "https://havadis.netlify.app/about";
 
 /** Where a publisher can ask to be removed or report a problem. */
 export const CRAWLER_CONTACT_CHANNEL_URL = "https://github.com/mfkocalar/havadis/issues";

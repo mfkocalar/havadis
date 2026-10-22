@@ -30,11 +30,11 @@ The whole composed edition is cached once through Next's `unstable_cache` in `sr
 
 Exploitation signals are merged with the cached edition at render, so the page stays static. The CISA KEV catalogue is validated, slimmed to about 135 KB (at today's catalogue size) and cached for 6 hours under its own key; EPSS is requested at render in sorted batches of at most 50 CVEs with a 1-hour fetch cache.
 
-Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Vercel keeps the previous deployment. Enrichment: a stale KEV map beats an empty one, otherwise KEV and EPSS degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
+Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Netlify keeps the previous deploy live. Enrichment: a stale KEV map beats an empty one, otherwise KEV and EPSS degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
 
 ## Tech stack
 
-Next.js 16 (App Router, TypeScript), React 19, Tailwind CSS 4, `rss-parser`. Designed to run on Vercel's free tier with no database or cron.
+Next.js 16 (App Router, TypeScript), React 19, Tailwind CSS 4, `rss-parser`. Hosted on Netlify's free tier with no database or cron.
 
 ## Getting started
 
@@ -90,7 +90,7 @@ node scripts/verify-viewports.mjs
 - Per-section card cap: `src/lib/config/frontPageLayout.ts`.
 - KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size): `src/lib/enrichment/config.ts`.
 - Importance rules (critical / high / normal): `src/lib/pipeline/importance.ts`.
-- `SITE_URL` environment variable: the public origin used for absolute links in feeds and metadata (e.g. `https://havadis.app`). Falls back to Vercel's production domain, then `http://localhost:4000`. Set it in production.
+- `SITE_URL` environment variable: the public origin used for absolute links in feeds and metadata (e.g. `https://havadis.netlify.app`). Falls back to Vercel's production domain, then `http://localhost:4000`. Set it in production.
 
 ## Feeds
 
@@ -108,12 +108,14 @@ Section slugs: `vulnerabilities`, `advisories`, `ransomware`, `breaches`, `threa
 Each item carries Havadis's triage fields: section, importance, importance reason, CVE IDs, source and source tier. JSON Feed items have them in a `_havadis` object; RSS items have them as `havadis:` namespaced elements and `<category>` tags. The site's HTML advertises the feeds via `<link rel="alternate">`, and `/feeds` lists every endpoint.
 
 ```bash
-curl -s https://havadis.app/feed/critical.json | jq '.items[] | {title, url, why: ._havadis.importance_reason}'
+curl -s https://havadis.netlify.app/feed/critical.json | jq '.items[] | {title, url, why: ._havadis.importance_reason}'
 ```
 
 ## Deployment
 
-Deploy to Vercel (`vercel` for a preview, `vercel --prod` for production). No environment variables are required.
+Hosted on Netlify at https://havadis.netlify.app, which builds and deploys `main` with `npm run build`. A failed build is not published, so the previous deploy stays live.
+
+Set `SITE_URL=https://havadis.netlify.app` in the Netlify site's environment variables; without it, feed and metadata links point at `http://localhost:4000`. The crawler's contact URL (`src/lib/config/crawler.ts`) also points at this site's `/about` page, so update both if the domain changes.
 
 ## License
 
