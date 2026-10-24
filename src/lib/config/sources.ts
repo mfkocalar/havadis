@@ -58,6 +58,14 @@ export const SOURCES: SourceConfig[] = [
     lang: "en",
     family: "cisa",
     url: "https://www.cisa.gov/cybersecurity-advisories/all.xml",
+    // Live probe 2026-10-24: 5,696,987 bytes (up to 7,597,640 seen in a
+    // build) for 30 items, ~185KB each because every item now carries the
+    // full advisory text; 22 items inside the 72h window. Over the shared
+    // 2MB cap it errored on every crawl and contributed nothing. The smaller
+    // CISA feeds do not replace it (alerts.xml: 2 items in 72h). Above 2MB
+    // Next cannot cache the body, so it is downloaded on every crawl
+    // (~0.25s from a residential link).
+    maxBodyBytes: 10 * 1024 * 1024,
   },
   // PROJECT.md's trailing-slash form (`.../feed/`) 301-redirects to this
   // no-trailing-slash URL. Configured post-redirect for the same reason the

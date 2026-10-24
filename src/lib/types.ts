@@ -57,6 +57,13 @@ export type SourceConfig = {
    * No source sets it today; add one only when a live probe shows a flood.
    */
   maxItems?: number;
+  /**
+   * Raises this one source's body-size cap above `fetchSource.ts`'s shared
+   * `MAX_BODY_BYTES`. A body over that default is too large for Next's Data
+   * Cache, so the source is downloaded uncached on every crawl; set it only
+   * on live-probe evidence that a high-value feed outgrew the default.
+   */
+  maxBodyBytes?: number;
 };
 
 /** The common shape every feed item is normalized into. */

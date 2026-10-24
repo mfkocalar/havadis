@@ -216,6 +216,18 @@ test("no source sets maxItems (D-07)", () => {
   }
 });
 
+test("any maxBodyBytes set on a source is above the 2MB default and at most 10MB", () => {
+  for (const source of SOURCES) {
+    if (source.maxBodyBytes === undefined) continue;
+    assert.ok(
+      Number.isInteger(source.maxBodyBytes) &&
+        source.maxBodyBytes > 2 * 1024 * 1024 &&
+        source.maxBodyBytes <= 10 * 1024 * 1024,
+      `${source.id}: maxBodyBytes must be an integer in (2MB, 10MB]`
+    );
+  }
+});
+
 test("any maxItems set on a source is a positive integer", () => {
   for (const source of SOURCES) {
     if (source.maxItems === undefined) continue;

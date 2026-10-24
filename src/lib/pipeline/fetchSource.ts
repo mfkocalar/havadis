@@ -12,7 +12,11 @@ import { USER_AGENT } from "../config/crawler.ts";
 const ACCEPT_HEADER =
   "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.1";
 
-/** Matches the Vercel Data Cache's documented 2MB per-entry item size cap. */
+/**
+ * Matches Next's Data Cache 2MB per-entry item size cap (the same limit on
+ * Vercel and on Netlify). A source may raise its own cap with
+ * `maxBodyBytes`, at the cost of an uncached download on every crawl.
+ */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 /**
@@ -85,7 +89,7 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
 
     let xmlText: string;
     try {
-      xmlText = await readBodyWithCap(res, MAX_BODY_BYTES, controller.signal);
+      xmlText = await readBodyWithCap(res, source.maxBodyBytes ?? MAX_BODY_BYTES, controller.signal);
     } catch (err) {
       return {
         status: "error",
