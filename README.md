@@ -37,7 +37,7 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 
 ## Tech stack
 
-Next.js 16 (App Router, TypeScript), React 19, Tailwind CSS 4, `rss-parser`. Hosted on Netlify's free tier with no database or cron.
+Next.js 16 (App Router, TypeScript), React 19, Tailwind CSS 4, `rss-parser`. Hosted on Netlify's free tier with no database; one scheduled function keeps the front page fresh.
 
 ## Getting started
 
@@ -117,6 +117,8 @@ curl -s https://havadis.netlify.app/feed/critical.json | jq '.items[] | {title, 
 ## Deployment
 
 Hosted on Netlify at https://havadis.netlify.app, which builds and deploys `main` with `npm run build`. A failed build is not published, so the previous deploy stays live.
+
+Netlify rebuilds an expired page only when a request arrives, so `netlify/functions/refresh-front-page.mts` requests `/` every 5 minutes; readers then see an edition at most about 20 minutes old instead of whatever the last visitor left. It reads `SITE_URL`. Feeds are not warmed (each feed route crawls the sources itself), so a feed can be stale until its first request after a quiet spell.
 
 Set `SITE_URL=https://havadis.netlify.app` in the Netlify site's environment variables; without it, feed and metadata links point at `http://localhost:4000`. The crawler's contact URL (`src/lib/config/crawler.ts`) also points at this site's `/about` page, so update both if the domain changes.
 
