@@ -93,7 +93,7 @@ node scripts/verify-viewports.mjs
 - Per-section card cap: `src/lib/config/frontPageLayout.ts`.
 - KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size): `src/lib/enrichment/config.ts`.
 - Importance rules (critical / high / normal): `src/lib/pipeline/importance.ts`.
-- `SITE_URL` environment variable: the public origin used for absolute links in feeds and metadata (e.g. `https://havadis.netlify.app`). Falls back to Vercel's production domain, then `http://localhost:4000`. Set it in production.
+- `SITE_URL` environment variable: the public origin used for absolute links in feeds and metadata (e.g. `https://havadis.netlify.app`). Falls back to `http://localhost:4000`. Set it in production.
 
 ## Feeds
 
