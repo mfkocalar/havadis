@@ -5,6 +5,7 @@ import path from "node:path";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
+import { FEED_VARIANTS, feedPath } from "../src/lib/feeds/buildFeed.ts";
 import {
   assertStaticRoute,
   findStaleSources,
@@ -485,6 +486,22 @@ test("the front page is still statically prerendered with the 900-second revalid
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
   assertStaticRoute(manifest, "/", 900);
+});
+
+// Feeds read the shared snapshot (08-CONTEXT D-25) and rely on ISR for the
+// rethrow policy: only an ISR route keeps its last good body when a
+// regeneration throws. A feed that turned dynamic would read the snapshot on
+// every poll and fail per request instead.
+test("every feed route is statically prerendered with the 900-second revalidation window", () => {
+  const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
+  const routes = FEED_VARIANTS.flatMap((variant) => [
+    feedPath(variant, "xml"),
+    feedPath(variant, "json"),
+  ]);
+  assert.ok(routes.includes("/feed.xml") && routes.includes("/feed.json"));
+  assert.equal(new Set(routes).size, FEED_VARIANTS.length * 2);
+  for (const route of routes) assertStaticRoute(manifest, route, 900);
 });
 
 test("GET /about returns 200 with no cookie, names HavadisBot, shows the exact User-Agent and the contact channel", async () => {
