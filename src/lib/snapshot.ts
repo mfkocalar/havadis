@@ -6,8 +6,9 @@ import { KEV_CACHE_KEY, produceKev } from "./enrichment/kev.ts";
 import type { EnrichmentSnapshot, KevRead } from "./types.ts";
 
 /**
- * The single read path the front page uses, and that `/cve/[id]`, the RSS
- * routes and the KEV map will reuse (D-01). This is the ONLY file under
+ * The single read path the front page and the feed routes use (feeds since
+ * 08-CONTEXT D-25), and that `/cve/[id]` and the KEV map will reuse (D-01).
+ * This is the ONLY file under
  * `src` that imports `next/cache` (D-03).
  *
  * The snapshot holds only feed-derived public content, never anything
@@ -34,9 +35,11 @@ import type { EnrichmentSnapshot, KevRead } from "./types.ts";
  * 5. The cache key is EDITION_CACHE_KEY plus the callback's source text, and
  *    Vercel's Data Cache survives deployments, so a shape change must bump
  *    the key. src/lib/edition.test.ts pins the shape per key version.
- * 6. With one reader, the Updated time equals the regeneration time. Once
- *    `/cve/[id]` or the feeds also read the entry, an edition can be up to
- *    about two windows old (RESEARCH Pitfall 8, Phase 10).
+ * 6. The feed routes also read the entry (08-CONTEXT D-25), and `/cve/[id]`
+ *    will. When another reader refreshed the entry, a route regenerates from
+ *    it as is, so its edition can be up to about two windows old; the page's
+ *    Updated time and a feed's generated time are always the edition's compose
+ *    time (RESEARCH Pitfall 8).
  * 7. One failure policy for the edition and the KEV map (Phase 7 D-16, which
  *    closes Phase 6 review warning WR-03):
  *    (1) A refresh is rejected by throwing, and any returned value, even an
