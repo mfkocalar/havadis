@@ -3,12 +3,14 @@
 import type { ReactNode } from "react";
 import clsx from "clsx";
 import { useReaderState } from "@/components/useReaderState";
+import { READ_ROW_CLASSES } from "@/lib/filterControlStyles";
 import { isArticleVisible } from "@/lib/readerState";
 import type { Importance } from "@/lib/types";
 
 /**
- * The reader-state wrapper around one server-rendered card: hidden when the
- * reader's filters exclude it, dimmed once read, outlined once flagged.
+ * The reader-state wrapper around one server-rendered row: hidden when the
+ * reader's filters exclude it, greyed to muted ink once read, tinted hazard yellow once
+ * flagged (the flag button itself also fills, so colour is never the only cue).
  *
  * Like `SectionVisibility`, it only toggles the `hidden` attribute, so every
  * card stays in the prerendered HTML. Props are the opaque id and a closed
@@ -33,9 +35,9 @@ export function CardShell({
       data-read={isRead ? "" : undefined}
       data-flagged={isFlagged ? "" : undefined}
       className={clsx(
-        "h-full rounded-2xl transition-opacity duration-150",
-        isRead && "opacity-55 hover:opacity-100 has-[:focus-visible]:opacity-100",
-        isFlagged && "ring-2 ring-amber-400 dark:ring-amber-500/70",
+        "transition-[filter,background-color] duration-150 ease-out",
+        isRead && READ_ROW_CLASSES,
+        isFlagged && "bg-yellow-200/50 dark:bg-yellow-300/10",
       )}
     >
       {children}

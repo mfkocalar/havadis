@@ -74,13 +74,7 @@ export function SectionVisibility({
   const { selected } = useSectionFilter();
   const filtering = hasArticleFilters(prefs);
   const empty = filtering && countVisible(articles, prefs, read, flags) === 0;
-  // `data-filtering` lets globals.css merge the primary and overflow grids into
-  // one, so cards hidden by a filter never leave holes in the layout.
-  return (
-    <div hidden={!isSectionVisible(selected, section) || empty} data-filtering={filtering ? "" : undefined}>
-      {children}
-    </div>
-  );
+  return <div hidden={!isSectionVisible(selected, section) || empty}>{children}</div>;
 }
 
 /** A section heading's count: the total, or how many the article filters leave. */
@@ -89,7 +83,7 @@ export function SectionCount({ total, articles }: { total: number; articles: rea
   return hasArticleFilters(prefs) ? (
     <>
       {countVisible(articles, prefs, read, flags)}
-      <span className="font-normal text-zinc-500 dark:text-zinc-400"> of {total}</span>
+      <span className="text-stone-600 dark:text-stone-400"> of {total}</span>
     </>
   ) : (
     <>{total}</>

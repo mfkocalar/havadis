@@ -8,11 +8,11 @@ import { CveChips } from "@/components/CveChips";
 import type { ClassifiedArticle, CveEnrichment, Importance } from "@/lib/types";
 
 /**
- * The complete UI-02 article card, built to the "Modern editorial"
- * direction (CONTEXT.md D-02): a card surface with a subtle shadow and
- * soft radius, sans-serif typographic hierarchy, generous whitespace, and
- * a hover treatment — closer to a modern tech-news site than a broadsheet
- * pastiche or a dark terminal look.
+ * The complete UI-02 article, laid out as one row of the hazard manifest:
+ * importance placard, story, exploitation signals, age and actions each keep
+ * a fixed column from 1280px up, so a reader compares them straight down a
+ * section. Below that the row folds: placard and age on one line, the story,
+ * then signals beside the actions.
  *
  * All six UI-02 fields, plus the CVE chips (UI-03, a seventh rendered
  * element built from validated IDs, see `CveChips.tsx`), are rendered as
@@ -21,19 +21,18 @@ import type { ClassifiedArticle, CveEnrichment, Importance } from "@/lib/types";
  * feed fields are untrusted external input (threat T-01-07). This stays a
  * Server Component, so no client JavaScript is needed anywhere in this file.
  *
- * Layout: the source and the publication time share the top line (who and
- * when, read first), then the headline and summary, then a footer pinned to
- * the card's bottom edge for the tier badge, source-type label (SRC-01, see
- * `SourceTypeLabel.tsx`) and CVE chips, so cards in one
- * grid row align their footers whatever the summary length.
+ * Layout: the story cell reads headline, the importance reason, summary,
+ * then the source line (source, tier tag, source-type label: SRC-01, see
+ * `SourceTypeLabel.tsx`). The CVE panels follow in their own signal cell, so
+ * DOM order stays importance, story, source, signals, time, actions.
  *
  * The timestamp is `ArticleTime`: an absolute UTC time in the prerendered HTML
  * (true however old the cached page is, Phase 4 review WR-04), switched to a
  * live relative age on the client. It is the card's only client island and
  * receives only the normalised ISO string.
  *
- * Per D-08 (02-CONTEXT.md), both the title and the summary are now
- * visually bounded to three lines via Tailwind's `line-clamp-3`. This
+ * Per D-08 (02-CONTEXT.md), the title is visually bounded to three lines
+ * and the summary to two via Tailwind's `line-clamp-*`. This
  * deliberately supersedes `01-02-PLAN.md:157`'s "no ellipsis, no line
  * clamp" mandate and the `01-02-PLAN.md:184` verify gate that asserted no
  * clamp existed — that mandate was correct for Phase 1's single source
@@ -45,27 +44,33 @@ import type { ClassifiedArticle, CveEnrichment, Importance } from "@/lib/types";
  * it. Do not reinstate the old no-clamp gate as a "fix" — read D-08 first.
  */
 /**
- * Importance accent: a thick leading edge in the level's hue, so a scan down a
- * grid picks out urgent cards before any text is read. Red is the CVE chips'
- * hue (Phase 2 D-02 reserved red and orange for exactly these urgency cues);
- * the solid Critical badge keeps it distinct from the outlined CVE chips.
+ * Importance ramp: a filled red placard for Critical, an outlined ink placard
+ * for High, nothing for Normal. The word is always printed, so colour is never
+ * the only carrier of importance.
  */
-const IMPORTANCE_ACCENT: Record<Importance, string> = {
-  critical: "border-l-4 border-l-red-600 dark:border-l-red-500",
-  high: "border-l-4 border-l-amber-500 dark:border-l-amber-400",
-  normal: "",
-};
-
-const IMPORTANCE_BADGE: Record<Exclude<Importance, "normal">, { label: string; classes: string }> = {
+const IMPORTANCE_PLACARD: Record<Exclude<Importance, "normal">, { label: string; classes: string }> = {
   critical: {
     label: "Critical",
-    classes: "bg-red-600 text-white dark:bg-red-500",
+    classes: "bg-red-600 text-white ring-2 ring-inset ring-red-600",
   },
   high: {
     label: "High",
-    classes: "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-300 dark:bg-amber-400/15 dark:text-amber-200 dark:ring-amber-400/40",
+    classes: "text-stone-950 ring-2 ring-inset ring-stone-950 dark:text-stone-50 dark:ring-stone-200",
   },
 };
+
+const REASON_TONE: Record<Exclude<Importance, "normal">, string> = {
+  critical: "text-red-700 dark:text-red-400",
+  high: "text-stone-800 dark:text-stone-200",
+};
+
+/**
+ * Grid areas per width. Below 768px: placard + age, story, signals + actions.
+ * From 768px a placard column opens on the left. From 1280px every field has
+ * its own column.
+ */
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2.5 [grid-template-areas:'imp_time'_'body_body'_'sig_act'] md:grid-cols-[5.5rem_minmax(0,1fr)_auto] md:[grid-template-areas:'imp_body_time'_'imp_sig_act'] xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,15rem)_3.5rem_auto] xl:[grid-template-areas:'imp_body_sig_time_act']";
 
 export function ArticleCard({
   article,
@@ -75,90 +80,83 @@ export function ArticleCard({
   byCve?: Readonly<Record<string, CveEnrichment>>;
 }) {
   const titleId = `title-${article.id}`;
-  const badge = article.importance === "normal" ? null : IMPORTANCE_BADGE[article.importance];
+  const level = article.importance === "normal" ? null : article.importance;
+  const badge = level === null ? null : IMPORTANCE_PLACARD[level];
 
   return (
     <CardShell id={article.id} importance={article.importance}>
       <article
         data-importance={article.importance}
-        className={clsx(
-          "flex h-full flex-col rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-[box-shadow,border-color] duration-150 hover:shadow-md sm:p-6 dark:border-zinc-800 dark:bg-zinc-900",
-          IMPORTANCE_ACCENT[article.importance],
-        )}
+        className={clsx(ROW_GRID, "border-b border-stone-300 py-4 dark:border-stone-800")}
       >
-        {badge ? (
-          <p className="mb-2.5 flex items-center gap-2 text-xs font-semibold">
-            <span className={clsx("rounded px-1.5 py-0.5 tracking-wide uppercase", badge.classes)}>
+        <div className="[grid-area:imp]">
+          {badge ? (
+            <span
+              className={clsx(
+                "inline-flex h-6 items-center justify-center rounded-xs px-2 font-display text-[0.8125rem] font-bold tracking-widest uppercase md:w-full",
+                badge.classes,
+              )}
+            >
               {badge.label}
             </span>
-            <span className="text-zinc-700 dark:text-zinc-300">{article.importanceReason}</span>
-          </p>
-        ) : null}
-        <div className="flex items-baseline justify-between gap-3 text-sm">
-          <span className="min-w-0 truncate font-semibold text-zinc-800 dark:text-zinc-200">
-            {article.source}
-          </span>
-          <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
-            <ArticleTime iso={article.publishedAt} />
-          </span>
+          ) : null}
         </div>
 
-        {/*
-         * Three-line clamp (D-08): at the card's widest desktop measure a
-         * title never actually reaches three lines (measured max across all
-         * 13 sources is 124 characters against ~85 chars/line at text-xl),
-         * so in practice this is a mobile-viewport guard — exactly where the
-         * longest titles (SANS ISC ~104-char median, CSO Online 124-char
-         * max) currently run to four or five lines and blow out the card.
-         * The full title string stays in the DOM and the accessibility
-         * tree; only its rendered height is bounded, which is why UI-02's
-         * verbatim guarantee still holds.
-         */}
-        {/*
-         * h3, not h2: page.tsx's per-section headings are now the page's h2
-         * level (D-16), so the card title moves down one level to keep a
-         * valid document outline (WCAG 1.3.1).
-         */}
-        <h3 id={titleId} className="mt-2 line-clamp-3 break-words text-lg font-semibold leading-snug tracking-tight text-pretty text-zinc-900 sm:text-xl dark:text-zinc-50">
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-sm decoration-2 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-50"
-          >
-            {article.title}
-          </a>
-        </h3>
+        <div className="min-w-0 [grid-area:body]">
+          {/*
+           * h3, not h2: page.tsx's per-section headings are the page's h2
+           * level (D-16), so the title sits one level down to keep a valid
+           * document outline (WCAG 1.3.1). Three-line clamp (D-08): a guard
+           * for the longest titles on narrow screens; the full string stays
+           * in the DOM and the accessibility tree.
+           */}
+          <h3 id={titleId} className="line-clamp-3 text-[1.0625rem] leading-snug font-semibold break-words text-pretty text-stone-950 dark:text-stone-50">
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-xs decoration-orange-500 decoration-2 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:focus-visible:outline-stone-100"
+            >
+              {article.title}
+            </a>
+          </h3>
 
-        {/*
-         * Three-line clamp (D-08), sized against SUMMARY_MAX_CHARS: the
-         * data-layer cap sits above the card's three-line capacity at its
-         * widest measure, so this clamp — not the cap — is what the reader
-         * perceives on every viewport, and the cap never produces a visible
-         * mid-sentence cut of its own. Tailwind CSS 4 ships `line-clamp-*`
-         * in core; no plugin package is installed or needed for it.
-         *
-         * The paragraph is omitted entirely (not rendered empty) when the
-         * publisher supplied no summary at all (CrowdStrike, measured at 0
-         * chars) — an explicit length comparison with an explicit `null`
-         * alternative, never a bare truthiness `&&`, so an empty string can
-         * never be emitted as a child. No placeholder copy, em dash, or
-         * fallback string is substituted (D-05's principle: never show the
-         * reader machinery) — the card runs straight from headline to
-         * footer instead.
-         */}
-        {article.summary.length > 0 ? (
-          <p className="mt-2 line-clamp-3 text-[0.9375rem] leading-relaxed text-zinc-600 dark:text-zinc-400">
-            {article.summary}
-          </p>
-        ) : null}
+          {level !== null ? (
+            <p className={clsx("mt-1 text-sm font-semibold", REASON_TONE[level])}>
+              {article.importanceReason}
+            </p>
+          ) : null}
 
-        <div className="mt-auto flex items-end gap-3 pt-4">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {/*
+           * Two-line clamp (D-08): the summary is context for triage, not the
+           * story, so it is bounded tighter than the title. The paragraph is
+           * omitted entirely (not rendered empty) when the publisher supplied
+           * no summary at all: an explicit length comparison with an explicit
+           * `null` alternative, never a bare truthiness `&&`, and no
+           * placeholder copy (D-05: never show the reader machinery).
+           */}
+          {article.summary.length > 0 ? (
+            <p className="mt-1 line-clamp-2 max-w-[75ch] text-sm leading-relaxed text-stone-600 dark:text-stone-400">
+              {article.summary}
+            </p>
+          ) : null}
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+            <span className="text-sm font-semibold text-stone-800 dark:text-stone-200">{article.source}</span>
             <SourceTierBadge tier={article.sourceTier} />
             <SourceTypeLabel type={article.sourceType} />
-            <CveChips cves={article.cves} byCve={byCve} />
           </div>
+        </div>
+
+        <div className="flex min-w-0 flex-wrap content-start items-center gap-1.5 self-center [grid-area:sig] xl:self-start">
+          <CveChips cves={article.cves} byCve={byCve} />
+        </div>
+
+        <div className="justify-self-end font-mono text-xs leading-6 text-stone-600 [grid-area:time] dark:text-stone-400">
+          <ArticleTime iso={article.publishedAt} />
+        </div>
+
+        <div className="justify-self-end [grid-area:act]">
           <ArticleActions id={article.id} titleId={titleId} />
         </div>
       </article>

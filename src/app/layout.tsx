@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Barlow, Barlow_Condensed, JetBrains_Mono } from "next/font/google";
 import { siteUrl } from "@/lib/config/site";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const barlow = Barlow({
+  variable: "--font-barlow",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const barlowCondensed = Barlow_Condensed({
+  variable: "--font-barlow-condensed",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -27,28 +34,42 @@ export const metadata: Metadata = {
   },
 };
 
+const FOOTER_LINK =
+  "rounded-xs font-semibold text-stone-900 underline decoration-stone-400 underline-offset-4 hover:decoration-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:text-stone-100 dark:decoration-stone-600 dark:hover:decoration-stone-100 dark:focus-visible:outline-stone-100";
+
+const HEADER_LINK =
+  "rounded-xs text-stone-200 underline decoration-stone-600 underline-offset-4 hover:text-white hover:decoration-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${barlow.variable} ${barlowCondensed.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
-        <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-            <p className="text-3xl font-bold tracking-tight">Havadis</p>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+      <body className="flex min-h-full flex-col bg-background text-foreground">
+        <header className="bg-stone-950 text-stone-50 dark:border-b dark:border-stone-800 dark:bg-black">
+          <div className="mx-auto flex w-full max-w-[96rem] flex-wrap items-baseline gap-x-6 gap-y-1 px-4 py-3.5 sm:px-6 lg:px-8">
+            <p className="flex items-center gap-3 font-display text-[1.75rem] leading-none font-extrabold tracking-wide uppercase">
+              <span aria-hidden="true" className="size-3.5 rotate-45 bg-orange-500" />
+              Havadis
+            </p>
+            <p className="hidden text-sm text-stone-300 sm:block">
               A source-independent security newspaper for security experts.
             </p>
+            <nav aria-label="Feeds" className="ml-auto flex gap-4 text-sm font-semibold">
+              <a href="/feed.xml" className={HEADER_LINK}>RSS</a>
+              <a href="/feed.json" className={HEADER_LINK}>JSON Feed</a>
+              <a href="/feeds" className={HEADER_LINK}>All feeds</a>
+            </nav>
           </div>
         </header>
         {children}
-        <footer className="border-t border-zinc-200 dark:border-zinc-800">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-6 text-sm text-zinc-600 sm:px-6 dark:text-zinc-400">
+        <footer className="border-t-2 border-stone-950 dark:border-stone-700">
+          <div className="mx-auto flex w-full max-w-[96rem] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-6 text-sm text-stone-700 sm:px-6 lg:px-8 dark:text-stone-300">
             <span>Connect a reader or agent:</span>
-            <a href="/feed.xml" className="font-medium underline-offset-4 hover:underline">RSS</a>
-            <a href="/feed.json" className="font-medium underline-offset-4 hover:underline">JSON Feed</a>
-            <a href="/feeds" className="font-medium underline-offset-4 hover:underline">All feeds</a>
+            <a href="/feed.xml" className={FOOTER_LINK}>RSS</a>
+            <a href="/feed.json" className={FOOTER_LINK}>JSON Feed</a>
+            <a href="/feeds" className={FOOTER_LINK}>All feeds</a>
           </div>
         </footer>
       </body>

@@ -1,0 +1,62 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-10-28T09:32:52.246Z",
+        "reason": "Claude: throwaway decision-round sketch, not shipped UI"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-10-28T09:32:52.264Z",
+        "reason": "Claude: throwaway decision-round sketch, not shipped UI"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-10-28T09:32:52.281Z",
+        "reason": "Claude: canon sketch intentionally depicts the category default; not shipped UI"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-10-28T09:32:52.298Z",
+        "reason": "Claude: canon sketch intentionally depicts the category default; not shipped UI"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-10-28T09:44:22.379Z",
+        "reason": "Claude: decision-round sketch predating DESIGN.md; not shipped UI"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-10-28T09:44:22.399Z",
+        "reason": "Claude: decision-round sketch predating DESIGN.md; not shipped UI"
+      }
+    ]
+  }
+}

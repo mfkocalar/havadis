@@ -1,21 +1,28 @@
 @import "tailwindcss";
 
+/*
+ * Hazard-placard palette: a warm vinyl ground and asphalt dark ground, ink
+ * from Tailwind's warm `stone` scale, and colour reserved for what it means
+ * (section class, importance, exploitation signal). `--background` is read by
+ * the contrast tests, so keep each value a six-digit hex.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f2f0e9;
+  --foreground: #1c1917;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-barlow);
+  --font-display: var(--font-barlow-condensed);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #151311;
+    --foreground: #f5f5f4;
   }
 }
 
@@ -33,16 +40,12 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+    font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    scrollbar-color: var(--color-stone-400) transparent;
   }
 
-  /*
-   * "Modern editorial" direction (CONTEXT.md D-02): a comfortable reading
-   * line-height for headlines and body copy, established here once so
-   * ArticleCard and every later phase's SectionGroup/masthead inherit it
-   * rather than each component setting its own.
-   */
   h1,
   h2,
   h3 {
@@ -52,49 +55,32 @@
   p {
     line-height: 1.6;
   }
-}
 
-/*
- * While importance/unread/flagged filters are active (`data-filtering`, set by
- * SectionVisibility), a section's primary grid and its overflow grid merge into
- * one grid. Otherwise a card hidden in the first six would leave a hole and
- * the overflow cards would start a fresh row. The column counts mirror
- * page.tsx's CARD_GRID_CLASSES (1 / 2 from 768px / 3 from 1024px).
- *
- * Unlayered on purpose: these must beat the `flex` / `grid` utilities on the
- * same elements, and Tailwind's utilities layer beats any layered rule here.
- * The `:not([hidden])` guard keeps a collapsed overflow region hidden.
- */
-[data-filtering] [data-card-stack] {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 1.5rem;
-}
-
-[data-filtering] [data-card-stack] > .grid,
-[data-filtering] [data-card-stack] > [data-overflow]:not([hidden]),
-[data-filtering] [data-card-stack] > [data-overflow] > .grid {
-  display: contents;
-}
-
-@media (width >= 48rem) {
-  [data-filtering] [data-card-stack] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  ::selection {
+    background: var(--color-orange-400);
+    color: var(--color-stone-950);
   }
-}
 
-@media (width >= 64rem) {
-  [data-filtering] [data-card-stack] {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  @media (prefers-color-scheme: dark) {
+    body {
+      scrollbar-color: var(--color-stone-600) transparent;
+    }
   }
 }
 
 /*
  * Keep keyboard focus clear of the sticky filter bar (WCAG 2.2 SC 2.4.11,
- * focus not obscured). The bar is at most ~96px tall at md+ when its row
- * wraps to two lines, so 6rem offsets scrolled-into-view targets. The filter
- * bar's scrollIntoView({ block: "start" }) after a toggle relies on this.
+ * focus not obscured). Below 1024px the bar is a strip across the top, at most
+ * ~96px tall, so 6rem offsets scrolled-into-view targets. From 1024px it is a
+ * side rail and only a small breathing gap is needed. The filter bar's
+ * scrollIntoView({ block: "start" }) after a toggle relies on this.
  */
 html {
   scroll-padding-top: 6rem;
+}
+
+@media (width >= 64rem) {
+  html {
+    scroll-padding-top: 1.5rem;
+  }
 }

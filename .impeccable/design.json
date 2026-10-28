@@ -1,0 +1,625 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-28T09:43:40+00:00",
+  "title": "Design System: Havadis",
+  "extensions": {
+    "colorMeta": {
+      "vinyl-ground": {
+        "role": "neutral",
+        "displayName": "Vinyl Ground",
+        "canonical": "#f2f0e9",
+        "tonalRamp": [
+          "oklch(15% 0.006 70)",
+          "oklch(26% 0.008 80)",
+          "oklch(37% 0.01 85)",
+          "oklch(49% 0.011 88)",
+          "oklch(61% 0.011 90)",
+          "oklch(73% 0.01 92)",
+          "oklch(85% 0.008 94)",
+          "oklch(95.5% 0.008 95)"
+        ],
+        "source": "globals.css --background (light)"
+      },
+      "asphalt-ground": {
+        "role": "neutral",
+        "displayName": "Asphalt Ground",
+        "canonical": "#151311",
+        "tonalRamp": [
+          "oklch(15% 0.006 70)",
+          "oklch(26% 0.008 80)",
+          "oklch(37% 0.01 85)",
+          "oklch(49% 0.011 88)",
+          "oklch(61% 0.011 90)",
+          "oklch(73% 0.01 92)",
+          "oklch(85% 0.008 94)",
+          "oklch(95.5% 0.008 95)"
+        ],
+        "source": "globals.css --background (dark)"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1c1917",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "globals.css --foreground (light)"
+      },
+      "ink-on-dark": {
+        "role": "neutral",
+        "displayName": "Ink On Dark",
+        "canonical": "#f5f5f4",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "globals.css --foreground (dark)"
+      },
+      "rule-ink": {
+        "role": "neutral",
+        "displayName": "Rule Ink",
+        "canonical": "oklch(14.7% 0.004 49.25)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-950"
+      },
+      "rule-ink-dark": {
+        "role": "neutral",
+        "displayName": "Rule Ink Dark",
+        "canonical": "oklch(37.4% 0.01 67.558)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-700"
+      },
+      "inverted-ink-dark": {
+        "role": "neutral",
+        "displayName": "Inverted Ink Dark",
+        "canonical": "oklch(97% 0.001 106.424)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-100"
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "oklch(44.4% 0.011 73.639)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-600"
+      },
+      "muted-ink-dark": {
+        "role": "neutral",
+        "displayName": "Muted Ink Dark",
+        "canonical": "oklch(70.9% 0.01 56.259)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-400"
+      },
+      "control-outline": {
+        "role": "neutral",
+        "displayName": "Control Outline",
+        "canonical": "oklch(55.3% 0.013 58.071)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-500"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(86.9% 0.005 56.366)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-300"
+      },
+      "hairline-dark": {
+        "role": "neutral",
+        "displayName": "Hairline Dark",
+        "canonical": "oklch(26.8% 0.007 34.298)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-800"
+      },
+      "hover-wash": {
+        "role": "neutral",
+        "displayName": "Hover Wash",
+        "canonical": "oklch(92.3% 0.003 48.717)",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind stone-200"
+      },
+      "masthead-black": {
+        "role": "neutral",
+        "displayName": "Masthead Black",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind black (dark masthead)"
+      },
+      "placard-red": {
+        "role": "primary",
+        "displayName": "Placard Red",
+        "canonical": "oklch(57.7% 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(39.6% 0.141 25.723)",
+          "oklch(44.4% 0.177 26.899)",
+          "oklch(50.5% 0.213 27.518)",
+          "oklch(57.7% 0.245 27.325)",
+          "oklch(63.7% 0.237 25.331)",
+          "oklch(70.4% 0.191 22.216)",
+          "oklch(80.8% 0.114 19.571)",
+          "oklch(93.6% 0.032 17.717)"
+        ],
+        "source": "Tailwind red-600"
+      },
+      "critical-reason": {
+        "role": "primary",
+        "displayName": "Critical Reason Red",
+        "canonical": "oklch(50.5% 0.213 27.518)",
+        "tonalRamp": [
+          "oklch(39.6% 0.141 25.723)",
+          "oklch(44.4% 0.177 26.899)",
+          "oklch(50.5% 0.213 27.518)",
+          "oklch(57.7% 0.245 27.325)",
+          "oklch(63.7% 0.237 25.331)",
+          "oklch(70.4% 0.191 22.216)",
+          "oklch(80.8% 0.114 19.571)",
+          "oklch(93.6% 0.032 17.717)"
+        ],
+        "source": "Tailwind red-700"
+      },
+      "critical-reason-dark": {
+        "role": "primary",
+        "displayName": "Critical Reason Red (dark)",
+        "canonical": "oklch(70.4% 0.191 22.216)",
+        "tonalRamp": [
+          "oklch(39.6% 0.141 25.723)",
+          "oklch(44.4% 0.177 26.899)",
+          "oklch(50.5% 0.213 27.518)",
+          "oklch(57.7% 0.245 27.325)",
+          "oklch(63.7% 0.237 25.331)",
+          "oklch(70.4% 0.191 22.216)",
+          "oklch(80.8% 0.114 19.571)",
+          "oklch(93.6% 0.032 17.717)"
+        ],
+        "source": "Tailwind red-400"
+      },
+      "identification-orange": {
+        "role": "secondary",
+        "displayName": "Identification Orange",
+        "canonical": "oklch(70.5% 0.213 47.604)",
+        "tonalRamp": [
+          "oklch(40.8% 0.123 38.172)",
+          "oklch(47% 0.157 37.304)",
+          "oklch(55.3% 0.195 38.402)",
+          "oklch(64.6% 0.222 41.116)",
+          "oklch(70.5% 0.213 47.604)",
+          "oklch(75% 0.183 55.934)",
+          "oklch(83.7% 0.128 66.29)",
+          "oklch(95.4% 0.038 75.164)"
+        ],
+        "source": "Tailwind orange-500"
+      },
+      "hazard-yellow": {
+        "role": "tertiary",
+        "displayName": "Hazard Yellow",
+        "canonical": "oklch(85.2% 0.199 91.936)",
+        "tonalRamp": [
+          "oklch(42.1% 0.095 57.708)",
+          "oklch(47.6% 0.114 61.907)",
+          "oklch(55.4% 0.135 66.442)",
+          "oklch(68.1% 0.162 75.834)",
+          "oklch(79.5% 0.184 86.047)",
+          "oklch(85.2% 0.199 91.936)",
+          "oklch(90.5% 0.182 98.111)",
+          "oklch(97.3% 0.071 103.193)"
+        ],
+        "source": "Tailwind yellow-400"
+      },
+      "signal-yellow": {
+        "role": "tertiary",
+        "displayName": "Signal Yellow",
+        "canonical": "oklch(90.5% 0.182 98.111)",
+        "tonalRamp": [
+          "oklch(42.1% 0.095 57.708)",
+          "oklch(47.6% 0.114 61.907)",
+          "oklch(55.4% 0.135 66.442)",
+          "oklch(68.1% 0.162 75.834)",
+          "oklch(79.5% 0.184 86.047)",
+          "oklch(85.2% 0.199 91.936)",
+          "oklch(90.5% 0.182 98.111)",
+          "oklch(97.3% 0.071 103.193)"
+        ],
+        "source": "Tailwind yellow-300"
+      },
+      "class-blue": {
+        "role": "tertiary",
+        "displayName": "Class Blue",
+        "canonical": "oklch(48.8% 0.243 264.376)",
+        "tonalRamp": [
+          "oklch(37.9% 0.146 265.522)",
+          "oklch(42.4% 0.199 265.638)",
+          "oklch(48.8% 0.243 264.376)",
+          "oklch(54.6% 0.245 262.881)",
+          "oklch(62.3% 0.214 259.815)",
+          "oklch(70.7% 0.165 254.624)",
+          "oklch(80.9% 0.105 251.813)",
+          "oklch(93.2% 0.032 255.585)"
+        ],
+        "source": "Tailwind blue-700"
+      },
+      "class-green": {
+        "role": "tertiary",
+        "displayName": "Class Green",
+        "canonical": "oklch(52.7% 0.154 150.069)",
+        "tonalRamp": [
+          "oklch(39.3% 0.095 152.535)",
+          "oklch(44.8% 0.119 151.328)",
+          "oklch(52.7% 0.154 150.069)",
+          "oklch(62.7% 0.194 149.214)",
+          "oklch(72.3% 0.219 149.579)",
+          "oklch(79.2% 0.209 151.711)",
+          "oklch(87.1% 0.15 154.449)",
+          "oklch(96.2% 0.044 156.743)"
+        ],
+        "source": "Tailwind green-700"
+      },
+      "placard-white": {
+        "role": "tertiary",
+        "displayName": "Placard White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(14.7% 0.004 49.25)",
+          "oklch(21.6% 0.006 56.043)",
+          "oklch(26.8% 0.007 34.298)",
+          "oklch(37.4% 0.01 67.558)",
+          "oklch(55.3% 0.013 58.071)",
+          "oklch(70.9% 0.01 56.259)",
+          "oklch(86.9% 0.005 56.366)",
+          "oklch(97% 0.001 106.424)"
+        ],
+        "source": "Tailwind white"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Wordmark and section headings; uppercase; 1.5rem below 640px."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Importance segmented control and section expander; uppercase."
+      },
+      "placard": {
+        "displayName": "Placard",
+        "purpose": "Text on Critical/High importance placards; uppercase."
+      },
+      "tag": {
+        "displayName": "Tag",
+        "purpose": "Source-tier tag; uppercase."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Row headlines, three-line clamp."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Summaries, two-line clamp, max 75ch."
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "Importance reason, source name, control labels."
+      },
+      "mono-id": {
+        "displayName": "Mono ID",
+        "purpose": "CVE IDs, KEV and EPSS chips."
+      },
+      "mono-meta": {
+        "displayName": "Mono Meta",
+        "purpose": "Ages, counts, edition line."
+      }
+    },
+    "shadows": [],
+    "elevation": [
+      {
+        "name": "structural-rule",
+        "value": "2px solid rule-ink (rule-ink-dark in dark)",
+        "purpose": "Masthead edge, rail divider, toolbar close, section heading, footer top."
+      },
+      {
+        "name": "row-hairline",
+        "value": "1px solid hairline (hairline-dark in dark)",
+        "purpose": "Divider between manifest rows."
+      },
+      {
+        "name": "sticky-strip-translucency",
+        "value": "background: ground at 95%; backdrop-filter: blur(8px)",
+        "purpose": "Below 1024px only: the sticky class strip, so rows passing under it do not collide with its labels. The rail from 1024px is opaque."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Colour/background change on controls and row actions (Tailwind default transition)."
+      },
+      {
+        "name": "row-state",
+        "value": "filter, background-color 150ms ease-out",
+        "purpose": "A row draining to greyscale when read, or taking the yellow wash when flagged."
+      },
+      {
+        "name": "none-elsewhere",
+        "value": "none",
+        "purpose": "Expander, filter jumps and scrolling are instant: no animation, no smooth scroll."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px",
+        "purpose": "Wider side padding; masthead tagline appears; section heading to 1.75rem."
+      },
+      {
+        "name": "md",
+        "value": "768px",
+        "purpose": "Placard column opens; touch targets shrink from 44px to 32-36px."
+      },
+      {
+        "name": "lg",
+        "value": "1024px",
+        "purpose": "Sticky strip becomes the 240px full-height left rail."
+      },
+      {
+        "name": "xl",
+        "value": "1280px",
+        "purpose": "Manifest rows take all five fixed columns on one baseline."
+      }
+    ],
+    "darkMode": {
+      "trigger": "prefers-color-scheme: dark",
+      "note": "Ground to asphalt, ink to near-white, structural rules to stone-700, diamond borders to stone-400, inverted fills to stone-100; placard hues unchanged."
+    }
+  },
+  "components": [
+    {
+      "name": "Class Diamond",
+      "kind": "custom",
+      "refersTo": "class-diamond",
+      "description": "Numbered hazard-class diamond; section identity in the rail, strip and headings.",
+      "html": "<span class=\"ds-diamond\"><span class=\"ds-diamond-face\" style=\"background:oklch(57.7% 0.245 27.325)\"></span><span class=\"ds-diamond-num\" style=\"color:#fff\">1</span></span><span class=\"ds-diamond\"><span class=\"ds-diamond-face\" style=\"background:oklch(70.5% 0.213 47.604)\"></span><span class=\"ds-diamond-num\">2</span></span><span class=\"ds-diamond\"><span class=\"ds-diamond-face\" style=\"background:linear-gradient(to bottom right,#fff 50%,#0c0a09 50%)\"></span><span class=\"ds-diamond-num ds-diamond-plate\">3</span></span><span class=\"ds-diamond\"><span class=\"ds-diamond-face\" style=\"background:oklch(85.2% 0.199 91.936)\"></span><span class=\"ds-diamond-num\">4</span></span>",
+      "css": ".ds-diamond { position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px; margin-right: 6px; } .ds-diamond-face { position: absolute; inset: 14%; transform: rotate(45deg); border-radius: 2px; border: 2px solid #0c0a09; } .ds-diamond-num { position: relative; font-family: 'Barlow Condensed', Arial, sans-serif; font-weight: 800; font-size: 18px; line-height: 1; color: #0c0a09; } .ds-diamond-plate { background: #fff; border-radius: 2px; padding: 0 3px; box-shadow: 0 0 0 1px #0c0a09; }"
+    },
+    {
+      "name": "Importance Placards",
+      "kind": "chip",
+      "refersTo": "importance-placard-critical",
+      "description": "Three-step ramp: filled red Critical, outlined ink High, nothing for Normal.",
+      "html": "<span class=\"ds-placard ds-placard-critical\">Critical</span> <span class=\"ds-placard ds-placard-high\">High</span>",
+      "css": ".ds-placard { display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 88px; border-radius: 2px; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; } .ds-placard-critical { background: oklch(57.7% 0.245 27.325); color: #fff; box-shadow: inset 0 0 0 2px oklch(57.7% 0.245 27.325); } .ds-placard-high { color: #0c0a09; box-shadow: inset 0 0 0 2px #0c0a09; }"
+    },
+    {
+      "name": "Signal Chips",
+      "kind": "chip",
+      "refersTo": "cve-panel",
+      "description": "CVE identification panel (link), KEV, EPSS, strong EPSS and no-EPSS-yet chips.",
+      "html": "<a href=\"#\" class=\"ds-cve\">CVE-2026-35273</a> <span class=\"ds-sig ds-kev\">KEV · 2026-06-12</span> <span class=\"ds-sig ds-epss-strong\">EPSS 0.97</span> <span class=\"ds-sig ds-epss\">EPSS &lt;0.01</span> <span class=\"ds-sig ds-epss-none\">no EPSS yet</span>",
+      "css": ".ds-cve, .ds-sig { display: inline-flex; align-items: center; border-radius: 2px; padding: 2px 6px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; line-height: 20px; font-weight: 700; white-space: nowrap; } .ds-cve { padding: 0 6px; border: 2px solid #0c0a09; background: oklch(70.5% 0.213 47.604); color: #0c0a09; text-decoration: none; } .ds-cve:hover { text-decoration: underline; text-underline-offset: 2px; } .ds-cve:focus-visible { outline: 2px solid #0c0a09; outline-offset: 2px; } .ds-kev { background: #0c0a09; color: #fff; } .ds-epss { background: #fff; color: #292524; box-shadow: inset 0 0 0 1px #a6a09b; } .ds-epss-strong { background: oklch(90.5% 0.182 98.111); color: #0c0a09; box-shadow: inset 0 0 0 1px #0c0a09; } .ds-epss-none { background: #f5f5f4; color: #57534d; outline: 1px dashed #a6a09b; outline-offset: -1px; }"
+    },
+    {
+      "name": "Tier Tag",
+      "kind": "chip",
+      "refersTo": "tier-tag",
+      "description": "Neutral outlined source-tier tag in condensed caps; context, never coloured.",
+      "html": "<span class=\"ds-tier\">Threat Intelligence</span>",
+      "css": ".ds-tier { display: inline-flex; align-items: center; padding: 0 6px; border-radius: 2px; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: 12px; line-height: 20px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #44403b; box-shadow: inset 0 0 0 1px #a6a09b; }"
+    },
+    {
+      "name": "Control Pill",
+      "kind": "button",
+      "refersTo": "control-pill",
+      "description": "Square-shouldered toggle (section filter, Unread only, Flagged); pressed state is ink inversion.",
+      "html": "<button class=\"ds-pill\" aria-pressed=\"false\">Unread only <span class=\"ds-pill-count\">112</span></button> <button class=\"ds-pill ds-pill-pressed\" aria-pressed=\"true\">Flagged <span class=\"ds-pill-count\">3</span></button>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 2px; background: #f2f0e9; color: #292524; box-shadow: inset 0 0 0 1px #79716b; font-family: Barlow, Arial, sans-serif; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-pill:hover { background: #e7e5e4; } .ds-pill:focus-visible { outline: 2px solid #0c0a09; outline-offset: 2px; } .ds-pill-count { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: #57534d; } .ds-pill-pressed, .ds-pill-pressed:hover { background: #0c0a09; color: #fafaf9; box-shadow: inset 0 0 0 1px #0c0a09; } .ds-pill-pressed .ds-pill-count { color: #d6d3d1; }"
+    },
+    {
+      "name": "Importance Segmented Control",
+      "kind": "button",
+      "refersTo": "segmented-option",
+      "description": "All / High+ / Critical inside a 2px ink frame, each with its placard marker and mono count.",
+      "html": "<div class=\"ds-seg\" role=\"group\"><button class=\"ds-seg-opt ds-seg-on\" aria-pressed=\"true\">All <span class=\"ds-seg-n\">112</span></button><button class=\"ds-seg-opt\" aria-pressed=\"false\"><span class=\"ds-seg-mark ds-seg-high\"></span>High+ <span class=\"ds-seg-n\">36</span></button><button class=\"ds-seg-opt\" aria-pressed=\"false\"><span class=\"ds-seg-mark ds-seg-crit\"></span>Critical <span class=\"ds-seg-n\">4</span></button></div>",
+      "css": ".ds-seg { display: inline-flex; border-radius: 2px; box-shadow: inset 0 0 0 2px #0c0a09; } .ds-seg-opt { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; background: transparent; color: #44403b; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-seg-opt:hover { background: #e7e5e4; color: #0c0a09; } .ds-seg-opt:focus-visible { outline: 2px solid #0c0a09; outline-offset: 2px; } .ds-seg-on, .ds-seg-on:hover { background: #0c0a09; color: #fff; } .ds-seg-n { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500; letter-spacing: 0; } .ds-seg-mark { width: 10px; height: 10px; transform: rotate(45deg); } .ds-seg-high { box-shadow: inset 0 0 0 2px currentColor; } .ds-seg-crit { background: oklch(57.7% 0.245 27.325); box-shadow: 0 0 0 1px rgba(255,255,255,0.7); }"
+    },
+    {
+      "name": "Row Actions",
+      "kind": "button",
+      "refersTo": "row-action",
+      "description": "Square Flag and Read toggles; Flag fills hazard yellow, Read inverts to ink.",
+      "html": "<button class=\"ds-act\" aria-pressed=\"false\" aria-label=\"Flag\"><svg viewBox=\"0 0 20 20\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linejoin=\"round\"><path d=\"M4.5 17.5V3.5m0 0h9.25l-2 3.5 2 3.5H4.5\"/></svg></button> <button class=\"ds-act ds-act-flag\" aria-pressed=\"true\" aria-label=\"Flag\"><svg viewBox=\"0 0 20 20\" width=\"16\" height=\"16\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linejoin=\"round\"><path d=\"M4.5 17.5V3.5m0 0h9.25l-2 3.5 2 3.5H4.5\"/></svg></button> <button class=\"ds-act ds-act-read\" aria-pressed=\"true\" aria-label=\"Read\"><svg viewBox=\"0 0 20 20\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4.5 10.5l3.5 3.5 7.5-8\"/></svg></button>",
+      "css": ".ds-act { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0; border-radius: 2px; background: transparent; color: #57534d; box-shadow: inset 0 0 0 1px #a6a09b; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-act:hover { background: #e7e5e4; color: #0c0a09; } .ds-act:focus-visible { outline: 2px solid #0c0a09; outline-offset: 2px; } .ds-act-flag, .ds-act-flag:hover { background: oklch(85.2% 0.199 91.936); color: #0c0a09; box-shadow: inset 0 0 0 1px #0c0a09; } .ds-act-read, .ds-act-read:hover { background: #0c0a09; color: #fff; box-shadow: inset 0 0 0 1px #0c0a09; }"
+    },
+    {
+      "name": "Section Heading",
+      "kind": "custom",
+      "refersTo": "section-heading",
+      "description": "Class diamond, name in display caps, shown/total in mono, on a 2px ink rule.",
+      "html": "<h2 class=\"ds-h2\"><span class=\"ds-diamond\"><span class=\"ds-diamond-face\" style=\"background:oklch(57.7% 0.245 27.325)\"></span><span class=\"ds-diamond-num\" style=\"color:#fff\">1</span></span>Vulnerabilities<span class=\"ds-h2-count\">6 of 30</span></h2>",
+      "css": ".ds-h2 { display: flex; align-items: center; gap: 12px; margin: 0; padding-bottom: 10px; border-bottom: 2px solid #0c0a09; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: 28px; line-height: 1; font-weight: 800; letter-spacing: 0.025em; text-transform: uppercase; color: #0c0a09; } .ds-h2-count { margin-left: auto; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; } .ds-diamond { position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px; } .ds-diamond-face { position: absolute; inset: 14%; transform: rotate(45deg); border-radius: 2px; border: 2px solid #0c0a09; } .ds-diamond-num { position: relative; font-weight: 800; font-size: 18px; line-height: 1; }"
+    },
+    {
+      "name": "Masthead",
+      "kind": "nav",
+      "refersTo": "masthead",
+      "description": "Black bar: orange diamond wordmark, tagline, feed links with orange hover underline.",
+      "html": "<header class=\"ds-mast\"><p class=\"ds-mark\"><span class=\"ds-mark-d\"></span>Havadis</p><p class=\"ds-tag\">A source-independent security newspaper for security experts.</p><nav class=\"ds-nav\"><a href=\"#\">RSS</a><a href=\"#\">JSON Feed</a><a href=\"#\">All feeds</a></nav></header>",
+      "css": ".ds-mast { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 24px; padding: 14px 16px; background: #0c0a09; color: #fafaf9; } .ds-mark { display: flex; align-items: center; gap: 12px; margin: 0; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: 28px; line-height: 1; font-weight: 800; letter-spacing: 0.025em; text-transform: uppercase; } .ds-mark-d { width: 14px; height: 14px; transform: rotate(45deg); background: oklch(70.5% 0.213 47.604); } .ds-tag { margin: 0; font-family: Barlow, Arial, sans-serif; font-size: 14px; color: #d6d3d1; } .ds-nav { margin-left: auto; display: flex; gap: 16px; font-family: Barlow, Arial, sans-serif; font-size: 14px; font-weight: 600; } .ds-nav a { color: #e7e5e4; text-decoration: underline; text-decoration-color: #57534d; text-underline-offset: 4px; border-radius: 2px; } .ds-nav a:hover { color: #fff; text-decoration-color: oklch(70.5% 0.213 47.604); } .ds-nav a:focus-visible { outline: 2px solid oklch(70.5% 0.213 47.604); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Hazard Manifest",
+    "overview": "Havadis presents the day's security news the way a dangerous-goods shipment is declared: seven numbered hazard classes in fixed urgency order, each item a row on the manifest, every signal printed in a fixed place. The material is placard vinyl (a warm off-white ground by day, deep asphalt by night), ink-black hard rules, square-shouldered panels and DIN-style condensed capitals. Nothing floats, nothing glows; depth comes from ink weight, not light.\n\nThe page is dense on purpose. A practitioner reads straight down aligned columns (importance, story, signals, age, actions) and compares rows top to bottom rather than hunting across a card grid. Colour is a language, not decoration: placard hues mark section class, importance and exploitation, and every coloured mark also carries a printed word or number, so colour is never the only carrier of meaning.\n\nBoth themes are first-class and follow the OS setting. Dark mode is the same placard at night: the ground turns to asphalt, ink inverts to near-white, hard rules soften to a dark stone, and the placard hues stay put.",
+    "keyCharacteristics": [
+      "Numbered class diamonds (1-7) as section identity in the rail, the section headings and the filter strip.",
+      "Fixed-column manifest rows sharing one baseline from 1280px up.",
+      "A strict three-step importance ramp: filled red placard, outlined ink placard, nothing.",
+      "Three type voices: condensed caps for labels and headings, Barlow for reading, JetBrains Mono for IDs, figures and times.",
+      "2px corners, 2px ink rules for structure, 1px hairlines between rows, no shadows."
+    ],
+    "rules": [
+      {
+        "name": "The Meaning-Only Hue Rule",
+        "body": "A hue appears only for section class, importance, exploitation signal, reader flag, or the orange identity. Controls, tags, tiers and source types stay in stone ink; a control's state is shown by ink inversion, never by a hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Printed Word Rule",
+        "body": "Every coloured mark carries its meaning in text too: the placard prints CRITICAL or HIGH, the diamond prints its class number beside the section name, the KEV chip prints its date.",
+        "section": "colors"
+      },
+      {
+        "name": "The Fixed Placard Rule",
+        "body": "Placard hues do not change between themes. Only the ground, the ink and the rules invert.",
+        "section": "colors"
+      },
+      {
+        "name": "The Three Voices Rule",
+        "body": "Condensed caps label and announce; Barlow is read; mono identifies and measures. A CVE ID, a count, a time or a score is always mono; a row headline is never caps.",
+        "section": "typography"
+      },
+      {
+        "name": "The Caps Belong To Signage Rule",
+        "body": "Uppercase is reserved for condensed-face labels (headings, placards, tags, controls). Barlow body text is never set in caps.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fixed Column Rule",
+        "body": "A field that appears in a row always occupies the same column, empty or not. An empty placard column stays empty; Normal items do not shift their story left.",
+        "section": "layout"
+      },
+      {
+        "name": "The Visible Capacity Rule",
+        "body": "Wherever a set is narrowed, show shown and total together (section heading counts, \"Showing N of M\", Show all N).",
+        "section": "layout"
+      },
+      {
+        "name": "The Printed Surface Rule",
+        "body": "Everything sits on the same vinyl. Nothing lifts on hover; a hover is a stone wash or an underline.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two-Pixel Rule",
+        "body": "Corners are 2px. Structural rules are 2px ink. Nothing rounder, nothing softer.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do lead every section surface with its numbered class diamond, numbered from the fixed display order, not from which sections are present today.",
+      "Do keep the importance ramp at exactly three steps: filled red placard (Critical), 2px ink outline (High), nothing (Normal), with the word always printed.",
+      "Do show a control's state by ink inversion (rule-ink fill, near-white text) and give unpressed controls a 1px control-outline ring of at least 3:1.",
+      "Do set CVE IDs, KEV dates, EPSS scores, counts and ages in JetBrains Mono.",
+      "Do separate regions with 2px ink rules and rows with 1px hairlines.",
+      "Do show unavailable enrichment as a muted dashed state or a yellow notice, never as an absence that could read as \"safe\".",
+      "Do keep every text pair at 4.5:1 or better on both grounds; the contrast tests read the palette and grounds directly."
+    ],
+    "donts": [
+      "Don't use a hue for a control's own state, a tier, a source type or decoration; the Meaning-Only Hue Rule holds.",
+      "Don't round anything past 2px or build pill-shaped filters or soft-cornered cards.",
+      "Don't add shadows, glows or hover lifts.",
+      "Don't lay the news out as a multi-column card grid; rows stay in one manifest column with fixed fields.",
+      "Don't dim a control with opacity to show it is empty; drain its colour and mute its ink so the label keeps 4.5:1.",
+      "Don't set Barlow body text in caps or row headlines in the condensed face."
+    ]
+  }
+}

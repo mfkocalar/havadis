@@ -261,9 +261,9 @@ test("every article card shows exactly one source-type label after the tier pill
       );
     }
 
-    const pillIndex = card.indexOf("rounded-full");
-    assert.ok(pillIndex !== -1, "expected the tier pill (rounded-full) in the card");
-    assert.ok(labelIndex > pillIndex, "the type label must come after the tier pill");
+    const pillIndex = card.indexOf('title="Source category: ');
+    assert.ok(pillIndex !== -1, "expected the tier tag (title=\"Source category: ...\") in the card");
+    assert.ok(labelIndex > pillIndex, "the type label must come after the tier tag");
 
     const nvdIndex = card.indexOf("nvd.nist.gov");
     if (nvdIndex !== -1) {

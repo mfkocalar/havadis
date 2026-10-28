@@ -2,47 +2,61 @@
  * Complete Tailwind class strings for the front-page filter controls (D-08).
  *
  * Every constant is a whole literal, never concatenated fragments, because
- * Tailwind only emits classes it sees whole in source. Colours stay inside
- * the neutral zinc system (Phase 3 D-15: red is reserved for CVE chips; no
- * urgency colour cue).
+ * Tailwind only emits classes it sees whole in source. Controls stay in the
+ * warm `stone` ink system of the hazard-placard world: colour is reserved for
+ * section class, importance and exploitation signals, never for a control's
+ * own state.
  *
- * AMENDMENT to 04-UI-SPEC.md Color (flagged for sign-off): the unpressed
- * outline uses `ring-zinc-500` in both themes. The approved spec said
- * `ring-zinc-400` (light) and `dark:ring-zinc-600`, which measure about
- * 2.6:1 on white and 2.3:1 on zinc-900 -- under the 3:1 non-text contrast
- * target (WCAG 2.1 SC 1.4.11) for a control whose outline is its only
- * visible boundary (04-RESEARCH.md Pitfall 7). `filterControlStyles.test.ts`
- * enforces the new values against the installed palette. Reverting is a
- * one-constant edit (`NEUTRAL_CONTROL_CLASSES`).
+ * The unpressed outline is `ring-stone-500` in both themes, at least 3:1
+ * against the page ground (WCAG 2.1 SC 1.4.11) because it is the control's
+ * only visible boundary (04-RESEARCH.md Pitfall 7).
+ * `filterControlStyles.test.ts` enforces every pair against the installed
+ * palette and the real page grounds in globals.css.
  */
 
 /** Visible keyboard focus ring shared by every filter control. */
 export const CONTROL_FOCUS_CLASSES =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-50";
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:focus-visible:outline-stone-100";
 
 /**
  * Unpressed outline + text + hover, shared by the unpressed pill and by the
- * "Show all N" expander button (plan 04-02). zinc-500 amends the UI-SPEC's
- * zinc-400 / zinc-600 (see header, Pitfall 7).
+ * "Show all N" expander button (plan 04-02).
  */
 export const NEUTRAL_CONTROL_CLASSES =
-  "text-zinc-700 ring-1 ring-inset ring-zinc-500 hover:bg-zinc-100 dark:text-zinc-300 dark:ring-zinc-500 dark:hover:bg-zinc-800";
+  "text-stone-800 ring-1 ring-inset ring-stone-500 hover:bg-stone-200 dark:text-stone-200 dark:ring-stone-500 dark:hover:bg-stone-800";
 
 /**
  * Pill geometry: 44px tall below 768px, 32px from 768px up; never wraps or
  * squashes its label (long-text row of the UI-SPEC UI Considerations).
+ * Square-shouldered like a placard, not a rounded pill.
  */
 export const PILL_BASE_CLASSES =
-  "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm font-medium whitespace-nowrap md:min-h-8";
+  "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xs px-3 text-sm font-semibold whitespace-nowrap md:min-h-8";
 
-export const PILL_UNPRESSED_CLASSES = "bg-white dark:bg-zinc-900";
+export const PILL_UNPRESSED_CLASSES = "bg-background";
 
-/** Pressed state: neutral zinc inversion, no hue. */
+/** Pressed state: ink inversion, no hue. */
 export const PILL_PRESSED_CLASSES =
-  "bg-zinc-900 text-zinc-50 ring-1 ring-inset ring-zinc-900 dark:bg-zinc-50 dark:text-zinc-900 dark:ring-zinc-50";
+  "bg-stone-950 text-stone-50 ring-1 ring-inset ring-stone-950 dark:bg-stone-100 dark:text-stone-950 dark:ring-stone-100";
 
 /** Muted text: unpressed pill count, and 04-02's "Updated" text. */
-export const MUTED_CONTROL_TEXT_CLASSES = "text-zinc-600 dark:text-zinc-400";
+export const MUTED_CONTROL_TEXT_CLASSES = "text-stone-600 dark:text-stone-400";
 
 /** Count text on the pressed (inverted) pill fill. */
-export const PRESSED_COUNT_TEXT_CLASSES = "text-zinc-300 dark:text-zinc-600";
+export const PRESSED_COUNT_TEXT_CLASSES = "text-stone-300 dark:text-stone-600";
+
+/**
+ * A section pill whose filtered count is zero: muted ink instead of opacity
+ * dimming, so its label still reaches 4.5:1 on the page ground, with the
+ * class diamond drained of colour. Replaces NEUTRAL_CONTROL_CLASSES.
+ */
+export const ZERO_COUNT_CONTROL_CLASSES =
+  "text-stone-600 ring-1 ring-inset ring-stone-500 dark:text-stone-400 dark:ring-stone-500 [&>span:first-child]:grayscale";
+
+/**
+ * A row the reader has marked read: the whole row drains to greyscale (which
+ * keeps each placard's luminance contrast) and its headline, reason and
+ * summary drop to muted ink that still reaches 4.5:1 on the page ground.
+ */
+export const READ_ROW_CLASSES =
+  "grayscale [&_h3]:text-stone-600 [&_p]:text-stone-600 dark:[&_h3]:text-stone-400 dark:[&_p]:text-stone-400";
