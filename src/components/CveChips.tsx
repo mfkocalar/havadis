@@ -42,11 +42,12 @@ import type { CveEnrichment } from "@/lib/types";
  * the one link in the signal row; the KEV and EPSS chips after it share its
  * square-shouldered geometry (`cveChipStyles.ts`). The "+N" overflow chip
  * reuses these exact classes (RESEARCH.md Open Question 3) so it reads as part
- * of the same family, not a distinct control. Black on orange-500 is well
+ * of the same family, not a distinct control. On the dark ground the black
+ * border would vanish, so it lightens to orange-300 to keep the panel edge. Black on orange-500 is well
  * above 4.5:1 in both themes.
  */
 const CHIP_CLASSES =
-  "inline-flex items-center rounded-xs border-2 border-stone-950 bg-orange-500 px-1.5 font-mono text-xs leading-5 font-bold whitespace-nowrap text-stone-950 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:focus-visible:outline-stone-100";
+  "inline-flex items-center rounded-xs border-2 border-stone-950 bg-orange-500 dark:border-orange-300 px-1.5 font-mono text-xs leading-5 font-bold whitespace-nowrap text-stone-950 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:focus-visible:outline-stone-100";
 
 export function CveChips({
   cves,

@@ -296,7 +296,7 @@ Ink-on-vinyl controls that invert when chosen.
 A 2px ink frame holding All / High+ / Critical in label caps, each with its mono count. Each option repeats its row placard as a small diamond marker (none, outlined, filled red). The chosen option inverts to ink.
 
 ### Chips (signal row)
-- **CVE identification panel:** mono ID on Identification Orange with a 2px ink border, linked to NVD; hover underlines. The "+N" overflow reuses the same panel.
+- **CVE identification panel:** mono ID on Identification Orange with a 2px ink border (orange-300 on the dark ground, where ink would vanish), linked to NVD; hover underlines. The "+N" overflow reuses the same panel.
 - **KEV chip:** solid ink with the catalogue date, inverted per theme. The strongest signal.
 - **EPSS chip:** white with a 1px stone outline; at or above the threshold it turns Signal Yellow with an ink ring; "no EPSS yet" is muted on a dashed outline.
 - **Tier tag:** neutral 1px outlined tag in condensed caps. Context, not signal: never coloured.
