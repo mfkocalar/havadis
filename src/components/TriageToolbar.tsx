@@ -17,6 +17,7 @@ import {
   type ImportanceFilter,
 } from "@/lib/readerState";
 import { isSectionVisible } from "@/lib/sectionFilter";
+import { TRIAGE_KEYS } from "@/lib/triageKeys";
 import type { Section } from "@/lib/types";
 
 /**
@@ -27,7 +28,9 @@ import type { Section } from "@/lib/types";
  * Minimum importance is a three-way segmented control; Unread and Flagged are
  * independent toggles. Every control is a native button with `aria-pressed`.
  * A live summary says how many cards the combined filters show, and the bulk
- * action marks exactly those cards read.
+ * action marks exactly those cards read. A last line lists the j / k / f / r
+ * shortcuts (`TriageKeys.tsx`) with a toggle to turn them off (WCAG 2.2 SC
+ * 2.1.4); the setting survives Reset filters.
  *
  * Props are opaque ids, closed enums and counts only (T-01-07).
  */
@@ -156,6 +159,31 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
             </button>
           ) : null}
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-stone-700 dark:text-stone-300">
+        <span className="font-display font-bold tracking-wider uppercase">Keys</span>
+        <ul
+          aria-label="Keyboard shortcuts"
+          className={clsx("flex flex-wrap items-center gap-x-3 gap-y-1", !prefs.keyShortcuts && "line-through")}
+        >
+          {TRIAGE_KEYS.map(({ key, label }) => (
+            <li key={key} className="flex items-center gap-1.5">
+              <kbd className="inline-grid min-w-5 place-items-center rounded-xs px-1 font-mono text-xs leading-5 font-bold text-stone-950 ring-1 ring-stone-500 ring-inset dark:text-stone-50">
+                {key}
+              </kbd>
+              {label}
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          aria-pressed={prefs.keyShortcuts}
+          onClick={() => readerActions.setPrefs({ keyShortcuts: !prefs.keyShortcuts })}
+          className={clsx(TEXT_BUTTON_CLASSES, CONTROL_FOCUS_CLASSES)}
+        >
+          {prefs.keyShortcuts ? "Turn shortcuts off" : "Turn shortcuts on"}
+        </button>
       </div>
 
       {shown.length === 0 ? (

@@ -18,7 +18,7 @@ const IDLE_CLASSES =
   "text-stone-600 ring-stone-400 hover:bg-stone-200 hover:text-stone-950 dark:text-stone-400 dark:ring-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-50";
 
 export function ArticleActions({ id, titleId }: { id: string; titleId: string }) {
-  const { read, flags } = useReaderState();
+  const { read, flags, prefs } = useReaderState();
   const isRead = id in read;
   const isFlagged = id in flags;
 
@@ -28,6 +28,8 @@ export function ArticleActions({ id, titleId }: { id: string; titleId: string })
         type="button"
         aria-pressed={isFlagged}
         aria-describedby={titleId}
+        aria-keyshortcuts={prefs.keyShortcuts ? "f" : undefined}
+        data-action="flag"
         title={isFlagged ? "Remove flag" : "Flag for follow-up"}
         onClick={() => readerActions.toggleFlag(id)}
         className={clsx(
@@ -47,6 +49,8 @@ export function ArticleActions({ id, titleId }: { id: string; titleId: string })
         type="button"
         aria-pressed={isRead}
         aria-describedby={titleId}
+        aria-keyshortcuts={prefs.keyShortcuts ? "r" : undefined}
+        data-action="read"
         title={isRead ? "Mark as unread" : "Mark as read"}
         onClick={() => readerActions.toggleRead(id)}
         className={clsx(
