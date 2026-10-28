@@ -87,7 +87,12 @@ export function ArticleCard({
     <CardShell id={article.id} importance={article.importance}>
       <article
         data-importance={article.importance}
-        className={clsx(ROW_GRID, "border-b border-stone-300 py-4 dark:border-stone-800")}
+        className={clsx(
+          ROW_GRID,
+          // The row, not the clamped headline link, carries the keyboard focus
+          // indicator: line-clamp's overflow clip would cut the link's own outline.
+          "-mx-3 border-b border-stone-300 px-3 py-4 transition-colors duration-150 ease-out has-[h3_a:focus-visible]:bg-stone-200 has-[h3_a:focus-visible]:ring-2 has-[h3_a:focus-visible]:ring-stone-950 has-[h3_a:focus-visible]:ring-inset dark:border-stone-800 dark:has-[h3_a:focus-visible]:bg-stone-800 dark:has-[h3_a:focus-visible]:ring-stone-100",
+        )}
       >
         <div className="[grid-area:imp]">
           {badge ? (
@@ -115,7 +120,7 @@ export function ArticleCard({
               href={article.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xs decoration-orange-500 decoration-2 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:focus-visible:outline-stone-100"
+              className="decoration-orange-500 decoration-2 underline-offset-4 outline-none hover:underline focus-visible:underline"
             >
               {article.title}
             </a>

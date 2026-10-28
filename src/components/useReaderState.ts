@@ -120,7 +120,8 @@ export const readerActions = {
   markRead(ids: readonly string[]) {
     update({ read: addMarks(getSnapshot().read, ids, Date.now()) });
   },
+  /** Resets the filters only; the reader's shortcut setting is not a filter. */
   resetFilters() {
-    update({ prefs: DEFAULT_PREFS });
+    update({ prefs: { ...DEFAULT_PREFS, keyShortcuts: getSnapshot().prefs.keyShortcuts } });
   },
 };

@@ -18,6 +18,8 @@ export type ReaderPrefs = {
   minImportance: ImportanceFilter;
   unreadOnly: boolean;
   flaggedOnly: boolean;
+  /** j / k / f / r triage shortcuts; on unless the reader turned them off (WCAG 2.1.4). */
+  keyShortcuts: boolean;
 };
 
 /** Article id -> epoch ms when it was marked. */
@@ -31,6 +33,7 @@ export const DEFAULT_PREFS: ReaderPrefs = {
   minImportance: "all",
   unreadOnly: false,
   flaggedOnly: false,
+  keyShortcuts: true,
 };
 
 /**
@@ -71,6 +74,7 @@ export function parsePrefs(raw: string | null): ReaderPrefs {
         : DEFAULT_PREFS.minImportance,
     unreadOnly: v.unreadOnly === true,
     flaggedOnly: v.flaggedOnly === true,
+    keyShortcuts: v.keyShortcuts !== false,
   };
 }
 

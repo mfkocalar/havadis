@@ -4,6 +4,7 @@ import { FrontPageFilter, SectionCount, SectionVisibility } from "@/components/F
 import { SectionExpander } from "@/components/SectionExpander";
 import { SectionFilterBar } from "@/components/SectionFilterBar";
 import { SectionMark } from "@/components/SectionMark";
+import { TriageKeys } from "@/components/TriageKeys";
 import { TriageToolbar, type TriageArticle } from "@/components/TriageToolbar";
 import { enrichmentNotice } from "@/lib/enrichment/enrich";
 import { planSectionCap } from "@/lib/planSectionCap";
@@ -45,7 +46,8 @@ const ROW_LIST_CLASSES = "flex flex-col";
  * the overflow cards are in the initial HTML and only a `hidden` attribute
  * toggles them. Only section names, counts and the snapshot timestamp
  * cross into client components (T-01-07); the cards are server-rendered and
- * passed through as children.
+ * passed through as children. `TriageKeys` adds j / k / f / r keyboard triage
+ * over those server-rendered rows and takes no props.
  *
  * The route MUST stay statically prerendered with the snapshot's 900-second
  * revalidation window: no request-time APIs (cookies, headers, search
@@ -105,6 +107,7 @@ export default async function Home() {
           <h1 className="sr-only">Latest</h1>
 
           <TriageToolbar articles={triageArticles} />
+          <TriageKeys />
 
           <div className="flex flex-col gap-12">
             {result.sections.map((group, index) => {

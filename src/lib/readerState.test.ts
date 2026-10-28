@@ -28,11 +28,23 @@ test("parsePrefs returns defaults for missing, malformed or non-object input", (
   assert.deepEqual(parsePrefs("42"), DEFAULT_PREFS);
 });
 
+test("parsePrefs keeps keyboard shortcuts on unless explicitly turned off", () => {
+  assert.equal(parsePrefs(JSON.stringify({})).keyShortcuts, true);
+  assert.equal(parsePrefs(JSON.stringify({ keyShortcuts: "no" })).keyShortcuts, true);
+  assert.equal(parsePrefs(JSON.stringify({ keyShortcuts: false })).keyShortcuts, false);
+});
+
 test("parsePrefs keeps valid fields and drops unknown sections and values", () => {
   const prefs = parsePrefs(
     JSON.stringify({ sections: ["Breaches", "Nope", "Breaches", 3], minImportance: "critical", unreadOnly: true, flaggedOnly: "yes" }),
   );
-  assert.deepEqual(prefs, { sections: ["Breaches"], minImportance: "critical", unreadOnly: true, flaggedOnly: false });
+  assert.deepEqual(prefs, {
+    sections: ["Breaches"],
+    minImportance: "critical",
+    unreadOnly: true,
+    flaggedOnly: false,
+    keyShortcuts: true,
+  });
   assert.equal(parsePrefs(JSON.stringify({ minImportance: "urgent" })).minImportance, "all");
 });
 
