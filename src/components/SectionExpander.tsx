@@ -75,7 +75,7 @@ export function SectionExpander({
         aria-controls={regionId}
         onClick={handleClick}
         className={clsx(
-          "inline-flex min-h-11 w-full items-center justify-center rounded-xs px-5 font-display text-[0.9375rem] font-bold tracking-wider uppercase md:min-h-9 md:w-auto md:self-start",
+          "inline-flex min-h-11 w-full items-center justify-center rounded-xs px-5 font-display text-[0.9375rem] font-bold tracking-wider uppercase md:w-auto md:self-start",
           NEUTRAL_CONTROL_CLASSES,
           CONTROL_FOCUS_CLASSES,
         )}

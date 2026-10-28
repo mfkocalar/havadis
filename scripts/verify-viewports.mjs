@@ -3,10 +3,10 @@
  *
  * Runs the Verification Contract from 04-UI-SPEC.md against `next start` in
  * Chromium at six widths (360, 390, 768, 1024, 1280, 1440) and prints one
- * PASS / FAIL / SKIP line per check. Checks: no sideways scroll, grid column
- * counts (D-02), the self-contained pill scroller (D-11), tap-target sizes,
- * sticky-bar height and pinning, focus never hidden under the bar (WCAG 2.2
- * SC 2.4.11), relative "Updated" text after hydration (D-13), zero network
+ * PASS / FAIL / SKIP line per check. Checks: no sideways scroll, manifest row
+ * columns, the self-contained pill scroller below 1024px and the side rail
+ * from 1024px (D-11), tap-target sizes, sticky strip height and pinning,
+ * focus never hidden under the strip or rail (WCAG 2.2 SC 2.4.11), relative "Updated" text after hydration (D-13), zero network
  * requests while filtering and expanding (FILTER-01), and a clean console.
  *
  * Playwright is AD HOC. It is never a dependency of this project and must
@@ -183,7 +183,7 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
       (await page.locator(BAR_SEL).count()) === 0 ? null : "filter bar rendered in the empty state",
     );
     for (const c of [
-      "no-horizontal-overflow", "grid-columns", "pill-row", "tap-targets", "bar-height",
+      "no-horizontal-overflow", "row-columns", "pill-row", "tap-targets", "bar-height",
       "sticky", "focus-not-obscured", "hydrated-updated", "filter-zero-network",
       "expander-zero-network",
     ]) {
@@ -218,35 +218,34 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     return bad.length ? `${bad.length} clipped: ${bad.slice(0, 3).join(" | ")}` : null;
   });
 
-  // b. grid columns
-  await check(name, "grid-columns", async () => {
-    const want = width < 768 ? 1 : width < 1024 ? 2 : 3;
-    const cols = await page.$$eval(SECTION_SEL, (els) =>
-      els.map((el) => {
-        const grid = el.querySelector(".grid");
-        return grid
-          ? getComputedStyle(grid).gridTemplateColumns.split(" ").length
-          : -1;
-      }),
+  // b. manifest row columns: every story is one row whose grid folds to 2
+  // columns below 768px, 3 below 1280px and 5 (placard, story, signals, age,
+  // actions) from 1280px (ArticleCard ROW_GRID).
+  await check(name, "row-columns", async () => {
+    const want = width < 768 ? 2 : width < 1280 ? 3 : 5;
+    const cols = await page.$$eval(`${SECTION_SEL} article`, (els) =>
+      els
+        .filter((el) => el.getClientRects().length > 0)
+        .map((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length),
     );
     const bad = cols.filter((c) => c !== want);
-    return bad.length ? `expected ${want} columns, got [${cols.join(",")}]` : null;
+    if (cols.length === 0) return "no visible article rows";
+    return bad.length ? `expected ${want} columns, got [${[...new Set(cols)].join(",")}]` : null;
   });
 
   // c. pill row
   await check(name, "pill-row", async () => {
     const s = await page.$eval('[role="group"][aria-label="Filter by section"]', (el) => {
       const cs = getComputedStyle(el);
-      return { wrap: cs.flexWrap, ox: cs.overflowX };
+      return { wrap: cs.flexWrap, ox: cs.overflowX, dir: cs.flexDirection };
     });
-    // UI-SPEC amendment (04-03, "768 bar: A"): scroller below 1024, wrap from
-    // 1024 (the spec said 768, which makes a 133px bar at 768).
+    // One scrolling row below 1024; a stacked column in the side rail from 1024.
     if (width < 1024) {
       return s.wrap === "nowrap" && s.ox === "auto"
         ? null
         : `expected nowrap/auto, got ${s.wrap}/${s.ox}`;
     }
-    return s.wrap === "wrap" ? null : `expected wrap, got ${s.wrap}`;
+    return s.dir === "column" ? null : `expected a column in the rail, got ${s.dir}`;
   });
 
   // d. tap targets
@@ -265,8 +264,16 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     return null;
   });
 
-  // e. bar height
+  // e. bar height below 1024 (it must fit the 6rem scroll-padding-top); from
+  // 1024 the bar is a side rail, which must sit fully left of <main>.
   await check(name, "bar-height", async () => {
+    if (width >= 1024) {
+      const r = await page.evaluate((barSel) => ({
+        barRight: document.querySelector(barSel).getBoundingClientRect().right,
+        mainLeft: document.querySelector("main").getBoundingClientRect().left,
+      }), BAR_SEL);
+      return r.barRight <= r.mainLeft + 1 ? null : `rail right ${r.barRight} overlaps main at ${r.mainLeft}`;
+    }
     const h = await page.$eval(BAR_SEL, (el) => el.getBoundingClientRect().height);
     return h <= 96 ? null : `bar height ${h} > 96`;
   });
@@ -298,10 +305,18 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
       const r = await page.evaluate(
         ([barSel]) => ({
           linkTop: document.activeElement?.getBoundingClientRect().top ?? NaN,
+          linkLeft: document.activeElement?.getBoundingClientRect().left ?? NaN,
           barBottom: document.querySelector(barSel).getBoundingClientRect().bottom,
+          barRight: document.querySelector(barSel).getBoundingClientRect().right,
         }),
         [BAR_SEL],
       );
+      // From 1024 the rail is beside the content, so only overlap from the side counts.
+      if (width >= 1024) {
+        return r.linkLeft >= r.barRight - 1
+          ? null
+          : `focused link left ${r.linkLeft} is under the rail (right ${r.barRight})`;
+      }
       return r.linkTop >= r.barBottom - 1
         ? null
         : `focused link top ${r.linkTop} is under the bar (bottom ${r.barBottom})`;

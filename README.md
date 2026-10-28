@@ -5,19 +5,19 @@ A public, source-independent daily security newspaper for security practitioners
 ## Features
 
 - **29 curated sources** (government and EU CERT advisories, security research, enterprise security, threat intelligence, tech and executive news), fetched in parallel. One failing feed never takes the page down.
-- **Source-type label** on every card (News, Research, Vendor, CERT, Government), set per source in config.
+- **Source-type label** on every story (News, Research, Vendor, CERT, Government), set per source in config.
 - **Per-type lookback:** CERT, government and vendor items stay for 72 hours; news and research items for 24 hours. Low-cadence advisory feeds (CERT-EU, NCSC-UK) often have nothing inside the window on a given day, which is expected.
 - **Deduplication:** the same story from several outlets appears once (canonical URL or normalized title match; the earliest copy wins).
-- **Seven urgency-ordered sections:** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy. Classification is deterministic and keyword-based (see `src/lib/config/sections.ts`).
+- **Seven urgency-ordered sections:** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy, shown as numbered hazard classes 1 to 7 with placard-coloured diamonds. Classification is deterministic and keyword-based (see `src/lib/config/sections.ts`).
 - **Ranking** within a section by source tier weight and recency.
-- **Importance triage:** every article is scored Critical, High or Normal by deterministic rules, and the card shows the reason. Critical means act today (actively exploited, zero-day, CISA KEV, emergency patch). High means plan for it (critical severity, remote compromise, public exploit, supply-chain attack, ransomware, any CVE, or a Breaches story). Critical and High cards get a coloured leading edge and a badge.
-- **CVE chips** on cards that mention a CVE ID, linking to the NVD entry.
-- **Exploitation signals:** a CVE chip is followed by a KEV chip with the date CISA added the CVE to its Known Exploited Vulnerabilities catalog, and an EPSS chip with the FIRST exploitation probability (a muted "no EPSS yet" for brand-new CVEs). The strongest signal is shown first. When KEV or EPSS data is unavailable, stale or partial, a small notice appears beside "Updated"; nothing on the page ever says a CVE is safe or not exploited.
-- **Client-side section filter:** multi-select pills with per-section counts. Filtering never triggers a network request.
-- **Reader triage:** show All, High+ or Critical only, unread only or flagged only; flag or mark any card read, or mark everything shown as read. Choices and marks are kept in the browser's localStorage (marks for a week); nothing is sent to a server.
+- **Importance triage:** every article is scored Critical, High or Normal by deterministic rules, and the story shows the reason. Critical means act today (actively exploited, zero-day, CISA KEV, emergency patch). High means plan for it (critical severity, remote compromise, public exploit, supply-chain attack, ransomware, any CVE, or a Breaches story). Critical stories get a filled red placard and High stories an outlined one; the level is always printed as a word, never shown by colour alone.
+- **CVE panels** on stories that mention a CVE ID: the ID on an orange identification panel, linking to the NVD entry.
+- **Exploitation signals:** a CVE panel is followed by a KEV chip with the date CISA added the CVE to its Known Exploited Vulnerabilities catalog, and an EPSS chip with the FIRST exploitation probability (a muted "no EPSS yet" for brand-new CVEs). The strongest signal is shown first. When KEV or EPSS data is unavailable, stale or partial, a small notice appears next to "Updated"; nothing on the page ever says a CVE is safe or not exploited.
+- **Client-side section filter:** multi-select section buttons with per-section counts, in a side rail from 1024px and a sticky scrolling strip below that. Filtering never triggers a network request.
+- **Reader triage:** show All, High+ or Critical only, unread only or flagged only; flag or mark any story read, or mark everything shown as read. Choices and marks are kept in the browser's localStorage (marks for a week); nothing is sent to a server.
 - **Outbound feeds:** RSS 2.0 and JSON Feed for the whole front page, by importance, or by section (see [Feeds](#feeds)).
-- **Freshness:** the sticky bar shows when the snapshot was built ("Updated 14:05 UTC") and each card its publication time; both switch to relative ages after load and tick every minute.
-- **Responsive layout:** 1, 2 or 3 card columns; verified from 360px phones to 1440px desktops.
+- **Freshness:** the rail shows when the snapshot was built ("Updated 14:05 UTC") with the story and source counts, and each story its publication time; both switch to relative ages after load and tick every minute.
+- **Triage layout:** stories are rows, not cards. From 1280px each row keeps importance, story, exploitation signals, age and actions in fixed columns so a section compares top to bottom; narrower screens fold the row. Light and dark themes follow the OS. Verified from 360px phones to 1440px desktops.
 
 ## How it works
 
@@ -34,6 +34,10 @@ The whole composed edition is cached once through Next's `unstable_cache` in `sr
 Exploitation signals are merged with the cached edition at render, so the page stays static. The CISA KEV catalogue is validated, slimmed to about 135 KB (at today's catalogue size) and cached for 6 hours under its own key; EPSS is requested at render in sorted batches of at most 50 CVEs with a 1-hour fetch cache.
 
 Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Netlify keeps the previous deploy live. Enrichment: a stale KEV map beats an empty one, otherwise KEV and EPSS degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
+
+## Design
+
+The front page uses a "hazard placard" visual system built for a fast morning triage pass: a warm vinyl ground (asphalt in dark mode), black ink rules, square 2px corners, and colour used only where it means something (section class, importance, exploitation signal). Type is Barlow Condensed for headings and labels, Barlow for reading and JetBrains Mono for IDs and figures, loaded through `next/font`. Tokens and rules are documented in [`DESIGN.md`](DESIGN.md); the audience and product principles behind them are in [`PRODUCT.md`](PRODUCT.md). Contrast for every control and chip tone is gated by `npm test` in both themes.
 
 ## Tech stack
 
@@ -90,7 +94,7 @@ node scripts/verify-viewports.mjs
 - Crawler identity (User-Agent, public contact URL and opt-out channel): `src/lib/config/crawler.ts`. The contact URL points at this site's `/about` page.
 - Section keywords: `src/lib/config/sections.ts`.
 - Ranking weights: `src/lib/config/ranking.ts`.
-- Per-section card cap: `src/lib/config/frontPageLayout.ts`.
+- Per-section story cap (6 shown, then "Show all"): `src/lib/config/frontPageLayout.ts`.
 - KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size): `src/lib/enrichment/config.ts`.
 - Importance rules (critical / high / normal): `src/lib/pipeline/importance.ts`.
 - `SITE_URL` environment variable: the public origin used for absolute links in feeds and metadata (e.g. `https://havadis.netlify.app`). Falls back to `http://localhost:4000`. Set it in production.
