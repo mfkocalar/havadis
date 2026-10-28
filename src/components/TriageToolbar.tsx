@@ -34,14 +34,18 @@ import type { Section } from "@/lib/types";
 
 export type TriageArticle = ArticleMeta & { section: Section };
 
-const LEVELS: { value: ImportanceFilter; label: string; dot: string | null }[] = [
-  { value: "all", label: "All", dot: null },
-  { value: "high", label: "High+", dot: "bg-amber-500" },
-  { value: "critical", label: "Critical", dot: "bg-red-600" },
+/** Each level's marker repeats the row placard: filled red, outlined ink, none. */
+const LEVELS: { value: ImportanceFilter; label: string; mark: string | null }[] = [
+  { value: "all", label: "All", mark: null },
+  { value: "high", label: "High+", mark: "ring-2 ring-inset ring-current" },
+  { value: "critical", label: "Critical", mark: "bg-red-600 ring-1 ring-white/70" },
 ];
 
 const CHIP_CLASSES =
-  "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm font-medium whitespace-nowrap md:min-h-9";
+  "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xs px-3.5 text-sm font-semibold whitespace-nowrap md:min-h-9";
+
+const TEXT_BUTTON_CLASSES =
+  "rounded-xs font-semibold text-stone-800 underline decoration-stone-400 underline-offset-4 hover:decoration-stone-950 dark:text-stone-200 dark:decoration-stone-600 dark:hover:decoration-stone-100";
 
 function chipState(pressed: boolean) {
   return pressed ? PILL_PRESSED_CLASSES : [PILL_UNPRESSED_CLASSES, NEUTRAL_CONTROL_CLASSES];
@@ -66,15 +70,15 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
   return (
     <div
       data-triage-toolbar=""
-      className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900"
+      className="flex flex-col gap-3 border-b-2 border-stone-950 pb-4 dark:border-stone-700"
     >
       <div className="flex flex-wrap items-center gap-2">
         <div
           role="group"
           aria-label="Minimum importance"
-          className="inline-flex rounded-full bg-zinc-100 p-1 dark:bg-zinc-800"
+          className="inline-flex rounded-xs ring-2 ring-inset ring-stone-950 dark:ring-stone-300"
         >
-          {LEVELS.map(({ value, label, dot }) => {
+          {LEVELS.map(({ value, label, mark }) => {
             const pressed = prefs.minImportance === value;
             const count = articles.filter((a) => meetsImportance(a.importance, value)).length;
             return (
@@ -84,16 +88,16 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
                 aria-pressed={pressed}
                 onClick={() => readerActions.setPrefs({ minImportance: value })}
                 className={clsx(
-                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors md:min-h-7",
+                  "inline-flex min-h-11 items-center gap-2 px-3.5 font-display text-[0.9375rem] font-bold tracking-wider whitespace-nowrap uppercase transition-colors md:min-h-9",
                   CONTROL_FOCUS_CLASSES,
                   pressed
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-50"
-                    : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
+                    ? "bg-stone-950 text-white dark:bg-stone-100 dark:text-stone-950"
+                    : "text-stone-700 hover:bg-stone-200 hover:text-stone-950 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50",
                 )}
               >
-                {dot ? <span aria-hidden="true" className={clsx("size-2 rounded-full", dot)} /> : null}
+                {mark ? <span aria-hidden="true" className={clsx("size-2.5 rotate-45", mark)} /> : null}
                 {label}
-                <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{count}</span>
+                <span className="font-mono text-xs font-medium tracking-normal">{count}</span>
               </button>
             );
           })}
@@ -106,7 +110,7 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
           className={clsx(CHIP_CLASSES, CONTROL_FOCUS_CLASSES, chipState(prefs.unreadOnly))}
         >
           Unread only
-          <span className="tabular-nums opacity-70">{unreadCount}</span>
+          <span className="font-mono text-xs">{unreadCount}</span>
         </button>
 
         <button
@@ -115,17 +119,17 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
           onClick={() => readerActions.setPrefs({ flaggedOnly: !prefs.flaggedOnly })}
           className={clsx(CHIP_CLASSES, CONTROL_FOCUS_CLASSES, chipState(prefs.flaggedOnly))}
         >
-          <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 text-amber-500" fill="currentColor">
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor">
             <path d="M4.5 17.5V3.5h9.25l-2 3.5 2 3.5H4.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
           </svg>
           Flagged
-          <span className="tabular-nums opacity-70">{flaggedCount}</span>
+          <span className="font-mono text-xs">{flaggedCount}</span>
         </button>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
-        <p role="status" className="text-zinc-600 dark:text-zinc-400">
-          Showing <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{shown.length}</strong> of{" "}
+        <p role="status" className="text-stone-700 dark:text-stone-300">
+          Showing <strong className="font-display text-lg font-bold text-stone-950 dark:text-stone-50">{shown.length}</strong> of{" "}
           {articles.length} stories
           {shown.length > 0 ? ` · ${shownUnread.length} unread` : null}
         </p>
@@ -135,7 +139,8 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
             disabled={shownUnread.length === 0}
             onClick={() => readerActions.markRead(shownUnread.map((a) => a.id))}
             className={clsx(
-              "rounded font-medium text-zinc-700 underline-offset-4 hover:underline disabled:cursor-default disabled:text-zinc-400 disabled:no-underline dark:text-zinc-300 dark:disabled:text-zinc-600",
+              TEXT_BUTTON_CLASSES,
+              "disabled:cursor-default disabled:text-stone-500 disabled:no-underline dark:disabled:text-stone-500",
               CONTROL_FOCUS_CLASSES,
             )}
           >
@@ -145,10 +150,7 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
             <button
               type="button"
               onClick={readerActions.resetFilters}
-              className={clsx(
-                "rounded font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300",
-                CONTROL_FOCUS_CLASSES,
-              )}
+              className={clsx(TEXT_BUTTON_CLASSES, CONTROL_FOCUS_CLASSES)}
             >
               Reset filters
             </button>
@@ -157,7 +159,7 @@ export function TriageToolbar({ articles }: { articles: readonly TriageArticle[]
       </div>
 
       {shown.length === 0 ? (
-        <p className="rounded-xl bg-zinc-50 px-4 py-6 text-center text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+        <p className="rounded-xs px-4 py-6 text-center text-stone-700 outline-1 -outline-offset-1 outline-dashed outline-stone-400 dark:text-stone-300 dark:outline-stone-600">
           {prefs.flaggedOnly && flaggedCount === 0
             ? "Nothing flagged yet. Use the flag on any story to keep it here."
             : "No stories match these filters."}

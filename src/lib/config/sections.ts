@@ -47,17 +47,6 @@ export const CLASSIFICATION_ORDER: readonly RuleSection[] = [
   "Tools/Techniques",
 ];
 
-/** PROJECT.md's taxonomy emoji, keyed by section. Ranking/tier data never renders here — this is purely presentational. */
-export const SECTION_EMOJI: Record<Section, string> = {
-  Vulnerabilities: "🐛",
-  Advisories: "📢",
-  Ransomware: "💀",
-  Breaches: "🚨",
-  "Threat Intelligence": "⚠️",
-  "Tools/Techniques": "🔧",
-  "Industry/Policy": "🏛️",
-};
-
 /**
  * D-07: keyword/phrase rules per section, ported from PROJECT.md's
  * reference taxonomy then tuned against the live snapshot. String entries

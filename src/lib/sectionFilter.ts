@@ -21,7 +21,6 @@ import type { Section } from "./types.ts";
  */
 export type FilterPill = {
   section: Section;
-  emoji: string;
   count: number;
   articles: readonly ArticleMeta[];
 };

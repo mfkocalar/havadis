@@ -9,16 +9,17 @@ import {
   PILL_PRESSED_CLASSES,
   PILL_UNPRESSED_CLASSES,
   PRESSED_COUNT_TEXT_CLASSES,
+  READ_ROW_CLASSES,
+  ZERO_COUNT_CONTROL_CLASSES,
 } from "./filterControlStyles.ts";
 
 /**
  * WCAG contrast gate for the filter controls (D-08). Measures every control
- * colour pair against the REAL installed Tailwind zinc palette (oklch values
- * parsed from tailwindcss/theme.css) and the real page backgrounds parsed
- * from globals.css, in light and dark. Text pairs need 4.5:1 (SC 1.4.3);
+ * colour pair against the REAL installed Tailwind palette (oklch values
+ * parsed from tailwindcss/theme.css) and the real page grounds parsed from
+ * globals.css (`bg-background`), in light and dark. Text pairs need 4.5:1 (SC 1.4.3);
  * non-text pairs (outlines, fills, focus ring) need 3:1 (SC 1.4.11). This is
- * what enforces the ring-zinc-500 amendment of the UI-SPEC (RESEARCH
- * Pitfall 7). Hermetic: no network, no clock.
+ * what keeps the unpressed outline at 3:1 (RESEARCH Pitfall 7). Hermetic: no network, no clock.
  */
 
 const globalsCss = readFileSync(
@@ -36,12 +37,16 @@ const PAGE_DARK = hexToLinear(
   ) ?? [])[1],
 );
 
-function zinc(step: string, context: string): Rgb {
+function palette(name: string, context: string): Rgb {
   try {
-    return paletteColor(`zinc-${step}`);
+    return paletteColor(name);
   } catch (err) {
     assert.fail(`${(err as Error).message} (${context})`);
   }
+}
+
+function zinc(step: string, context: string): Rgb {
+  return palette(`zinc-${step}`, context);
 }
 
 /** First capture group of `re` in `classes`, or a failure naming the pattern. */
@@ -51,34 +56,39 @@ function token(classes: string, re: RegExp): string {
   return m[1];
 }
 
-function color(name: string): Rgb {
-  return name === "white" ? WHITE : zinc(name.replace("zinc-", ""), name);
-}
-
 type Theme = "light" | "dark";
 
-/** Resolve a class family to a colour for a theme, e.g. text / ring / bg. */
-function resolve(classes: string, family: string, theme: Theme): Rgb {
-  const re =
-    theme === "light"
-      ? new RegExp(`(?:^|\\s)${family}-(white|zinc-\\d+)(?=\\s|$)`)
-      : new RegExp(`(?:^|\\s)dark:${family}-(white|zinc-\\d+)(?=\\s|$)`);
-  return color(token(classes, re));
+/** A class colour name: "white", "background" (the theme's page ground) or a palette step. */
+function color(name: string, theme: Theme): Rgb {
+  if (name === "white") return WHITE;
+  if (name === "background") return theme === "light" ? PAGE_LIGHT : PAGE_DARK;
+  return palette(name, name);
 }
 
-// Surfaces a control can sit on, per theme. The bar is 90% opaque, so the
-// worst cases are the page itself and (dark) zinc-900 cards beneath it.
+const COLOR_NAME = "(white|background|[a-z]+-\\d+)";
+
+/**
+ * Resolve a class family to a colour for a theme, e.g. text / ring / bg. The
+ * dark theme falls back to the light class when no `dark:` class is given
+ * (`bg-background` already switches with the theme).
+ */
+function resolve(classes: string, family: string, theme: Theme): Rgb {
+  const light = new RegExp(`(?:^|\\s)${family}-${COLOR_NAME}(?=\\s|$)`);
+  const dark = new RegExp(`(?:^|\\s)dark:${family}-${COLOR_NAME}(?=\\s|$)`);
+  if (theme === "dark" && classes.match(dark)) return color(token(classes, dark), theme);
+  return color(token(classes, light), theme);
+}
+
+// Surfaces a control can sit on, per theme. The strip/rail is the page ground
+// (95% opaque over rows that sit on the same ground), and <body> is
+// `bg-background` in layout.tsx, so both resolve to the globals.css grounds.
 const BAR: Record<Theme, Rgb[]> = {
-  light: [WHITE],
-  dark: [zinc("950", "bar"), zinc("900", "bar")],
+  light: [PAGE_LIGHT],
+  dark: [PAGE_DARK],
 };
-// The real <body> surfaces are the layout.tsx utilities (bg-zinc-50 light,
-// dark:bg-zinc-950), which win over the globals.css `body` default now that it
-// lives in `@layer base` (review WR-01). The --background root values are kept
-// as additional worst-case surfaces so a change to either is still gated.
 const PAGE: Record<Theme, Rgb[]> = {
-  light: [zinc("50", "page"), PAGE_LIGHT],
-  dark: [zinc("950", "page"), PAGE_DARK],
+  light: [PAGE_LIGHT],
+  dark: [PAGE_DARK],
 };
 
 function assertRatio(
@@ -102,8 +112,8 @@ for (const theme of THEMES) {
     const unpressed = resolve(PILL_UNPRESSED_CLASSES, "bg", theme);
     const hover =
       theme === "light"
-        ? color(token(NEUTRAL_CONTROL_CLASSES, /(?:^|\s)hover:bg-(zinc-\d+)/))
-        : color(token(NEUTRAL_CONTROL_CLASSES, /dark:hover:bg-(zinc-\d+)/));
+        ? color(token(NEUTRAL_CONTROL_CLASSES, /(?:^|\s)hover:bg-([a-z]+-\d+)/), theme)
+        : color(token(NEUTRAL_CONTROL_CLASSES, /dark:hover:bg-([a-z]+-\d+)/), theme);
     const neutralText = resolve(NEUTRAL_CONTROL_CLASSES, "text", theme);
     const mutedText = resolve(MUTED_CONTROL_TEXT_CLASSES, "text", theme);
 
@@ -135,10 +145,12 @@ for (const theme of THEMES) {
       theme,
     );
 
-    // Section heading + count pair used in page.tsx: zinc-500 light, zinc-400 dark.
-    const headingText = theme === "light" ? zinc("500", "heading") : zinc("400", "heading");
+    // The muted "of N" in a filtered section heading count (FrontPageFilter):
+    // stone-600 light, stone-400 dark.
+    const headingText =
+      theme === "light" ? palette("stone-600", "heading") : palette("stone-400", "heading");
     for (const page of PAGE[theme]) {
-      assertRatio("section heading and count on page", headingText, page, 4.5, theme);
+      assertRatio("section heading count on page", headingText, page, 4.5, theme);
     }
   });
 
@@ -159,13 +171,40 @@ for (const theme of THEMES) {
       token(
         CONTROL_FOCUS_CLASSES,
         theme === "light"
-          ? /(?:^|\s)focus-visible:outline-(zinc-\d+)/
-          : /dark:focus-visible:outline-(zinc-\d+)/,
+          ? /(?:^|\s)focus-visible:outline-((?!offset)[a-z]+-\d+)/
+          : /dark:focus-visible:outline-((?!offset)[a-z]+-\d+)/,
       ),
+      theme,
     );
     for (const bar of BAR[theme]) {
       assertRatio("focus outline on bar", focus, bar, 3, theme);
     }
+  });
+}
+
+for (const theme of THEMES) {
+  test(`${theme}: muted read-row and zero-count text reach 4.5:1 on the page`, () => {
+    const zeroText = resolve(ZERO_COUNT_CONTROL_CLASSES, "text", theme);
+    const readTitle = color(
+      token(
+        READ_ROW_CLASSES,
+        theme === "light" ? /(?:^|\s)\[&_h3\]:text-([a-z]+-\d+)/ : /dark:\[&_h3\]:text-([a-z]+-\d+)/,
+      ),
+      theme,
+    );
+    const readBody = color(
+      token(
+        READ_ROW_CLASSES,
+        theme === "light" ? /(?:^|\s)\[&_p\]:text-([a-z]+-\d+)/ : /dark:\[&_p\]:text-([a-z]+-\d+)/,
+      ),
+      theme,
+    );
+    for (const page of PAGE[theme]) {
+      assertRatio("zero-count pill text on page", zeroText, page, 4.5, theme);
+      assertRatio("read row headline on page", readTitle, page, 4.5, theme);
+      assertRatio("read row body on page", readBody, page, 4.5, theme);
+    }
+    assertRatio("zero-count outline on page", resolve(ZERO_COUNT_CONTROL_CLASSES, "ring", theme), PAGE[theme][0], 3, theme);
   });
 }
 

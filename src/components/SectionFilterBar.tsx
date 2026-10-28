@@ -5,6 +5,7 @@ import { flushSync } from "react-dom";
 import clsx from "clsx";
 import { useSectionFilter } from "@/components/FrontPageFilter";
 import { LastUpdated } from "@/components/LastUpdated";
+import { SectionMark } from "@/components/SectionMark";
 import { useReaderState } from "@/components/useReaderState";
 import { countVisible, hasArticleFilters } from "@/lib/readerState";
 import {
@@ -20,23 +21,26 @@ import {
   PILL_PRESSED_CLASSES,
   PILL_UNPRESSED_CLASSES,
   PRESSED_COUNT_TEXT_CLASSES,
+  ZERO_COUNT_CONTROL_CLASSES,
 } from "@/lib/filterControlStyles";
 
 /**
- * The sticky filter bar directly under the masthead (D-08, D-11, D-14).
+ * The sticky section filter (D-08, D-11, D-14): a strip under the masthead
+ * below 1024px, a full-height side rail from 1024px up.
  *
- * One toggle pill per non-empty section, in the order the server passes them
- * (urgency order, D-12). Each pill is a native `button` with `aria-pressed`
+ * One toggle per non-empty section, in the order the server passes them
+ * (urgency order, D-12), each led by its numbered hazard-class diamond. Each pill is a native `button` with `aria-pressed`
  * (Accessibility Contract). The accessible name is the section name plus one
- * visually hidden ", N articles" suffix; the visible emoji and count are
- * `aria-hidden` so the name is not read twice (Pitfall 8). A visually hidden
+ * visually hidden ", N articles" suffix; the visible class diamond and count are
+ * `aria-hidden` so the name is not read twice (Pitfall 8). The class diamond
+ * is decorative. A visually hidden
  * `role="status"` region announces the result after each toggle.
  *
- * The snapshot's `Updated` text sits after the pill group (D-12): on its own
- * row below 768px, at the trailing edge and centred on the first pill row from
- * 768px up.
+ * The snapshot's `Updated` text follows the pill group in DOM order (D-12):
+ * on its own row under the strip below 1024px, at the top of the rail from
+ * 1024px up.
  *
- * Props are limited to section names, emoji, counts, the server-generated
+ * Props are limited to section names, counts, the server-generated
  * snapshot timestamp and one server-built notice string from a fixed
  * vocabulary (or null): feed text, article data and enrichment objects never
  * reach this client component (T-01-07, T-04-02, T-07-23). The notice is not
@@ -45,10 +49,14 @@ import {
 export function SectionFilterBar({
   pills,
   generatedAt,
+  storyCount,
+  sourceCount,
   enrichmentNotice,
 }: {
   pills: readonly FilterPill[];
   generatedAt: string;
+  storyCount: number;
+  sourceCount: number;
   enrichmentNotice: string | null;
 }) {
   const { selected, toggle } = useSectionFilter();
@@ -76,30 +84,30 @@ export function SectionFilterBar({
     <div
       ref={barRef}
       data-filter-bar=""
-      className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90"
+      className="sticky top-0 z-10 border-b-2 border-stone-950 bg-background/95 backdrop-blur-sm lg:h-dvh lg:self-start lg:overflow-y-auto lg:border-r-2 lg:border-b-0 lg:bg-background dark:border-stone-700"
     >
-      <div className="mx-auto flex w-full max-w-7xl flex-col px-4 py-2 sm:px-6 md:flex-row md:items-start md:justify-between md:gap-4 md:py-1.5">
+      <div className="flex flex-col px-4 py-2 sm:px-6 lg:gap-5 lg:px-4 lg:py-6">
         {/*
-         * The pills scroll in one row below `lg` and wrap from `lg`.
-         * UI-SPEC amendment (04-03, user-approved "768 bar: A"): the spec had
-         * the wrap start at `md`, but the pills total about 1184px, so at 768
-         * they wrap to 3 rows and the bar is 133px, over the 96px
-         * `scroll-padding-top`. From 1024 they take 2 rows (93px). `md:px-1`
-         * keeps room for the focus outline inside the scroller.
+         * The pills scroll in one row below `lg` and stack into the rail from
+         * `lg`, so the strip stays one row (well under the 96px
+         * `scroll-padding-top`) wherever it sits across the top.
          *
          * `relative` makes this scroller the containing block of the pills'
          * `sr-only` (position: absolute) spans. Without it their containing
          * block is the sticky bar, outside this scroller's clip, so they sit
-         * at x of about 1200px and widen the page: mobile browsers then
-         * widen the layout viewport (sideways scroll or zoom-out, found by
-         * 04-03 viewport verification, RESEARCH Pitfall 6).
+         * far to the right and widen the page: mobile browsers then widen the
+         * layout viewport (sideways scroll or zoom-out, found by 04-03
+         * viewport verification, RESEARCH Pitfall 6).
          */}
         <div
           role="group"
           aria-label="Filter by section"
-          className="relative -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 py-1 max-lg:scrollbar-none sm:-mx-6 sm:px-6 md:mx-0 md:flex-1 md:px-1 lg:flex-wrap lg:overflow-visible lg:px-0"
+          className="relative -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 py-1 max-lg:scrollbar-none sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0"
         >
-          {pills.map(({ section, emoji, count: total, articles }) => {
+          <p aria-hidden="true" className="hidden px-2 pb-2 font-display text-xs font-bold tracking-[0.16em] text-stone-600 uppercase lg:block dark:text-stone-400">
+            Sections
+          </p>
+          {pills.map(({ section, count: total, articles }) => {
             const pressed = selected.has(section);
             const count = filtering ? countVisible(articles, prefs, read, flags) : total;
             return (
@@ -113,18 +121,21 @@ export function SectionFilterBar({
                 className={clsx(
                   PILL_BASE_CLASSES,
                   CONTROL_FOCUS_CLASSES,
-                  count === 0 && !pressed && "opacity-50",
+                  "pl-1.5 lg:min-h-10 lg:w-full lg:text-[0.9375rem] lg:ring-0",
                   pressed
                     ? PILL_PRESSED_CLASSES
-                    : [PILL_UNPRESSED_CLASSES, NEUTRAL_CONTROL_CLASSES],
+                    : [
+                        PILL_UNPRESSED_CLASSES,
+                        count === 0 ? ZERO_COUNT_CONTROL_CLASSES : NEUTRAL_CONTROL_CLASSES,
+                      ],
                 )}
               >
-                <span aria-hidden="true">{emoji}</span>
+                <SectionMark section={section} />
                 <span>{section}</span>
                 <span
                   aria-hidden="true"
                   className={clsx(
-                    "tabular-nums",
+                    "font-mono text-xs tabular-nums lg:ml-auto",
                     pressed
                       ? PRESSED_COUNT_TEXT_CLASSES
                       : MUTED_CONTROL_TEXT_CLASSES,
@@ -137,20 +148,21 @@ export function SectionFilterBar({
             );
           })}
         </div>
-        <div className="flex min-w-0 shrink-0 items-center gap-x-2 pb-1 md:mt-1 md:min-h-8 md:flex-col md:items-end md:justify-center md:gap-x-0 md:pb-0">
+        <div className="flex min-w-0 items-center gap-x-2 pb-1 lg:order-first lg:flex-col lg:items-start lg:gap-1.5 lg:border-b-2 lg:border-stone-950 lg:px-2 lg:pb-5 dark:lg:border-stone-700">
           <LastUpdated generatedAt={generatedAt} />
+          <span className={clsx("font-mono text-xs whitespace-nowrap", MUTED_CONTROL_TEXT_CLASSES)}>
+            <span aria-hidden="true" className="lg:hidden">· </span>
+            {storyCount} stories · {sourceCount} sources
+          </span>
           {enrichmentNotice !== null && (
             <>
-              <span aria-hidden="true" className="md:hidden">
+              <span aria-hidden="true" className="lg:hidden">
                 ·
               </span>
               <span
                 data-enrichment-notice=""
                 title={enrichmentNotice}
-                className={clsx(
-                  "min-w-0 truncate text-xs md:max-w-56 md:whitespace-normal md:text-right",
-                  MUTED_CONTROL_TEXT_CLASSES,
-                )}
+                className="min-w-0 truncate rounded-xs bg-yellow-300 px-1.5 font-mono text-xs leading-5 text-stone-950 lg:whitespace-normal"
               >
                 {enrichmentNotice}
               </span>

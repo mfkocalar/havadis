@@ -9,8 +9,8 @@ import {
 import type { CveEnrichment } from "@/lib/types";
 
 /**
- * Red, monospace CVE-ID chips rendered next to the tier badge in an
- * `ArticleCard`'s meta row (UI-03, D-13/D-14/D-15). A Server Component: no
+ * Orange, monospace CVE-ID panels rendered in an `ArticleCard`'s signal
+ * column (UI-03, D-13/D-14/D-15). A Server Component: no
  * client-boundary directive, no hooks — plain server-rendered `<a>` links,
  * exactly like `SourceTierBadge` (verified against
  * `node_modules/next/dist/docs/01-app/01-getting-started/05-server-and-client-components.md`
@@ -37,14 +37,17 @@ import type { CveEnrichment } from "@/lib/types";
  */
 
 /**
- * Base pill geometry copied verbatim from `SourceTierBadge`'s className
- * string (D-15), plus the reserved red tone (Phase 2 D-02) and a monospace
- * ID. The "+N" overflow chip reuses these exact classes (RESEARCH.md Open
- * Question 3) so it reads as part of the same chip family, not a distinct
- * control.
+ * The CVE identification panel: the ID set in monospace on a black-bordered
+ * safety-orange panel, like the UN number on a dangerous-goods vehicle. It is
+ * the one link in the signal row; the KEV and EPSS chips after it share its
+ * square-shouldered geometry (`cveChipStyles.ts`). The "+N" overflow chip
+ * reuses these exact classes (RESEARCH.md Open Question 3) so it reads as part
+ * of the same family, not a distinct control. On the dark ground the black
+ * border would vanish, so it lightens to orange-300 to keep the panel edge. Black on orange-500 is well
+ * above 4.5:1 in both themes.
  */
 const CHIP_CLASSES =
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 font-mono dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/30";
+  "inline-flex items-center rounded-xs border-2 border-stone-950 bg-orange-500 dark:border-orange-300 px-1.5 font-mono text-xs leading-5 font-bold whitespace-nowrap text-stone-950 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:focus-visible:outline-stone-100";
 
 export function CveChips({
   cves,

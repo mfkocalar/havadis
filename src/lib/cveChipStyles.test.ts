@@ -18,7 +18,7 @@ import {
  */
 
 const PILL_GEOMETRY =
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap";
+  "inline-flex items-center rounded-xs px-1.5 py-0.5 font-mono text-xs leading-5 font-bold whitespace-nowrap";
 
 const TONES: Record<string, string> = {
   KEV_CHIP_CLASSES,
@@ -53,8 +53,8 @@ for (const [name, classes] of Object.entries(TONES)) {
     });
   }
 
-  test(`${name} carries the pill geometry`, () => {
-    assert.ok(classes.startsWith(PILL_GEOMETRY), `${name} must begin with the pill geometry`);
+  test(`${name} carries the chip geometry`, () => {
+    assert.ok(classes.startsWith(PILL_GEOMETRY), `${name} must begin with the chip geometry`);
   });
 }
 

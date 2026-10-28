@@ -9,9 +9,10 @@
  * is fresh are cache hits and cost nothing upstream; only the first one after
  * expiry causes the single crawl the snapshot already does.
  *
- * Only `/` is requested. The feed routes call `getFrontPage()` directly rather
- * than the shared snapshot, so warming them would crawl all sources once per
- * feed URL each window.
+ * Only `/` is requested. The feed routes read the same cached edition
+ * (`getSnapshot` in `src/lib/snapshot.ts`), so keeping `/` fresh keeps their
+ * edition fresh too, and a feed rebuilds from it on its own next request
+ * without crawling the sources again.
  */
 export default async function refreshFrontPage(): Promise<void> {
   const site = process.env.SITE_URL?.trim().replace(/\/+$/, "");

@@ -12,7 +12,10 @@ import { CONTROL_FOCUS_CLASSES } from "@/lib/filterControlStyles";
  */
 
 const BUTTON_CLASSES =
-  "inline-flex size-11 items-center md:size-9 justify-center rounded-full ring-1 ring-inset transition-colors";
+  "inline-flex size-11 items-center justify-center rounded-xs ring-1 ring-inset transition-colors md:size-9";
+
+const IDLE_CLASSES =
+  "text-stone-600 ring-stone-400 hover:bg-stone-200 hover:text-stone-950 dark:text-stone-400 dark:ring-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-50";
 
 export function ArticleActions({ id, titleId }: { id: string; titleId: string }) {
   const { read, flags } = useReaderState();
@@ -20,7 +23,7 @@ export function ArticleActions({ id, titleId }: { id: string; titleId: string })
   const isFlagged = id in flags;
 
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-1.5">
       <button
         type="button"
         aria-pressed={isFlagged}
@@ -31,8 +34,8 @@ export function ArticleActions({ id, titleId }: { id: string; titleId: string })
           BUTTON_CLASSES,
           CONTROL_FOCUS_CLASSES,
           isFlagged
-            ? "bg-amber-400 text-amber-950 ring-amber-400 hover:bg-amber-300"
-            : "text-zinc-500 ring-zinc-300 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+            ? "bg-yellow-400 text-stone-950 ring-stone-950 hover:bg-yellow-300"
+            : IDLE_CLASSES,
         )}
       >
         <span className="sr-only">Flag</span>
@@ -50,8 +53,8 @@ export function ArticleActions({ id, titleId }: { id: string; titleId: string })
           BUTTON_CLASSES,
           CONTROL_FOCUS_CLASSES,
           isRead
-            ? "bg-emerald-600 text-white ring-emerald-600 hover:bg-emerald-500"
-            : "text-zinc-500 ring-zinc-300 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+            ? "bg-stone-950 text-white ring-stone-950 hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950 dark:ring-stone-100 dark:hover:bg-stone-300"
+            : IDLE_CLASSES,
         )}
       >
         <span className="sr-only">Read</span>

@@ -3,18 +3,19 @@ import { ArticleCard } from "@/components/ArticleCard";
 import { FrontPageFilter, SectionCount, SectionVisibility } from "@/components/FrontPageFilter";
 import { SectionExpander } from "@/components/SectionExpander";
 import { SectionFilterBar } from "@/components/SectionFilterBar";
+import { SectionMark } from "@/components/SectionMark";
 import { TriageToolbar, type TriageArticle } from "@/components/TriageToolbar";
-import { SECTION_EMOJI } from "@/lib/config/sections";
 import { enrichmentNotice } from "@/lib/enrichment/enrich";
 import { planSectionCap } from "@/lib/planSectionCap";
 import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 
 /**
- * D-02: 1 column below 768px, 2 from 768px, 3 from 1024px. Sparse sections
- * leave the remaining cells empty (D-04). Used verbatim by both the primary
- * grid and the overflow grid of a capped section (04-02).
+ * One column of manifest rows at every width: each row keeps its fields in
+ * fixed columns, so a section compares top to bottom (ArticleCard). Used
+ * verbatim by both the primary list and the overflow list of a capped section
+ * (04-02); a row hidden by a filter leaves no hole in a single column.
  */
-const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3";
+const ROW_LIST_CLASSES = "flex flex-col";
 
 /**
  * The public front page. Awaits `getFrontPageData()` once (the shared cached
@@ -33,15 +34,16 @@ const CARD_GRID_CLASSES = "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
  * Sections and within-section order arrive fully resolved from that
  * edition (classification, ranking, dedupe stay upstream pipeline
  * concerns, not this file's). Otherwise this page lays the front page out:
- * a sticky bar of count-bearing section pills (D-08, D-11), then one
+ * a sticky strip (side rail from 1024px) of count-bearing section pills
+ * (D-08, D-11), then one
  * urgency-ordered section per non-empty group (D-12/D-16), each with its
  * full article count beside the heading (D-14). Filtering (D-09) is purely
  * client-side: every section stays in the server-rendered HTML and the
  * `SectionVisibility` wrapper only toggles the `hidden` attribute. Sections
- * of 9 or more articles show their 6 highest-ranked cards, then the rest in a
- * server-rendered overflow grid inside `SectionExpander` (D-05, D-06, D-07):
+ * of 9 or more articles show their 6 highest-ranked rows, then the rest in a
+ * server-rendered overflow list inside `SectionExpander` (D-05, D-06, D-07):
  * the overflow cards are in the initial HTML and only a `hidden` attribute
- * toggles them. Only section names, emoji, counts and the snapshot timestamp
+ * toggles them. Only section names, counts and the snapshot timestamp
  * cross into client components (T-01-07); the cards are server-rendered and
  * passed through as children.
  *
@@ -55,9 +57,9 @@ export default async function Home() {
 
   if (result.status !== "ok" || result.sections.length === 0) {
     return (
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <h1 className="sr-only">Latest</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">
+        <p className="text-stone-600 dark:text-stone-400">
           No articles in the last 24 hours.
         </p>
       </main>
@@ -76,7 +78,6 @@ export default async function Home() {
   );
   const pills: FilterPill[] = result.sections.map((group) => ({
     section: group.section,
-    emoji: SECTION_EMOJI[group.section],
     count: group.articles.length,
     articles: metasBySection.get(group.section)!,
   }));
@@ -86,75 +87,80 @@ export default async function Home() {
 
   return (
     <FrontPageFilter sections={result.sections.map((group) => group.section)}>
-      <SectionFilterBar
-        pills={pills}
-        generatedAt={result.generatedAt}
-        enrichmentNotice={enrichmentNotice(enrichment.health)}
-      />
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
-        {/*
-         * D-16 swaps the single visible "Latest" label for per-section
-         * headings below. The document still keeps exactly one <h1> for
-         * assistive technology (WCAG document-outline expectations) -- it is
-         * visually hidden via `sr-only` rather than removed.
-         */}
-        <h1 className="sr-only">Latest</h1>
+      <div className="mx-auto w-full max-w-[96rem] flex-1 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <SectionFilterBar
+          pills={pills}
+          generatedAt={result.generatedAt}
+          storyCount={triageArticles.length}
+          sourceCount={new Set(result.sections.flatMap((group) => group.articles.map((a) => a.source))).size}
+          enrichmentNotice={enrichmentNotice(enrichment.health)}
+        />
+        <main className="flex min-w-0 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {/*
+           * D-16 swaps the single visible "Latest" label for per-section
+           * headings below. The document still keeps exactly one <h1> for
+           * assistive technology (WCAG document-outline expectations) -- it is
+           * visually hidden via `sr-only` rather than removed.
+           */}
+          <h1 className="sr-only">Latest</h1>
 
-        <TriageToolbar articles={triageArticles} />
+          <TriageToolbar articles={triageArticles} />
 
-        <div className="flex flex-col gap-14">
-          {result.sections.map((group, index) => {
-            const total = group.articles.length;
-            const { visibleCount, hiddenCount } = planSectionCap(total);
-            const headingId = `section-heading-${index}`;
-            return (
-              <SectionVisibility
-                key={group.section}
-                section={group.section}
-                articles={metasBySection.get(group.section)!}
-              >
-                <section
-                  data-section={group.section}
-                  data-count={total}
-                  aria-labelledby={headingId}
-                  className="flex flex-col gap-5"
+          <div className="flex flex-col gap-12">
+            {result.sections.map((group, index) => {
+              const total = group.articles.length;
+              const { visibleCount, hiddenCount } = planSectionCap(total);
+              const headingId = `section-heading-${index}`;
+              return (
+                <SectionVisibility
+                  key={group.section}
+                  section={group.section}
+                  articles={metasBySection.get(group.section)!}
                 >
-                  <h2
-                    id={headingId}
-                    className="flex items-center gap-2.5 border-b border-zinc-200 pb-3 text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl dark:border-zinc-800 dark:text-zinc-50"
+                  <section
+                    data-section={group.section}
+                    data-count={total}
+                    aria-labelledby={headingId}
+                    className="flex flex-col"
                   >
-                    <span aria-hidden="true">{SECTION_EMOJI[group.section]}</span> {group.section}
-                    <span
-                      aria-hidden="true"
-                      data-heading-count={total}
-                      className="rounded-full bg-zinc-200/70 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    <h2
+                      id={headingId}
+                      className="flex items-center gap-3 border-b-2 border-stone-950 pb-2.5 font-display text-2xl leading-none font-extrabold tracking-wide text-stone-950 uppercase sm:text-[1.75rem] dark:border-stone-600 dark:text-stone-50"
                     >
-                      <SectionCount total={total} articles={metasBySection.get(group.section)!} />
-                    </span>
-                    <span className="sr-only">{articleCountLabel(total)}</span>
-                  </h2>
-                  <div data-card-stack="" className="flex flex-col gap-6">
-                    <div className={CARD_GRID_CLASSES}>
-                      {group.articles.slice(0, visibleCount).map((article) => (
-                        <ArticleCard key={article.url} article={article} byCve={enrichment.byCve} />
-                      ))}
+                      <SectionMark section={group.section} size="lg" />
+                      {group.section}
+                      <span
+                        aria-hidden="true"
+                        data-heading-count={total}
+                        className="ml-auto font-mono text-sm font-medium tracking-normal normal-case text-stone-950 dark:text-stone-50"
+                      >
+                        <SectionCount total={total} articles={metasBySection.get(group.section)!} />
+                      </span>
+                      <span className="sr-only">{articleCountLabel(total)}</span>
+                    </h2>
+                    <div className="flex flex-col gap-4">
+                      <div className={ROW_LIST_CLASSES}>
+                        {group.articles.slice(0, visibleCount).map((article) => (
+                          <ArticleCard key={article.url} article={article} byCve={enrichment.byCve} />
+                        ))}
+                      </div>
+                      {hiddenCount > 0 && (
+                        <SectionExpander section={group.section} total={total}>
+                          <div className={ROW_LIST_CLASSES}>
+                            {group.articles.slice(visibleCount).map((article) => (
+                              <ArticleCard key={article.url} article={article} byCve={enrichment.byCve} />
+                            ))}
+                          </div>
+                        </SectionExpander>
+                      )}
                     </div>
-                    {hiddenCount > 0 && (
-                      <SectionExpander section={group.section} total={total}>
-                        <div className={CARD_GRID_CLASSES}>
-                          {group.articles.slice(visibleCount).map((article) => (
-                            <ArticleCard key={article.url} article={article} byCve={enrichment.byCve} />
-                          ))}
-                        </div>
-                      </SectionExpander>
-                    )}
-                  </div>
-                </section>
-              </SectionVisibility>
-            );
-          })}
-        </div>
-      </main>
+                  </section>
+                </SectionVisibility>
+              );
+            })}
+          </div>
+        </main>
+      </div>
     </FrontPageFilter>
   );
 }

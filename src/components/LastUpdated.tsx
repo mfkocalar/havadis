@@ -44,7 +44,7 @@ export function LastUpdated({ generatedAt }: { generatedAt: string }) {
       data-last-updated=""
       dateTime={generatedAt}
       title={title}
-      className={clsx("text-sm font-medium whitespace-nowrap", MUTED_CONTROL_TEXT_CLASSES)}
+      className={clsx("font-mono text-xs font-medium whitespace-nowrap", MUTED_CONTROL_TEXT_CLASSES)}
     >
       {text}
     </time>
