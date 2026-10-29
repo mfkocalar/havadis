@@ -1,0 +1,29 @@
+name: Bug report
+description: Something is broken, or a story is in the wrong section or importance.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the story link if it's about a specific story.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open https://havadis.netlify.app
+        2. ...
+  - type: input
+    id: env
+    attributes:
+      label: Browser, OS and screen width
+      placeholder: Firefox 140, macOS, 1440px, dark mode
