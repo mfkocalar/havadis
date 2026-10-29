@@ -1,0 +1,30 @@
+name: Source request
+description: Suggest a feed to add (or one to remove).
+labels: [source]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Source name
+    validations:
+      required: true
+  - type: input
+    id: feed
+    attributes:
+      label: RSS or Atom feed URL
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Source type
+      options: [News, Research, Vendor, CERT, Government]
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why should it be added or removed?
+      description: For an addition, what does it cover that current sources miss, and roughly how often does it publish? For a removal, what is wrong with it?
+    validations:
+      required: true

@@ -54,3 +54,6 @@ next-env.d.ts
 /CLAUDE.md
 /AGENTS.md
 .claude/
+
+# design review screenshots and mocks (local only)
+.impeccable/

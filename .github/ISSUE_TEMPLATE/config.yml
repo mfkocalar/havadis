@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/mfkocalar/havadis/security/advisories/new
+    about: Please report vulnerabilities privately, not as public issues.
+  - name: Read today's edition
+    url: https://havadis.netlify.app
+    about: The live front page.
