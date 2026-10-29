@@ -24,7 +24,7 @@ body:
   - type: textarea
     id: why
     attributes:
-      label: Why should it be on the front page?
-      description: What does it cover that current sources miss? Roughly how often does it publish?
+      label: Why should it be added or removed?
+      description: For an addition, what does it cover that current sources miss, and roughly how often does it publish? For a removal, what is wrong with it?
     validations:
       required: true

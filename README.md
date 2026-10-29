@@ -49,7 +49,7 @@ Security news is scattered across vendor blogs, CERTs, government advisories and
 - **Client-side section filter:** multi-select section buttons with per-section counts, in a side rail from 1024px and a sticky scrolling strip below that. Filtering never triggers a network request.
 - **Reader triage:** show All, High+ or Critical only, unread only or flagged only; flag or mark any story read, or mark everything shown as read. Choices and marks are kept in the browser's localStorage (marks for a week); nothing is sent to a server.
 - **Keyboard triage:** `j` / `k` move to the next or previous visible story, `f` flags it and `r` marks it read (pressing the story's own Flag and Read buttons). Hidden or collapsed stories are skipped, and with "Unread only" on, `r` moves on to the next story. Shortcuts never fire in text fields or with a modifier key, and "Turn shortcuts off" in the triage bar disables them (WCAG 2.2 SC 2.1.4); that setting is kept in localStorage and survives "Reset filters".
-- **Outbound feeds:** RSS 2.0 and JSON Feed for the whole front page, by importance, or by section (see [Feeds](#feeds)).
+- **Outbound feeds:** RSS 2.0 and JSON Feed for the whole front page, by importance, or by section (see [Subscribe](#subscribe)).
 - **Freshness:** the rail shows when the snapshot was built ("Updated 14:05 UTC") with the story and source counts, and each story its publication time; both switch to relative ages after load and tick every minute.
 - **Triage layout:** stories are rows, not cards. From 1280px each row keeps importance, story, exploitation signals, age and actions in fixed columns so a section compares top to bottom; narrower screens fold the row. Light and dark themes follow the OS. Verified from 360px phones to 1440px desktops.
 
@@ -78,7 +78,7 @@ The build prerenders from live feeds, so it needs outbound network access, inclu
 
 ## Subscribe
 
-Other services and agents can subscribe to the front page. Every feed covers the last 24 hours, newest first, is prerendered and refreshed every 15 minutes, needs no key, and allows cross-origin requests.
+Other services and agents can subscribe to the front page. Every feed carries the same edition as the front page (24 hours for news and research, 72 hours for CERT, government and vendor items), newest first, is prerendered and refreshed every 15 minutes, needs no key, and allows cross-origin requests.
 
 | Feed | RSS 2.0 | JSON Feed 1.1 |
 |------|---------|---------------|
@@ -121,7 +121,7 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 | Crawler identity (User-Agent, public contact URL and opt-out channel) | `src/lib/config/crawler.ts` |
 | Section keywords | `src/lib/config/sections.ts` |
 | Ranking weights | `src/lib/config/ranking.ts` |
-| Per-section story cap (6 shown, then "Show all") | `src/lib/config/frontPageLayout.ts` |
+| Per-section story cap (6 shown, the rest behind "Show all" once at least 3 would be hidden) | `src/lib/config/frontPageLayout.ts` |
 | KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size) | `src/lib/enrichment/config.ts` |
 | Importance rules (critical / high / normal) | `src/lib/pipeline/importance.ts` |
 
