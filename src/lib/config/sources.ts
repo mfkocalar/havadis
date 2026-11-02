@@ -262,6 +262,91 @@ export const SOURCES: SourceConfig[] = [
     url: "https://sec.cloudapps.cisco.com/security/center/psirtrss20/CiscoSecurityAdvisory.xml",
     maxItems: 5,
   },
+  // Fortinet PSIRT (Phase 7.1 SRC-06). The www.fortiguard.com/rss/ir.xml form
+  // redirects across hosts to Fortinet's own filestore.fortinet.com, so the final
+  // hop is configured (D-09, D-18). Probed 2026-10-31 from a laptop: 200,
+  // text/xml, 47,487 bytes, 50 items, newestAgeHours 135.2, inWindow 0.
+  // maxItems 5 (D-13): 10 advisories on 2026-10-13 with an identical 07:00
+  // timestamp, 11 in the busiest 72 hours.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 47,487 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 172.2, inWindow 0, maxPerWindow 11.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "fortinet-psirt",
+    name: "Fortinet Security Advisories",
+    tier: "Enterprise Security",
+    sourceType: "advisory",
+    lang: "en",
+    family: "fortinet",
+    url: "https://filestore.fortinet.com/fortiguard/rss/ir.xml",
+    maxItems: 5,
+  },
+  // Ivanti security advisories (Phase 7.1 SRC-06), probed 2026-10-31 from a
+  // laptop: 200, text/xml, 65,596 bytes, 19 items, newestAgeHours 439.6,
+  // inWindow 0. The feed is Ivanti's security-advisory blog topic; each item is
+  // the monthly security-update announcement, one per release (D-11). Marked
+  // advisory by user confirmation (A-UI-2). No cap: one item per month.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml; charset=utf-8, 65,596 bytes, rawItems 19, datedItems 19, normalizedItems 19, newestAgeHours 476.7, inWindow 0, maxPerWindow 1.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "ivanti-security",
+    name: "Ivanti Security Advisories",
+    tier: "Enterprise Security",
+    sourceType: "advisory",
+    lang: "en",
+    family: "ivanti",
+    url: "https://www.ivanti.com/blog/topics/security-advisory/rss",
+  },
+  // Chrome Releases (Phase 7.1 SRC-06). This Blogger label-intersection feed
+  // returns only "Stable Channel Update for Desktop" posts (D-14 first
+  // preference: no title pattern needed). The default posts feed redirects to
+  // plain-http FeedBurner, which the validated redirect rejects, and
+  // max-results=5 keeps the body near 0.6 MB at about 120 KB per item. Probed
+  // 2026-10-31 from a laptop: 200, application/atom+xml, 5 items, newestAgeHours
+  // 48.8, inWindow 1.
+  // D-14 (D-26 deviation): body-based test, 19 of 20 sampled posts list security fixes (2026-11-02); titles carry no security keyword, so the card's section comes from the summary (a Phase 9 note, recorded in 07.1-PROBES.md)
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/atom+xml; charset=UTF-8, 657,648 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 85.8, inWindow 0, maxPerWindow 2.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "chrome-releases",
+    name: "Chrome Releases",
+    tier: "Enterprise Security",
+    sourceType: "advisory",
+    lang: "en",
+    family: "google",
+    url: "https://chromereleases.googleblog.com/feeds/posts/default/-/Stable%20updates/Desktop%20Update?max-results=5",
+  },
+  // CCCS Alerts and Advisories (Phase 7.1 SRC-07). The rss/v1 URL redirects on
+  // the same host to this Atom URL, so the final hop is configured. Probed
+  // 2026-10-31 from a laptop: 200, application/xml, 153,469 bytes, 50 items,
+  // newestAgeHours 24.6, inWindow 9. maxItems 5 (D-13): roundup notices issued
+  // per vendor, 14 on 2026-10-28 and 27 in the busiest 72 hours.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml, 153,469 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 61.6, inWindow 5, maxPerWindow 27.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "cccs",
+    name: "CCCS Alerts and Advisories",
+    tier: "Government",
+    sourceType: "cert",
+    lang: "en",
+    family: "cccs",
+    url: "https://www.cyber.gc.ca/api/cccs/atom/v1/get?feed=alerts_advisories&lang=en",
+    maxItems: 5,
+  },
+  // JPCERT/CC English (Phase 7.1 SRC-07), probed 2026-10-31 from a laptop: 200,
+  // application/rdf+xml, 3,205 bytes, 6 items, newestAgeHours 427.8, inWindow 0.
+  // RSS 1.0 (RDF), which the content-type gate accepts because the type
+  // contains xml. No cap: a handful of items a month.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rdf+xml, 3,205 bytes, rawItems 6, datedItems 6, normalizedItems 6, newestAgeHours 464.8, inWindow 0, maxPerWindow 2.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "jpcert-en",
+    name: "JPCERT/CC",
+    tier: "Government",
+    sourceType: "cert",
+    lang: "en",
+    family: "jpcert",
+    url: "https://www.jpcert.or.jp/english/rss/jpcert-en.rdf",
+  },
 ];
 
 // Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):
