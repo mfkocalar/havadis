@@ -10,6 +10,7 @@ export const SOURCE_TYPES: readonly SourceType[] = [
   "vendor",
   "cert",
   "government",
+  "advisory",
 ];
 
 /**
@@ -31,6 +32,7 @@ export const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
   vendor: "Vendor",
   cert: "CERT",
   government: "Government",
+  advisory: "Advisory",
 };
 
 /**
@@ -38,7 +40,8 @@ export const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
  *
  * Resolved per source from its `sourceType`, never a global constant: CERT,
  * government and vendor advisories are low-cadence and stay relevant for
- * three days, while news and research churn daily. The window only decides
+ * three days (advisory feeds share the 72-hour window), while news and
+ * research churn daily. The window only decides
  * inclusion, not order. Ranking stays tier x recency (D-06), so an old item
  * still sorts low within its section.
  */
@@ -48,4 +51,5 @@ export const LOOKBACK_HOURS: Record<SourceType, number> = {
   vendor: 72,
   news: 24,
   research: 24,
+  advisory: 72,
 };

@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
+import { SOURCE_TYPE_LABEL } from "../src/lib/config/sourceTypes.ts";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
 import { FEED_VARIANTS, feedPath } from "../src/lib/feeds/buildFeed.ts";
 import {
@@ -245,8 +246,15 @@ test("every article card shows exactly one source-type label after the tier pill
     return;
   }
 
-  const LABEL_RE =
-    /<span class="([^"]*)"><span class="sr-only">Source type: <\/span>(?:<!-- -->)?(News|Research|Vendor|CERT|Government)<\/span>/g;
+  // Alternation built from the label map, so a new source type is accepted
+  // the moment it gets a label (Phase 7.1 UI-SPEC Test and Gate Contract 1).
+  const LABEL_ALTERNATION = Object.values(SOURCE_TYPE_LABEL)
+    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const LABEL_RE = new RegExp(
+    `<span class="([^"]*)"><span class="sr-only">Source type: </span>(?:<!-- -->)?(${LABEL_ALTERNATION})</span>`,
+    "g"
+  );
 
   for (const card of cards) {
     const labels = [...card.matchAll(LABEL_RE)];

@@ -10,8 +10,8 @@ import type { SourceConfig } from "../types.ts";
  * all six SourceTier values.
  *
  * Every entry carries a required `sourceType`, `lang` and `family`
- * (Phase 5 D-01, D-04, D-11): the type is one of news, research, vendor, cert
- * or government; `lang` is "en" because only English sources are active; and
+ * (Phase 5 D-01, D-04, D-11): the type is one of news, research, vendor, cert,
+ * government or advisory; `lang` is "en" because only English sources are active; and
  * `family` is a lowercase publisher-organisation slug for Phase 9's
  * corroboration count.
  *
@@ -242,5 +242,21 @@ export const SOURCES: SourceConfig[] = [
     lang: "en",
     family: "ncsc-uk",
     url: "https://www.ncsc.gov.uk/api/1/services/v1/all-rss-feed.xml",
+  },
+  // Palo Alto Security Advisories (Phase 7.1 SRC-06), probed 2026-10-31 from a
+  // laptop: 200, application/xml, 8,373 bytes, 25 items, newestAgeHours 18.9,
+  // inWindow 2. maxItems 5 (D-13): the feed posts in batches, 8 advisories on
+  // 2026-10-14 (one identical timestamp) plus 5 on 2026-10-15, so 14 fall in
+  // the busiest 72 hours; the cap keeps the newest 5.
+  // Netlify-egress probe: pending (Plan 07.1-04)
+  {
+    id: "paloalto-psirt",
+    name: "Palo Alto Security Advisories",
+    tier: "Enterprise Security",
+    sourceType: "advisory",
+    lang: "en",
+    family: "palo-alto",
+    url: "https://security.paloaltonetworks.com/rss.xml",
+    maxItems: 5,
   },
 ];

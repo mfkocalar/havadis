@@ -23,7 +23,7 @@ const FIELDS: [string, string][] = [
   ["importance_reason", "The signal that set the level, e.g. \"Actively exploited\"; null when normal."],
   ["cves", "CVE IDs found in the title and summary."],
   ["source / source_tier", "Publisher name and its source category."],
-  ["source_type", "news, research, vendor, cert or government."],
+  ["source_type", "news, research, vendor, cert, government or advisory."],
 ];
 
 /**

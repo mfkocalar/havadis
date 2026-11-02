@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 29 entries", () => {
-  assert.equal(SOURCES.length, 29);
+test("SOURCES has exactly 30 entries", () => {
+  assert.equal(SOURCES.length, 30);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -118,7 +118,13 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   "computer-weekly": "news",
   "cert-eu": "cert",
   "ncsc-uk": "cert",
+  // Phase 7.1 additions (SRC-06, SRC-07)
+  "paloalto-psirt": "advisory",
 };
+
+// Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
+// Plans 07.1-03 and 07.1-06 extend this list as flood feeds are configured.
+const FLOOD_FEEDS: string[] = ["paloalto-psirt"];
 
 test("D-03 mapping: every source carries exactly the type the table assigns it", () => {
   assert.deepEqual(
@@ -206,12 +212,19 @@ test("no url hostname is an IP literal, loopback/local name, or non-registrable"
   }
 });
 
-test("no source sets maxItems (D-07)", () => {
+test("maxItems is set on exactly the flood feeds, each an integer from 1 to 5 (Phase 7.1 D-13)", () => {
+  assert.deepEqual(
+    SOURCES.filter((s) => s.maxItems !== undefined)
+      .map((s) => s.id)
+      .sort(),
+    [...FLOOD_FEEDS].sort(),
+    "maxItems must be set on exactly the flood feeds, and nowhere else"
+  );
   for (const source of SOURCES) {
-    assert.equal(
-      source.maxItems,
-      undefined,
-      `${source.id}: maxItems is not set until a live probe shows a flood`
+    if (source.maxItems === undefined) continue;
+    assert.ok(
+      Number.isInteger(source.maxItems) && source.maxItems >= 1 && source.maxItems <= 5,
+      `${source.id}: maxItems must be an integer from 1 to 5`
     );
   }
 });

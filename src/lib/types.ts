@@ -19,9 +19,11 @@ export type SourceTier =
  * What kind of outlet a source is. Orthogonal to `SourceTier`: the tier is
  * the editorial grouping from PROJECT.md, the type is the publisher's role
  * (CISA is tier Government but type cert). Exactly one value per source
- * (Phase 5 D-01, D-02).
+ * (Phase 5 D-01, D-02). `advisory` marks a vendor security advisory (PSIRT)
+ * feed, which Phase 8 treats as a primary source and Phase 9 as a hard
+ * external signal (Phase 7.1 D-01, D-05).
  */
-export type SourceType = "news" | "research" | "vendor" | "cert" | "government";
+export type SourceType = "news" | "research" | "vendor" | "cert" | "government" | "advisory";
 
 /** Static configuration for one RSS/Atom source. */
 export type SourceConfig = {
@@ -54,7 +56,7 @@ export type SourceConfig = {
   /**
    * Positive-integer cap on how many articles this source may contribute
    * (Phase 5 D-07). Applied after the lookback window, keeping the newest.
-   * No source sets it today; add one only when a live probe shows a flood.
+   * Set only on feeds a live probe showed to flood (Phase 7.1 D-13).
    */
   maxItems?: number;
   /**
