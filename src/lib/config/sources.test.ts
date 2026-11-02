@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 29 entries", () => {
-  assert.equal(SOURCES.length, 29);
+test("SOURCES has exactly 30 entries", () => {
+  assert.equal(SOURCES.length, 30);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -161,6 +161,7 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   "chrome-releases": "advisory",
   cccs: "cert",
   "jpcert-en": "cert",
+  unit42: "vendor",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
@@ -179,6 +180,27 @@ test("D-03 mapping: every source carries exactly the type the table assigns it",
       EXPECTED_SOURCE_TYPE[source.id],
       `${source.id}: sourceType drifted from the D-03 table`
     );
+  }
+});
+
+// A vendor's blog and its advisories are two distinct sources from one publisher
+// organisation, so they share a family (Phase 7.1 D-04, D-06; roadmap SC2).
+// Tuples are [first id, second id, family slug]; later plans append tuples.
+const FAMILY_PAIRS: readonly (readonly [string, string, string])[] = [
+  ["unit42", "paloalto-psirt", "palo-alto"],
+];
+
+test("sources from one publisher organisation share one family (Phase 7.1 D-04, D-06)", () => {
+  for (const [firstId, secondId, family] of FAMILY_PAIRS) {
+    const first = SOURCES.find((s) => s.id === firstId);
+    const second = SOURCES.find((s) => s.id === secondId);
+    assert.ok(first, `${firstId} must be configured`);
+    assert.ok(second, `${secondId} must be configured`);
+    assert.equal(first.family, family, `${firstId}: family must be ${family}`);
+    assert.equal(second.family, family, `${secondId}: family must be ${family}`);
+    assert.notEqual(first.id, second.id);
+    assert.notEqual(first.name, second.name, `${firstId} and ${secondId} must keep distinct names`);
+    assert.notEqual(first.url, second.url, `${firstId} and ${secondId} must keep distinct urls`);
   }
 });
 

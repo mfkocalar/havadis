@@ -347,6 +347,21 @@ export const SOURCES: SourceConfig[] = [
     family: "jpcert",
     url: "https://www.jpcert.or.jp/english/rss/jpcert-en.rdf",
   },
+  // Unit 42 (Phase 7.1 SRC-07), Palo Alto Networks' threat-research lab, so
+  // vendor type (D-06) and family palo-alto, shared with paloalto-psirt (D-04).
+  // Probed 2026-10-31 from a laptop: 200, 24,210 bytes, 15 items,
+  // newestAgeHours 52.2, inWindow 1.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 24,210 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 89.3, inWindow 0, maxPerWindow 4.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "unit42",
+    name: "Unit 42",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "palo-alto",
+    url: "https://unit42.paloaltonetworks.com/feed/",
+  },
 ];
 
 // Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):
