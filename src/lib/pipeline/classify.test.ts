@@ -158,12 +158,12 @@ test("D-08: CISA gets no source-based override — every source travels the same
     "Vulnerabilities"
   );
 
-  const allowedKeys = new Set(["id", "name", "tier", "sourceType", "lang", "family", "url", "allowHtmlContentType", "maxBodyBytes", "maxItems"]);
+  const allowedKeys = new Set(["id", "name", "tier", "sourceType", "lang", "family", "url", "allowHtmlContentType", "maxBodyBytes", "maxItems", "titleInclude"]);
   for (const source of SOURCES) {
     for (const key of Object.keys(source)) {
       assert.ok(
         allowedKeys.has(key),
-        `expected ${source.id}'s key "${key}" to be one of id/name/tier/sourceType/lang/family/url/allowHtmlContentType/maxBodyBytes/maxItems — no source gets a default-section override (D-08)`
+        `expected ${source.id}'s key "${key}" to be one of id/name/tier/sourceType/lang/family/url/allowHtmlContentType/maxBodyBytes/maxItems/titleInclude — no source gets a default-section override; an include filter narrows a source's items and never routes an item to a section (D-08)`
       );
     }
   }

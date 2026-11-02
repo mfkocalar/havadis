@@ -66,6 +66,13 @@ export type SourceConfig = {
    * on live-probe evidence that a high-value feed outgrew the default.
    */
   maxBodyBytes?: number;
+  /**
+   * A config-only include pattern for a mixed feed (Phase 7.1 D-14): articles
+   * whose title does not match are dropped before the lookback and the cap.
+   * It must start with `^`, must carry neither the `g` nor the `y` flag, and
+   * is never built from feed text.
+   */
+  titleInclude?: RegExp;
 };
 
 /** The common shape every feed item is normalized into. */

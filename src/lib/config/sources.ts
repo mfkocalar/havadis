@@ -482,6 +482,23 @@ export const SOURCES: SourceConfig[] = [
     family: "citizen-lab",
     url: "https://citizenlab.ca/feed/",
   },
+  // Huntress Blog (Phase 7.1 SRC-07), Huntress's threat-research and product blog, so vendor type (D-06).
+  // D-14: no security-only feed; title include evaluated 2026-11-02 on 40 titles, in-sample precision 0.74, recall 0.88.
+  // Items carry no category element, so no label feed exists; the pattern keeps research posts and drops product, compliance and trend posts.
+  // Probed 2026-11-02 from a laptop: 200, application/xml, 639,464 bytes (about 70% headroom under the 2 MB cap), 746 items of which 745 are dated (some epoch-1970).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml, 639,464 bytes, rawItems 746, datedItems 746, normalizedItems 746, newestAgeHours 115.5, inWindow 0, maxPerWindow 5 (counts only titles the pattern keeps).
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "huntress",
+    name: "Huntress Blog",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "huntress",
+    url: "https://www.huntress.com/blog/rss.xml",
+    titleInclude:
+      /^.*?\b(?:attack(?:s|er|ers)?|campaigns?|malware|exploit(?:s|ed|ing)?|compromis(?:e|es|ed)|phishing|ransomware|webshells?|backdoors?|botnets?|threat actors?|vulnerabilit(?:y|ies)|zero-days?|breach(?:es)?|CVE-\d{4}-\d+)\b/i,
+  },
 ];
 
 // Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):

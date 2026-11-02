@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 39 entries", () => {
-  assert.equal(SOURCES.length, 39);
+test("SOURCES has exactly 40 entries", () => {
+  assert.equal(SOURCES.length, 40);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -171,6 +171,7 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   "proofpoint-threat-insight": "vendor",
   "dfir-report": "research",
   "citizen-lab": "research",
+  huntress: "vendor",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
@@ -322,5 +323,54 @@ test("any maxItems set on a source is a positive integer", () => {
       Number.isInteger(source.maxItems) && source.maxItems > 0,
       `${source.id}: maxItems must be a positive integer`
     );
+  }
+});
+
+// Phase 7.1 D-14: on-topic (keep) and marketing (drop) titles each configured
+// titleInclude must separate, copied verbatim from the in-sample evaluation of
+// 2026-11-02. Delete a row with the titleInclude it covers.
+const TITLE_INCLUDE_CASES: Record<string, { keep: string[]; drop: string[] }> = {
+  huntress: {
+    keep: [
+      "Managed for Malice: How Attackers Turn MDM into Remote Access",
+      "Camera Management Software Compromise Leads to Malware Deployment",
+      "AI, Scripts, Operator: Inside the ConnectWise Attack",
+    ],
+    drop: [
+      "Reports of SIEM's Death Have Been Greatly Exaggerated",
+      "Meet the Huntress Neighborhood Watch Program",
+      "Introducing ITDR Lookback: Find Out Who Was in Your Microsoft 365 Tenant Before You Were",
+    ],
+  },
+};
+
+test("every titleInclude is anchored, stateless and linear (Phase 7.1 D-14)", () => {
+  const hostile = "a ".repeat(50_000) + "x";
+  assert.equal(hostile.length, 100_001);
+  for (const source of SOURCES) {
+    if (source.titleInclude === undefined) continue;
+    const re = source.titleInclude;
+    assert.ok(re instanceof RegExp, `${source.id}: titleInclude must be a RegExp`);
+    assert.ok(re.source.startsWith("^"), `${source.id}: titleInclude must start with ^`);
+    assert.equal(re.global, false, `${source.id}: titleInclude must not carry the g flag`);
+    assert.equal(re.sticky, false, `${source.id}: titleInclude must not carry the y flag`);
+    const t0 = performance.now();
+    re.test(hostile);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 500, `${source.id}: titleInclude took ${ms} ms on a 100,001-character title`);
+  }
+});
+
+test("every titleInclude keeps its on-topic sample titles and drops its marketing sample titles (Phase 7.1 D-14)", () => {
+  assert.deepEqual(
+    SOURCES.filter((s) => s.titleInclude !== undefined).map((s) => s.id).sort(),
+    Object.keys(TITLE_INCLUDE_CASES).sort(),
+    "the ids that set titleInclude must equal the TITLE_INCLUDE_CASES keys"
+  );
+  for (const [id, cases] of Object.entries(TITLE_INCLUDE_CASES)) {
+    const re = SOURCES.find((s) => s.id === id)?.titleInclude;
+    assert.ok(re, `${id}: titleInclude must be configured`);
+    for (const title of cases.keep) assert.ok(re.test(title), `${id}: must keep "${title}"`);
+    for (const title of cases.drop) assert.ok(!re.test(title), `${id}: must drop "${title}"`);
   }
 });

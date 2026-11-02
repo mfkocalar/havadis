@@ -22,6 +22,13 @@ const CAP = 5;
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
+// A source that sets titleInclude drops items its pattern does not match, so its
+// flood articles carry a title its own pattern keeps (Phase 7.1 D-14). One entry
+// per source that sets titleInclude, whether or not it is capped.
+const FLOOD_TITLE: Record<string, string> = {
+  huntress: "Managed for Malice: How Attackers Turn MDM into Remote Access",
+};
+
 const FIXTURE = readFileSync(
   new URL("../../../test/fixtures/feeds/advisory-batch-day.xml", import.meta.url),
   "utf8"
@@ -106,11 +113,23 @@ test("every configured source with maxItems keeps exactly maxItems, the newest o
       makeArticle({
         sourceType: source.sourceType,
         publishedAt: iso(now - (20 - i) * 60_000),
+        ...(source.titleInclude ? { title: FLOOD_TITLE[source.id] } : {}),
       })
     );
     const kept = applySourceWindow(items, source, now);
     assert.equal(kept.length, maxItems, `${source.id}: must keep exactly maxItems`);
     const newest = [...items].reverse().slice(0, maxItems);
     assert.deepEqual(kept, newest, `${source.id}: must keep the newest maxItems items`);
+  }
+});
+
+test("FLOOD_TITLE has an entry for exactly the sources that set titleInclude, each kept by its own pattern", () => {
+  assert.deepEqual(
+    SOURCES.filter((s) => s.titleInclude !== undefined).map((s) => s.id).sort(),
+    Object.keys(FLOOD_TITLE).sort()
+  );
+  for (const [id, title] of Object.entries(FLOOD_TITLE)) {
+    const re = SOURCES.find((s) => s.id === id)?.titleInclude;
+    assert.ok(re?.test(title), `${id}: FLOOD_TITLE must pass its own titleInclude`);
   }
 });

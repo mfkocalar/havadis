@@ -6,8 +6,11 @@ import { filterLookback } from "./filterLookback.ts";
  * Applies one source's lookback window, resolved from its `sourceType`
  * (`LOOKBACK_HOURS`, D-05), to the articles that source produced.
  *
+ * The order is: title include, then lookback, then cap. When
+ * `source.titleInclude` is set, articles whose title does not match it are
+ * dropped first, so the cap counts only matching items (Phase 7.1 D-14).
  * When `source.maxItems` is a positive integer, the in-window articles are
- * additionally capped to the newest `maxItems` (D-07, T-05-12). The lookback
+ * then capped to the newest `maxItems` (D-07, T-05-12). The lookback
  * runs before the cap, because capping first would let old stragglers
  * occupy the cap (RESEARCH anti-pattern). The input is never mutated.
  *
@@ -19,7 +22,9 @@ export function applySourceWindow(
   source: SourceConfig,
   now: number
 ): Article[] {
-  const kept = filterLookback(articles, LOOKBACK_HOURS[source.sourceType], now);
+  const include = source.titleInclude;
+  const included = include ? articles.filter((a) => include.test(a.title)) : articles;
+  const kept = filterLookback(included, LOOKBACK_HOURS[source.sourceType], now);
   const cap = source.maxItems;
   if (cap === undefined || !Number.isInteger(cap) || cap <= 0) return kept;
   return [...kept]

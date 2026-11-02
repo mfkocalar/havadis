@@ -137,3 +137,40 @@ test("a maxItems that is not a positive integer applies no cap and does not thro
     assert.equal(applySourceWindow(eightInWindow(source), source, NOW).length, 8, `maxItems ${bad}`);
   }
 });
+
+// ---- titleInclude (Phase 7.1 D-14) ----
+
+const INCLUDE = /^.*?\b(?:malware|ransomware)\b/i;
+
+test("a source without titleInclude keeps non-matching titles, exactly as before", () => {
+  const source = makeSource({ sourceType: "news" });
+  const input = [articleFor(source, hoursAgo(1), "Weekly digest"), articleFor(source, hoursAgo(2), "Malware found")];
+  assert.deepEqual(applySourceWindow(input, source, NOW), input);
+});
+
+test("with titleInclude set, articles whose title does not match are dropped", () => {
+  const source = makeSource({ sourceType: "news", titleInclude: INCLUDE });
+  const match = articleFor(source, hoursAgo(1), "New Malware Campaign");
+  const other = articleFor(source, hoursAgo(1), "Our Partner Webinar");
+  assert.deepEqual(applySourceWindow([other, match], source, NOW), [match]);
+});
+
+test("the title include runs before the cap: 4 of 8 in-window items match, maxItems 3 keeps the 3 newest matching", () => {
+  const source = makeSource({ sourceType: "news", maxItems: 3, titleInclude: INCLUDE });
+  // Newest first by hours ago: the 4 newest items do not match, so a cap-first order would keep none.
+  const nonMatching = [1, 2, 3, 4].map((h) => articleFor(source, hoursAgo(h), `Product update ${h}h`));
+  const matching = [5, 6, 7, 8].map((h) => articleFor(source, hoursAgo(h), `Ransomware report ${h}h`));
+  const kept = applySourceWindow([...nonMatching, ...matching], source, NOW);
+  assert.deepEqual(
+    kept.map((a) => a.url),
+    matching.slice(0, 3).map((a) => a.url)
+  );
+});
+
+test("the title include and the lookback both apply", () => {
+  const source = makeSource({ sourceType: "news", titleInclude: INCLUDE });
+  const fresh = articleFor(source, hoursAgo(1), "Fresh malware story");
+  const oldMatch = articleFor(source, hoursAgo(200), "Old malware story");
+  const freshOther = articleFor(source, hoursAgo(1), "Fresh product story");
+  assert.deepEqual(applySourceWindow([oldMatch, freshOther, fresh], source, NOW), [fresh]);
+});
