@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 40 entries", () => {
-  assert.equal(SOURCES.length, 40);
+test("SOURCES has exactly 42 entries", () => {
+  assert.equal(SOURCES.length, 42);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -172,11 +172,13 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   "dfir-report": "research",
   "citizen-lab": "research",
   huntress: "vendor",
+  sekoia: "vendor",
+  "nviso-labs": "vendor",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
 // Plans 07.1-03 and 07.1-06 extend this list as flood feeds are configured.
-const FLOOD_FEEDS: string[] = ["paloalto-psirt", "cisco-psirt", "fortinet-psirt", "cccs"];
+const FLOOD_FEEDS: string[] = ["paloalto-psirt", "cisco-psirt", "fortinet-psirt", "cccs", "sekoia"];
 
 test("D-03 mapping: every source carries exactly the type the table assigns it", () => {
   assert.deepEqual(
@@ -340,6 +342,30 @@ const TITLE_INCLUDE_CASES: Record<string, { keep: string[]; drop: string[] }> = 
       "Reports of SIEM's Death Have Been Greatly Exaggerated",
       "Meet the Huntress Neighborhood Watch Program",
       "Introducing ITDR Lookback: Find Out Who Was in Your Microsoft 365 Tenant Before You Were",
+    ],
+  },
+  sekoia: {
+    keep: [
+      "PHP2Shell Was Exploited Before the Patch",
+      "Sekoia Honeypot Captures an Attack on GenAI Infrastructure",
+      "Gotta Breach 'Em All! The Journey Of ShinyHunters",
+    ],
+    drop: [
+      "The Future Of The SOC Is Deployment Freedom",
+      "Self-Hosted SOC Platforms Can Keep Pace With Modern Threats",
+      "ISOC, AI Agents, And The New Shape Of Security Operations",
+    ],
+  },
+  "eset-research": {
+    keep: [
+      "Amatera: How the prolific infostealer works and spreads",
+      "ESET APT Activity Report Q2 2026–Q3 2026",
+      "PHP2Shell: What to know about two critical PHP flaws",
+    ],
+    drop: [
+      "This month in security with Tony Anscombe – October 2026 edition",
+      "Lessons from Cybersecurity Black Week",
+      "Is the ad a scam? How to tell before you click",
     ],
   },
 };

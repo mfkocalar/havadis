@@ -27,6 +27,8 @@ const iso = (ms: number) => new Date(ms).toISOString();
 // per source that sets titleInclude, whether or not it is capped.
 const FLOOD_TITLE: Record<string, string> = {
   huntress: "Managed for Malice: How Attackers Turn MDM into Remote Access",
+  sekoia: "PHP2Shell Was Exploited Before the Patch",
+  "eset-research": "Amatera: How the prolific infostealer works and spreads",
 };
 
 const FIXTURE = readFileSync(

@@ -392,8 +392,8 @@ export const SOURCES: SourceConfig[] = [
   },
   // ESET WeLiveSecurity (Phase 7.1 SRC-07). The feed is the whole blog, including its monthly digest. Probed 2026-10-31 from a laptop: 200, 70,087 bytes,
   // 100 items, newestAgeHours 31.1, inWindow 2.
-  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml; charset=UTF-8, 70,087 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 68.3, inWindow 1, maxPerWindow 4.
-  // D-14: mixed feed, on-topic 6 of 20 titles (2026-11-02); D-14 chain in Plan 07.1-04
+  // Laptop probe through the probe harness 2026-11-02 (after the title include): httpStatus 200, text/xml; charset=UTF-8, 70,087 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 99.5, inWindow 0, maxPerWindow 3 (counts only titles the pattern keeps).
+  // D-14: mixed feed, on-topic 6 of 20 titles (2026-11-02); no category feed on welivesecurity.com (category and rss-configurator paths 404 or return the unfiltered feed); title include, in-sample precision 0.64, recall 0.64 (40 titles, 2026-11-02)
   // Netlify-egress probe: pending (Plan 07.1-07)
   {
     id: "eset-research",
@@ -403,6 +403,8 @@ export const SOURCES: SourceConfig[] = [
     lang: "en",
     family: "eset",
     url: "https://www.welivesecurity.com/en/rss/feed/",
+    titleInclude:
+      /^.*?\b(?:attack(?:s|er|ers)?|campaigns?|malware|exploit(?:s|ed|ing)?|compromis(?:e|es|ed)|phishing|ransomware|webshells?|backdoors?|botnets?|threat actors?|vulnerabilit(?:y|ies)|zero-days?|breach(?:es)?|CVE-\d{4}-\d+|infostealers?|trojan(?:s|ised|ized)?|intrusions?|APT\d*|flaws?|hack(?:s|ed)?)\b/i,
   },
   // Securelist (Phase 7.1 SRC-07), Kaspersky's research blog. Probed 2026-10-31 from a laptop: 200, 468,499 bytes, 10 items, newestAgeHours 36.2, inWindow 2.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 534,161 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 3.3, inWindow 1, maxPerWindow 4.
@@ -498,6 +500,39 @@ export const SOURCES: SourceConfig[] = [
     url: "https://www.huntress.com/blog/rss.xml",
     titleInclude:
       /^.*?\b(?:attack(?:s|er|ers)?|campaigns?|malware|exploit(?:s|ed|ing)?|compromis(?:e|es|ed)|phishing|ransomware|webshells?|backdoors?|botnets?|threat actors?|vulnerabilit(?:y|ies)|zero-days?|breach(?:es)?|CVE-\d{4}-\d+)\b/i,
+  },
+  // Sekoia Blog (Phase 7.1 SRC-08, D-22), the blog of the Sekoia SOC platform vendor, so vendor type (D-06). A mixed feed: the blog mixes research with product posts.
+  // D-14: no security-only feed; title include evaluated 2026-11-02 on 40 titles, in-sample precision 0.87, recall 0.81. Items carry no category element; the /category pages on sekoia.com have no feed and ?category= returns the unfiltered feed.
+  // CONTEXT laptop rate: about 5 posts in 30 days. Plan 07.1-03 eligibility: final URL https://www.sekoia.com/blog/rss.xml, 200, 100 items, own domain (D-09), xml content type.
+  // Sekoia publishes in batches (72 of the 100 feed items carry the date 2026-06-11), so maxItems 5 caps a batch day (D-13).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 83,001 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 145.3, inWindow 0, maxPerWindow 27 (counts only titles the pattern keeps).
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "sekoia",
+    name: "Sekoia Blog",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "sekoia",
+    url: "https://www.sekoia.com/blog/rss.xml",
+    maxItems: 5,
+    titleInclude:
+      /^.*?\b(?:attack(?:s|er|ers)?|campaigns?|malware|exploit(?:s|ed|ing)?|compromis(?:e|es|ed)|phishing|ransomware|webshells?|backdoors?|botnets?|threat actors?|vulnerabilit(?:y|ies)|zero-days?|breach(?:es)?|CVE-\d{4}-\d+|infostealers?|trojan(?:s|ised|ized)?|intrusions?|APT\d*)\b/i,
+  },
+  // NVISO Labs (Phase 7.1 SRC-08, D-22), the research blog of the NVISO consultancy, so vendor type (D-06). A mixed feed (4 of 10 titles on-topic in Plan 07.1-03).
+  // D-14: security-only label feed, on-topic 5 of 5 titles (2026-11-02): the Incident Response category feed on blog.nviso.eu (WordPress, own host), chosen over the Cyber Threats category feed (7 of 10 on-topic, misses the PHP2Shell post).
+  // The label feed carries NVISO's German translations next to the English posts (the Digispark forensic post appears as both), and no English-only feed or ?lang filter exists; a label feed takes no title pattern, so the German twin shows (D-14).
+  // CONTEXT laptop rate: about 2 posts in 30 days. Plan 07.1-03 eligibility: main feed https://blog.nviso.eu/feed/, 200, 692,677 bytes, own domain (D-09), xml content type.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 26,137 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 236.8, inWindow 0, maxPerWindow 1.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "nviso-labs",
+    name: "NVISO Labs",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "nviso",
+    url: "https://blog.nviso.eu/category/incident-response/feed/",
   },
 ];
 
