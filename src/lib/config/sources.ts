@@ -168,15 +168,6 @@ export const SOURCES: SourceConfig[] = [
     url: "https://techcrunch.com/category/security/feed/",
   },
   {
-    id: "ars-technica",
-    name: "Ars Technica",
-    tier: "Tech & General",
-    sourceType: "news",
-    lang: "en",
-    family: "ars-technica",
-    url: "https://feeds.arstechnica.com/arstechnica/index",
-  },
-  {
     id: "cso-online",
     name: "CSO Online",
     tier: "Executive News",
@@ -191,19 +182,13 @@ export const SOURCES: SourceConfig[] = [
   // final redirect hop (Pitfall 2 above); Schneier's legacy `atom.xml`
   // redirects to `/feed/atom/`, and Graham Cluley, Hackread and
   // databreaches.net drop their `www.` prefix.
-  { id: "gbhackers", name: "GBHackers", tier: "Threat Intelligence", sourceType: "news", lang: "en", family: "gbhackers", url: "https://gbhackers.com/feed/" },
   { id: "hackread", name: "Hackread", tier: "Threat Intelligence", sourceType: "news", lang: "en", family: "hackread", url: "https://hackread.com/feed/" },
   { id: "databreaches", name: "DataBreaches.net", tier: "Threat Intelligence", sourceType: "news", lang: "en", family: "databreaches", url: "https://databreaches.net/feed/" },
-  { id: "upguard-breaches", name: "UpGuard Breaches", tier: "Threat Intelligence", sourceType: "vendor", lang: "en", family: "upguard", url: "https://www.upguard.com/breaches/rss.xml" },
   { id: "cis-advisories", name: "CIS Advisories", tier: "Government", sourceType: "cert", lang: "en", family: "cis", url: "https://www.cisecurity.org/feed/advisories" },
   { id: "cert-cc", name: "CERT/CC Vulnerability Notes", tier: "Government", sourceType: "cert", lang: "en", family: "cert-cc", url: "https://www.kb.cert.org/vulfeed/" },
-  { id: "nist-cybersecurity", name: "NIST Cybersecurity Insights", tier: "Government", sourceType: "government", lang: "en", family: "nist", url: "https://www.nist.gov/blogs/cybersecurity-insights/rss.xml" },
   { id: "graham-cluley", name: "Graham Cluley", tier: "Security Research", sourceType: "research", lang: "en", family: "graham-cluley", url: "https://grahamcluley.com/feed/" },
   { id: "schneier", name: "Schneier on Security", tier: "Security Research", sourceType: "research", lang: "en", family: "schneier", url: "https://www.schneier.com/feed/atom/" },
-  { id: "bishop-fox", name: "Bishop Fox", tier: "Security Research", sourceType: "vendor", lang: "en", family: "bishop-fox", url: "https://bishopfox.com/feeds/blog.rss" },
   { id: "reversinglabs", name: "ReversingLabs", tier: "Security Research", sourceType: "vendor", lang: "en", family: "reversinglabs", url: "https://www.reversinglabs.com/blog/rss.xml" },
-  { id: "heimdal", name: "Heimdal Security", tier: "Enterprise Security", sourceType: "vendor", lang: "en", family: "heimdal", url: "https://heimdalsecurity.com/blog/feed/" },
-  { id: "eff", name: "EFF Updates", tier: "Tech & General", sourceType: "news", lang: "en", family: "eff", url: "https://www.eff.org/rss/updates.xml" },
   { id: "computer-weekly", name: "Computer Weekly Security", tier: "Executive News", sourceType: "news", lang: "en", family: "computer-weekly", url: "https://www.computerweekly.com/rss/IT-security.xml" },
   // CERT-EU Security Advisories, probed 2026-10-04 from a laptop: 200,
   // text/xml; charset=utf-8, 9,372 bytes, 10 items. The <pubDate> values use
@@ -278,3 +263,24 @@ export const SOURCES: SourceConfig[] = [
     maxItems: 5,
   },
 ];
+
+// Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):
+//   - ars-technica (Ars Technica): an all-content technology feed with low security signal (the "brain worm" classifier fix in sections.ts is one symptom); its security-category feed is not added either.
+//   - heimdal (Heimdal Security): a preliminary hand classification put about 1 in 15 items on-topic; the rest were listicles, awards, partnerships and essays.
+//   - gbhackers (GBHackers): floods with about 10 or more rewrites per day, and served text/html to cloud egress in Phase 5 research.
+//   - upguard-breaches (UpGuard Breaches): a company marketing blog.
+//   - bishop-fox (Bishop Fox): a company marketing blog.
+//   - eff (EFF Updates): policy, not security news.
+//   - nist-cybersecurity (NIST Cybersecurity Insights): policy, not security news; it was the only government-type source, so that type is unused for now (UNUSED_SOURCE_TYPES in sources.test.ts).
+// hackread was flagged borderline and is kept for now.
+//
+// Not configured (Phase 7.1, SRC-06 and SRC-07; D-08 to D-10, D-22): never scraped.
+// Reason codes: no feed, non-English only, JSON/CSAF/HTML only, mixed feed with no usable filter, probe failure from Netlify, volume.
+//   - MSRC (api.msrc.microsoft.com update-guide RSS): volume. Per-CVE only, 3,014,250 bytes against the 2 MB cap, 1,411 items on Patch Tuesday 2026-10-13, no per-release feed (D-11; user decision in Plan 07.1-01).
+//   - Citrix/NetScaler (support.citrix.com security-bulletin feed paths): no feed. Every path serves the same HTML app shell.
+//   - Broadcom/VMware (support.broadcom.com security-advisory RSS, 404): JSON/CSAF/HTML only. A JSON feed exists; JSON readers are a deferred idea.
+//   - Android Security Bulletin (source.android.com bulletin feed paths, 404): no feed. None found; the bulletin is HTML only.
+// Rejected URLs (vendor configured through another feed, not gaps):
+//   - Mandiant blog RSS: a cross-host redirect to an HTML page; Google Threat Intelligence covers Mandiant (Plan 07.1-03).
+//   - Proofpoint /us/rss.xml: press releases; the Threat Insight feed covers Proofpoint (Plan 07.1-03).
+//   - Chrome Releases default posts feed: redirects to plain-http FeedBurner; the label feed covers Chrome (Task 3).

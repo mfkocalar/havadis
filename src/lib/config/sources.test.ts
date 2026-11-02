@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 31 entries", () => {
-  assert.equal(SOURCES.length, 31);
+test("SOURCES has exactly 24 entries", () => {
+  assert.equal(SOURCES.length, 24);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -72,7 +72,12 @@ test("every tier is a valid SourceTier, and all six tiers are represented", () =
   }
 });
 
-test("every sourceType is a SOURCE_TYPES member, and every SOURCE_TYPES value is used", () => {
+// Phase 7.1 D-23 removed nist-cybersecurity, the only government-type source;
+// the type stays because Phase 5 D-01 defines it and Phase 8's primary-source
+// rule names it. Delete the entry when a government-type source is configured again.
+const UNUSED_SOURCE_TYPES: readonly SourceType[] = ["government"];
+
+test("every sourceType is a SOURCE_TYPES member, and every SOURCE_TYPES value outside UNUSED_SOURCE_TYPES is used", () => {
   for (const source of SOURCES) {
     assert.ok(
       (SOURCE_TYPES as readonly string[]).includes(source.sourceType),
@@ -80,10 +85,47 @@ test("every sourceType is a SOURCE_TYPES member, and every SOURCE_TYPES value is
     );
   }
   for (const type of SOURCE_TYPES) {
+    if (UNUSED_SOURCE_TYPES.includes(type)) continue;
     assert.ok(
       SOURCES.some((s) => s.sourceType === type),
       `no configured source carries sourceType "${type}"`
     );
+  }
+  for (const type of UNUSED_SOURCE_TYPES) {
+    assert.ok(
+      !SOURCES.some((s) => s.sourceType === type),
+      `a source now carries sourceType "${type}": delete it from UNUSED_SOURCE_TYPES`
+    );
+  }
+});
+
+// Phase 7.1 D-23: seven sources removed by user decision 2026-11-02, with the
+// URLs they had at HEAD, plus the Ars Technica security-category feed that is
+// deliberately not added.
+const D23_REMOVED_IDS: readonly string[] = [
+  "ars-technica",
+  "heimdal",
+  "gbhackers",
+  "upguard-breaches",
+  "bishop-fox",
+  "eff",
+  "nist-cybersecurity",
+];
+const D23_FORBIDDEN_URLS: readonly string[] = [
+  "https://feeds.arstechnica.com/arstechnica/index",
+  "https://heimdalsecurity.com/blog/feed/",
+  "https://gbhackers.com/feed/",
+  "https://www.upguard.com/breaches/rss.xml",
+  "https://bishopfox.com/feeds/blog.rss",
+  "https://www.eff.org/rss/updates.xml",
+  "https://www.nist.gov/blogs/cybersecurity-insights/rss.xml",
+  "https://arstechnica.com/security/feed/",
+];
+
+test("D-23 removals stay removed and the Ars security feed is not added (Phase 7.1 D-23)", () => {
+  for (const source of SOURCES) {
+    assert.ok(!D23_REMOVED_IDS.includes(source.id), `${source.id} was removed by D-23 and must not return`);
+    assert.ok(!D23_FORBIDDEN_URLS.includes(source.url), `${source.id}: url ${source.url} is a D-23 removed or forbidden feed`);
   }
 });
 
@@ -100,21 +142,14 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   "hacker-news": "news",
   "help-net-security": "news",
   "techcrunch-security": "news",
-  "ars-technica": "news",
   "cso-online": "news",
-  gbhackers: "news",
   hackread: "news",
   databreaches: "news",
-  "upguard-breaches": "vendor",
   "cis-advisories": "cert",
   "cert-cc": "cert",
-  "nist-cybersecurity": "government",
   "graham-cluley": "research",
   schneier: "research",
-  "bishop-fox": "vendor",
   reversinglabs: "vendor",
-  heimdal: "vendor",
-  eff: "news",
   "computer-weekly": "news",
   "cert-eu": "cert",
   "ncsc-uk": "cert",
