@@ -3,7 +3,7 @@
 <a href="https://havadis.netlify.app"><img src="docs/images/banner.png" alt="Havadis: the day's security news, triaged like a hazard manifest" width="100%"></a>
 
 **A public, source-independent daily security newspaper for security practitioners.**<br>
-29 curated feeds, deduplicated, scored and sorted into seven urgency-ordered sections. No accounts, no database, no tracking.
+51 curated feeds, deduplicated, scored and sorted into seven urgency-ordered sections. No accounts, no database, no tracking.
 
 [![Live site](https://img.shields.io/badge/live-havadis.netlify.app-f97316?style=flat-square)](https://havadis.netlify.app)
 [![CI](https://img.shields.io/github/actions/workflow/status/mfkocalar/havadis/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/mfkocalar/havadis/actions/workflows/ci.yml)
@@ -37,9 +37,9 @@ Security news is scattered across vendor blogs, CERTs, government advisories and
 <summary><b>Full feature reference</b></summary>
 
 
-- **29 curated sources** (government and EU CERT advisories, security research, enterprise security, threat intelligence, tech and executive news), fetched in parallel. One failing feed never takes the page down.
-- **Source-type label** on every story (News, Research, Vendor, CERT, Government), set per source in config.
-- **Per-type lookback:** CERT, government and vendor items stay for 72 hours; news and research items for 24 hours. Low-cadence advisory feeds (CERT-EU, NCSC-UK) often have nothing inside the window on a given day, which is expected.
+- **51 curated sources** (government, national and EU CERT advisories, vendor security advisories, threat-research labs, security research, enterprise security, threat intelligence, tech and executive news), fetched in parallel. One failing feed never takes the page down.
+- **Source-type label** on every story (News, Research, Vendor, CERT, Government, Advisory), set per source in config.
+- **Per-type lookback:** CERT, government, vendor and advisory items stay for 72 hours; news and research items for 24 hours. Low-cadence advisory feeds (CERT-EU, NCSC-UK) often have nothing inside the window on a given day, which is expected.
 - **Deduplication:** the same story from several outlets appears once (canonical URL or normalized title match; the earliest copy wins).
 - **Seven urgency-ordered sections:** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques, Industry/Policy, shown as numbered hazard classes 1 to 7 with placard-coloured diamonds. Classification is deterministic and keyword-based (see `src/lib/config/sections.ts`).
 - **Ranking** within a section by source tier weight and recency.
@@ -78,7 +78,7 @@ The build prerenders from live feeds, so it needs outbound network access, inclu
 
 ## Subscribe
 
-Other services and agents can subscribe to the front page. Every feed carries the same edition as the front page (24 hours for news and research, 72 hours for CERT, government and vendor items), newest first, is prerendered and refreshed every 15 minutes, needs no key, and allows cross-origin requests.
+Other services and agents can subscribe to the front page. Every feed carries the same edition as the front page (24 hours for news and research, 72 hours for CERT, government, vendor and advisory items), newest first, is prerendered and refreshed every 15 minutes, needs no key, and allows cross-origin requests.
 
 | Feed | RSS 2.0 | JSON Feed 1.1 |
 |------|---------|---------------|
@@ -98,9 +98,9 @@ curl -s https://havadis.netlify.app/feed/critical.json | jq '.items[] | {title, 
 ## How it works
 
 ```
-29 RSS/Atom feeds
+51 RSS/Atom feeds
    → fetchSource (validated redirects, size cap, per-source timeout)
-   → normalize → per-source lookback (72h cert/government/vendor, 24h news/research) → dedupe → classify + CVEs + importance → rank → group by section
+   → normalize → per-source lookback (72h cert/government/vendor/advisory, 24h news/research) → dedupe → classify + CVEs + importance → rank → group by section
    → one cached edition (src/lib/snapshot.ts, 900 s) ─┐
    CISA KEV catalogue → validated, slim map (6 h)  ───┼→ merged at render with EPSS (FIRST) → static, server-rendered page
 ```
