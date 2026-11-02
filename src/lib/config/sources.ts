@@ -362,6 +362,124 @@ export const SOURCES: SourceConfig[] = [
     family: "palo-alto",
     url: "https://unit42.paloaltonetworks.com/feed/",
   },
+  // Cisco Talos (Phase 7.1 SRC-07), Cisco's threat-research lab, so vendor type (D-06) and family cisco, shared with cisco-psirt (D-04).
+  // Probed 2026-10-31 from a laptop: 200, 1,025,702 bytes, 15 items, newestAgeHours 10.2, inWindow 4.
+  // About 1.0 MB for 15 items of inline content, about 51% headroom under the 2 MB cap; watch its growth (T-07.1-11).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 1,025,702 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 47.3, inWindow 1, maxPerWindow 5.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "talos",
+    name: "Cisco Talos",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "cisco",
+    url: "https://blog.talosintelligence.com/rss/",
+  },
+  // Google Threat Intelligence (Phase 7.1 SRC-07), the successor of Mandiant's blog, so family google (D-06). Mandiant's old RSS URL redirects across hosts to an HTML page, so it is
+  // not used (D-09). Probed 2026-10-31 from a laptop: 200, application/xml, 1,451,457 bytes, 20 items, newestAgeHours 392, inWindow 0.
+  // 1.45 MB, so about 31% headroom under the 2 MB cap; watch its growth (T-07.1-11).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml; charset=utf-8, 1,495,864 bytes, rawItems 20, datedItems 20, normalizedItems 20, newestAgeHours 69.3, inWindow 1, maxPerWindow 2.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "google-threat-intel",
+    name: "Google Threat Intelligence",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "google",
+    url: "https://cloudblog.withgoogle.com/topics/threat-intelligence/rss/",
+  },
+  // ESET WeLiveSecurity (Phase 7.1 SRC-07). The feed is the whole blog, including its monthly digest. Probed 2026-10-31 from a laptop: 200, 70,087 bytes,
+  // 100 items, newestAgeHours 31.1, inWindow 2.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml; charset=UTF-8, 70,087 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 68.3, inWindow 1, maxPerWindow 4.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "eset-research",
+    name: "ESET WeLiveSecurity",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "eset",
+    url: "https://www.welivesecurity.com/en/rss/feed/",
+  },
+  // Securelist (Phase 7.1 SRC-07), Kaspersky's research blog. Probed 2026-10-31 from a laptop: 200, 468,499 bytes, 10 items, newestAgeHours 36.2, inWindow 2.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 534,161 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 3.3, inWindow 1, maxPerWindow 4.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "securelist",
+    name: "Securelist",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "kaspersky",
+    url: "https://securelist.com/feed/",
+  },
+  // SentinelLabs (Phase 7.1 SRC-07), SentinelOne's research lab. Probed 2026-10-31 from a laptop: 200, 192,261 bytes, 10 items, newestAgeHours 81.2, inWindow 0.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 192,261 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 118.3, inWindow 0, maxPerWindow 2.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "sentinellabs",
+    name: "SentinelLabs",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "sentinelone",
+    url: "https://www.sentinelone.com/labs/feed/",
+  },
+  // Check Point Research (Phase 7.1 SRC-07). Also publishes AI-policy posts and a weekly report (D-14 line below). Probed 2026-10-31 from a laptop: 200,
+  // 330,334 bytes, 15 items, newestAgeHours 56.0, inWindow 1.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 330,334 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 93.2, inWindow 0, maxPerWindow 3.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "check-point-research",
+    name: "Check Point Research",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "check-point",
+    url: "https://research.checkpoint.com/feed/",
+  },
+  // Proofpoint Threat Insight (Phase 7.1 SRC-07). The Threat Insight feed, not /us/rss.xml, which carries press releases. Probed 2026-10-31 from a laptop:
+  // 200, 188,634 bytes, 10 items, newestAgeHours 409.8, inWindow 0.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 188,634 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 446.9, inWindow 0, maxPerWindow 2.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "proofpoint-threat-insight",
+    name: "Proofpoint Threat Insight",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "proofpoint",
+    url: "https://www.proofpoint.com/us/threat-insight-blog.xml",
+  },
+  // The DFIR Report (Phase 7.1 SRC-07), an independent publisher with nothing to sell, so research type (D-06). About one report every 6 to 8 weeks; with the
+  // research type's 24-hour window it rarely shows, which D-06 accepts (Pitfall 5). Probed 2026-10-31 from a laptop: 200, 13,933 bytes, 10 items,
+  // newestAgeHours 1639.7, inWindow 0.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 13,933 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 1676.8, inWindow 0, maxPerWindow 1.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "dfir-report",
+    name: "The DFIR Report",
+    tier: "Security Research",
+    sourceType: "research",
+    lang: "en",
+    family: "dfir-report",
+    url: "https://thedfirreport.com/feed/",
+  },
+  // Citizen Lab (Phase 7.1 SRC-07), an independent research group, so research type (D-06). Probed 2026-10-31 from a laptop: 200, 26,203 bytes, 10 items,
+  // newestAgeHours 79.7, inWindow 0.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 26,203 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 116.9, inWindow 0, maxPerWindow 2.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "citizen-lab",
+    name: "Citizen Lab",
+    tier: "Security Research",
+    sourceType: "research",
+    lang: "en",
+    family: "citizen-lab",
+    url: "https://citizenlab.ca/feed/",
+  },
 ];
 
 // Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):

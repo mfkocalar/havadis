@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 30 entries", () => {
-  assert.equal(SOURCES.length, 30);
+test("SOURCES has exactly 39 entries", () => {
+  assert.equal(SOURCES.length, 39);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -162,6 +162,15 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   cccs: "cert",
   "jpcert-en": "cert",
   unit42: "vendor",
+  talos: "vendor",
+  "google-threat-intel": "vendor",
+  "eset-research": "vendor",
+  securelist: "vendor",
+  sentinellabs: "vendor",
+  "check-point-research": "vendor",
+  "proofpoint-threat-insight": "vendor",
+  "dfir-report": "research",
+  "citizen-lab": "research",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
@@ -188,6 +197,8 @@ test("D-03 mapping: every source carries exactly the type the table assigns it",
 // Tuples are [first id, second id, family slug]; later plans append tuples.
 const FAMILY_PAIRS: readonly (readonly [string, string, string])[] = [
   ["unit42", "paloalto-psirt", "palo-alto"],
+  ["talos", "cisco-psirt", "cisco"],
+  ["google-threat-intel", "chrome-releases", "google"],
 ];
 
 test("sources from one publisher organisation share one family (Phase 7.1 D-04, D-06)", () => {
