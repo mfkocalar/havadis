@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 42 entries", () => {
-  assert.equal(SOURCES.length, 42);
+test("SOURCES has exactly 43 entries", () => {
+  assert.equal(SOURCES.length, 43);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -174,6 +174,8 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   huntress: "vendor",
   sekoia: "vendor",
   "nviso-labs": "vendor",
+  // Phase 7.1 D-22 trusted additions (SRC-08)
+  "the-record": "news",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
@@ -202,6 +204,7 @@ const FAMILY_PAIRS: readonly (readonly [string, string, string])[] = [
   ["unit42", "paloalto-psirt", "palo-alto"],
   ["talos", "cisco-psirt", "cisco"],
   ["google-threat-intel", "chrome-releases", "google"],
+  ["recorded-future", "the-record", "recorded-future"],
 ];
 
 test("sources from one publisher organisation share one family (Phase 7.1 D-04, D-06)", () => {

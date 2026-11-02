@@ -534,6 +534,21 @@ export const SOURCES: SourceConfig[] = [
     family: "nviso",
     url: "https://blog.nviso.eu/category/incident-response/feed/",
   },
+  // The Record (Phase 7.1 SRC-08, D-22), the news site of Recorded Future, so news type with the dedicated-newsroom tier of Bleeping Computer and The Hacker News (Threat Intelligence).
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 2 per day.
+  // Plan 07.1-03 eligibility: final URL https://therecord.media/feed, 200, text/xml, 5,498 bytes, 5 dated items, own domain (D-09).
+  // family recorded-future: The Record is published by Recorded Future and family is the publisher-organisation slug, so it counts with the Recorded Future blog as one publisher, not two for corroboration (D-04, the D-06 parent-company rule by analogy).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 5,498 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 11.6, inWindow 1, maxPerWindow 4.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "the-record",
+    name: "The Record",
+    tier: "Threat Intelligence",
+    sourceType: "news",
+    lang: "en",
+    family: "recorded-future",
+    url: "https://therecord.media/feed",
+  },
 ];
 
 // Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):
