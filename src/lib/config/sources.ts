@@ -549,6 +549,51 @@ export const SOURCES: SourceConfig[] = [
     family: "recorded-future",
     url: "https://therecord.media/feed",
   },
+  // SecurityWeek (Phase 7.1 SRC-08, D-22), an enterprise security trade outlet, so news type with the Enterprise Security tier of Dark Reading, its closest comparable.
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 3 to 4 per day.
+  // Plan 07.1-03 eligibility: final URL https://www.securityweek.com/feed/, 200, application/rss+xml, 12,297 bytes, 10 dated items, own domain (D-09).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 12,252 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 0.1, inWindow 5, maxPerWindow 5.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "securityweek",
+    name: "SecurityWeek",
+    tier: "Enterprise Security",
+    sourceType: "news",
+    lang: "en",
+    family: "securityweek",
+    url: "https://www.securityweek.com/feed/",
+  },
+  // The Register Security (Phase 7.1 SRC-08, D-22), the security section of a general technology publication, so news type with the Tech & General tier of TechCrunch Security.
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 5 per day.
+  // The www.theregister.com/security/headlines.rss URL answers 302 to api.theregister.com, a cross-host redirect the validated redirect rejects, so the final api.theregister.com hop is configured (D-18). That host is The Register's own domain (D-09).
+  // Plan 07.1-03 eligibility: final URL below, 200, application/xml, 285,492 bytes, 50 dated items. Local maxPerWindow is 12, so maxItems 5 caps a busy day (D-13).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml, 285,492 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 64, inWindow 0, maxPerWindow 12.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "the-register-security",
+    name: "The Register Security",
+    tier: "Tech & General",
+    sourceType: "news",
+    lang: "en",
+    family: "the-register",
+    url: "https://api.theregister.com/api/v1/article?orderBy=published&site_id=2&remapper=rss&query=tag:security",
+    maxItems: 5,
+  },
+  // Google Project Zero (Phase 7.1 SRC-08, D-22), Google's vulnerability research team with nothing to sell, so research type (D-06), grouped with the independent researchers (Security Research).
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 2 per month; with the research type's 24-hour window it shows rarely, which D-06 accepts (Pitfall 5).
+  // family google (D-22): the same publisher organisation as Google Threat Intelligence and Chrome Releases, so the three do not count as independent corroboration (D-04).
+  // Plan 07.1-03 eligibility: final URL https://projectzero.google/feed.xml, 200, text/xml, 901,883 bytes (CONTEXT said about 880 KB; about 56% of the 2 MiB cap, so no maxBodyBytes), 10 dated items, own domain (D-09).
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 901,883 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 148.6, inWindow 0, maxPerWindow 1.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "project-zero",
+    name: "Google Project Zero",
+    tier: "Security Research",
+    sourceType: "research",
+    lang: "en",
+    family: "google",
+    url: "https://projectzero.google/feed.xml",
+  },
 ];
 
 // Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):

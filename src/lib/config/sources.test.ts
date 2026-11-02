@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 43 entries", () => {
-  assert.equal(SOURCES.length, 43);
+test("SOURCES has exactly 46 entries", () => {
+  assert.equal(SOURCES.length, 46);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -176,11 +176,14 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   "nviso-labs": "vendor",
   // Phase 7.1 D-22 trusted additions (SRC-08)
   "the-record": "news",
+  securityweek: "news",
+  "the-register-security": "news",
+  "project-zero": "research",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
 // Plans 07.1-03 and 07.1-06 extend this list as flood feeds are configured.
-const FLOOD_FEEDS: string[] = ["paloalto-psirt", "cisco-psirt", "fortinet-psirt", "cccs", "sekoia"];
+const FLOOD_FEEDS: string[] = ["paloalto-psirt", "cisco-psirt", "fortinet-psirt", "cccs", "sekoia", "the-register-security"];
 
 test("D-03 mapping: every source carries exactly the type the table assigns it", () => {
   assert.deepEqual(
@@ -205,6 +208,7 @@ const FAMILY_PAIRS: readonly (readonly [string, string, string])[] = [
   ["talos", "cisco-psirt", "cisco"],
   ["google-threat-intel", "chrome-releases", "google"],
   ["recorded-future", "the-record", "recorded-future"],
+  ["google-threat-intel", "project-zero", "google"],
 ];
 
 test("sources from one publisher organisation share one family (Phase 7.1 D-04, D-06)", () => {
