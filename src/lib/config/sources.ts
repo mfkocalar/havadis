@@ -1,9 +1,11 @@
 import type { SourceConfig } from "../types.ts";
 
 /**
- * The complete, fixed list of 29 ingestion sources (PROJECT.md's table of 13,
- * 14 live-verified additions, and the two English EU CERT feeds from Phase 5,
- * at the end of the array).
+ * The complete list of 51 ingestion sources (PROJECT.md's table of 13,
+ * 14 live-verified additions, and the two English EU CERT feeds from Phase 5;
+ * the Phase 7.1 vendor advisories, threat-research labs, English national
+ * CERTs and D-22 trusted additions sit at the end of the array, and the D-23
+ * removals and the gaps are recorded after it).
  * Phase 1 wired the first entry (Krebs on Security, per CONTEXT.md D-01);
  * Plan 02-01 added the second (CISA Alerts) to prove the multi-source
  * fan-out end to end; Plan 02-02 appended the remaining eleven, completing
@@ -234,7 +236,7 @@ export const SOURCES: SourceConfig[] = [
   // 2026-10-14 (one identical timestamp) plus 5 on 2026-10-15, so 14 fall in
   // the busiest 72 hours; the cap keeps the newest 5.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml; charset=utf-8, 8,381 bytes, rawItems 25, datedItems 25, normalizedItems 25, newestAgeHours 55.9, inWindow 1, maxPerWindow 14.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/xml; charset=utf-8, 8,381 bytes, rawItems 25, datedItems 25, normalizedItems 25, newestAgeHours 56.8, inWindow 1, maxPerWindow 14.
   {
     id: "paloalto-psirt",
     name: "Palo Alto Security Advisories",
@@ -251,7 +253,7 @@ export const SOURCES: SourceConfig[] = [
   // busiest 72 hours; the cap keeps the newest 5. Family cisco (D-04); Talos
   // joins it in Plan 07.1-03.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml;charset=utf-8, 148,629 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 62.3, inWindow 3, maxPerWindow 14.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/xml;charset=utf-8, 148,629 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 62.2, inWindow 3, maxPerWindow 14.
   {
     id: "cisco-psirt",
     name: "Cisco Security Advisories",
@@ -269,7 +271,7 @@ export const SOURCES: SourceConfig[] = [
   // maxItems 5 (D-13): 10 advisories on 2026-10-13 with an identical 07:00
   // timestamp, 11 in the busiest 72 hours.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 47,487 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 172.2, inWindow 0, maxPerWindow 11.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, text/xml, 47,487 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 173, inWindow 0, maxPerWindow 11.
   {
     id: "fortinet-psirt",
     name: "Fortinet Security Advisories",
@@ -286,7 +288,7 @@ export const SOURCES: SourceConfig[] = [
   // the monthly security-update announcement, one per release (D-11). Marked
   // advisory by user confirmation (A-UI-2). No cap: one item per month.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml; charset=utf-8, 65,596 bytes, rawItems 19, datedItems 19, normalizedItems 19, newestAgeHours 476.7, inWindow 0, maxPerWindow 1.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, text/xml; charset=utf-8, 65,596 bytes, rawItems 19, datedItems 19, normalizedItems 19, newestAgeHours 477.5, inWindow 0, maxPerWindow 1.
   {
     id: "ivanti-security",
     name: "Ivanti Security Advisories",
@@ -305,7 +307,7 @@ export const SOURCES: SourceConfig[] = [
   // 48.8, inWindow 1.
   // D-14 (D-26 deviation): body-based test, 19 of 20 sampled posts list security fixes (2026-11-02); titles carry no security keyword, so the card's section comes from the summary (a Phase 9 note, recorded in 07.1-PROBES.md)
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/atom+xml; charset=UTF-8, 657,648 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 85.8, inWindow 0, maxPerWindow 2.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/atom+xml; charset=UTF-8, 657,648 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 86.6, inWindow 0, maxPerWindow 2.
   {
     id: "chrome-releases",
     name: "Chrome Releases",
@@ -321,7 +323,7 @@ export const SOURCES: SourceConfig[] = [
   // newestAgeHours 24.6, inWindow 9. maxItems 5 (D-13): roundup notices issued
   // per vendor, 14 on 2026-10-28 and 27 in the busiest 72 hours.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml, 153,469 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 61.6, inWindow 5, maxPerWindow 27.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/xml, 153,469 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 62.5, inWindow 5, maxPerWindow 27.
   {
     id: "cccs",
     name: "CCCS Alerts and Advisories",
@@ -337,7 +339,7 @@ export const SOURCES: SourceConfig[] = [
   // RSS 1.0 (RDF), which the content-type gate accepts because the type
   // contains xml. No cap: a handful of items a month.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rdf+xml, 3,205 bytes, rawItems 6, datedItems 6, normalizedItems 6, newestAgeHours 464.8, inWindow 0, maxPerWindow 2.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rdf+xml, 3,205 bytes, rawItems 6, datedItems 6, normalizedItems 6, newestAgeHours 465.6, inWindow 0, maxPerWindow 2.
   {
     id: "jpcert-en",
     name: "JPCERT/CC",
@@ -352,7 +354,7 @@ export const SOURCES: SourceConfig[] = [
   // Probed 2026-10-31 from a laptop: 200, 24,210 bytes, 15 items,
   // newestAgeHours 52.2, inWindow 1.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 24,210 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 89.3, inWindow 0, maxPerWindow 4.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 24,210 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 90, inWindow 0, maxPerWindow 4.
   {
     id: "unit42",
     name: "Unit 42",
@@ -366,7 +368,7 @@ export const SOURCES: SourceConfig[] = [
   // Probed 2026-10-31 from a laptop: 200, 1,025,702 bytes, 15 items, newestAgeHours 10.2, inWindow 4.
   // About 1.0 MB for 15 items of inline content, about 51% headroom under the 2 MB cap; watch its growth (T-07.1-11).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 1,025,702 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 47.3, inWindow 1, maxPerWindow 5.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=utf-8, 1,025,702 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 48, inWindow 1, maxPerWindow 5.
   {
     id: "talos",
     name: "Cisco Talos",
@@ -380,7 +382,7 @@ export const SOURCES: SourceConfig[] = [
   // not used (D-09). Probed 2026-10-31 from a laptop: 200, application/xml, 1,451,457 bytes, 20 items, newestAgeHours 392, inWindow 0.
   // 1.45 MB, so about 31% headroom under the 2 MB cap; watch its growth (T-07.1-11).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml; charset=utf-8, 1,495,864 bytes, rawItems 20, datedItems 20, normalizedItems 20, newestAgeHours 69.3, inWindow 1, maxPerWindow 2.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/xml; charset=utf-8, 1,495,864 bytes, rawItems 20, datedItems 20, normalizedItems 20, newestAgeHours 70, inWindow 1, maxPerWindow 2.
   {
     id: "google-threat-intel",
     name: "Google Threat Intelligence",
@@ -394,7 +396,7 @@ export const SOURCES: SourceConfig[] = [
   // 100 items, newestAgeHours 31.1, inWindow 2.
   // Laptop probe through the probe harness 2026-11-02 (after the title include): httpStatus 200, text/xml; charset=UTF-8, 70,087 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 99.5, inWindow 0, maxPerWindow 3 (counts only titles the pattern keeps).
   // D-14: mixed feed, on-topic 6 of 20 titles (2026-11-02); no category feed on welivesecurity.com (category and rss-configurator paths 404 or return the unfiltered feed); title include, in-sample precision 0.64, recall 0.64 (40 titles, 2026-11-02)
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, text/xml; charset=UTF-8, 70,087 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 100, inWindow 0, maxPerWindow 3.
   {
     id: "eset-research",
     name: "ESET WeLiveSecurity",
@@ -408,7 +410,7 @@ export const SOURCES: SourceConfig[] = [
   },
   // Securelist (Phase 7.1 SRC-07), Kaspersky's research blog. Probed 2026-10-31 from a laptop: 200, 468,499 bytes, 10 items, newestAgeHours 36.2, inWindow 2.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 534,161 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 3.3, inWindow 1, maxPerWindow 4.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 534,108 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 4, inWindow 1, maxPerWindow 4.
   {
     id: "securelist",
     name: "Securelist",
@@ -420,7 +422,7 @@ export const SOURCES: SourceConfig[] = [
   },
   // SentinelLabs (Phase 7.1 SRC-07), SentinelOne's research lab. Probed 2026-10-31 from a laptop: 200, 192,261 bytes, 10 items, newestAgeHours 81.2, inWindow 0.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 192,261 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 118.3, inWindow 0, maxPerWindow 2.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=utf-8, 192,261 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 119, inWindow 0, maxPerWindow 2.
   {
     id: "sentinellabs",
     name: "SentinelLabs",
@@ -434,7 +436,7 @@ export const SOURCES: SourceConfig[] = [
   // 330,334 bytes, 15 items, newestAgeHours 56.0, inWindow 1.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 330,334 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 93.2, inWindow 0, maxPerWindow 3.
   // D-14: not a mixed feed, on-topic 14 of 15 titles (2026-11-02)
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 330,334 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 93.9, inWindow 0, maxPerWindow 3.
   {
     id: "check-point-research",
     name: "Check Point Research",
@@ -447,7 +449,7 @@ export const SOURCES: SourceConfig[] = [
   // Proofpoint Threat Insight (Phase 7.1 SRC-07). The Threat Insight feed, not /us/rss.xml, which carries press releases. Probed 2026-10-31 from a laptop:
   // 200, 188,634 bytes, 10 items, newestAgeHours 409.8, inWindow 0.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 188,634 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 446.9, inWindow 0, maxPerWindow 2.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=utf-8, 188,634 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 447.6, inWindow 0, maxPerWindow 2.
   {
     id: "proofpoint-threat-insight",
     name: "Proofpoint Threat Insight",
@@ -461,7 +463,7 @@ export const SOURCES: SourceConfig[] = [
   // research type's 24-hour window it rarely shows, which D-06 accepts (Pitfall 5). Probed 2026-10-31 from a laptop: 200, 13,933 bytes, 10 items,
   // newestAgeHours 1639.7, inWindow 0.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 13,933 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 1676.8, inWindow 0, maxPerWindow 1.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 13,933 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 1677.6, inWindow 0, maxPerWindow 1.
   {
     id: "dfir-report",
     name: "The DFIR Report",
@@ -474,7 +476,7 @@ export const SOURCES: SourceConfig[] = [
   // Citizen Lab (Phase 7.1 SRC-07), an independent research group, so research type (D-06). Probed 2026-10-31 from a laptop: 200, 26,203 bytes, 10 items,
   // newestAgeHours 79.7, inWindow 0.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 26,203 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 116.9, inWindow 0, maxPerWindow 2.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 26,203 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 117.6, inWindow 0, maxPerWindow 2.
   {
     id: "citizen-lab",
     name: "Citizen Lab",
@@ -489,7 +491,7 @@ export const SOURCES: SourceConfig[] = [
   // Items carry no category element, so no label feed exists; the pattern keeps research posts and drops product, compliance and trend posts.
   // Probed 2026-11-02 from a laptop: 200, application/xml, 639,464 bytes (about 70% headroom under the 2 MB cap), 746 items of which 745 are dated (some epoch-1970).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml, 639,464 bytes, rawItems 746, datedItems 746, normalizedItems 746, newestAgeHours 115.5, inWindow 0, maxPerWindow 5 (counts only titles the pattern keeps).
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/xml, 639,464 bytes, rawItems 746, datedItems 746, normalizedItems 746, newestAgeHours 116, inWindow 0, maxPerWindow 5.
   {
     id: "huntress",
     name: "Huntress Blog",
@@ -506,7 +508,7 @@ export const SOURCES: SourceConfig[] = [
   // CONTEXT laptop rate: about 5 posts in 30 days. Plan 07.1-03 eligibility: final URL https://www.sekoia.com/blog/rss.xml, 200, 100 items, own domain (D-09), xml content type.
   // Sekoia publishes in batches (72 of the 100 feed items carry the date 2026-06-11), so maxItems 5 caps a batch day (D-13).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 83,001 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 145.3, inWindow 0, maxPerWindow 27 (counts only titles the pattern keeps).
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=utf-8, 83,001 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 145.8, inWindow 0, maxPerWindow 27.
   {
     id: "sekoia",
     name: "Sekoia Blog",
@@ -524,7 +526,7 @@ export const SOURCES: SourceConfig[] = [
   // The label feed carries NVISO's German translations next to the English posts (the Digispark forensic post appears as both), and no English-only feed or ?lang filter exists; a label feed takes no title pattern, so the German twin shows (D-14).
   // CONTEXT laptop rate: about 2 posts in 30 days. Plan 07.1-03 eligibility: main feed https://blog.nviso.eu/feed/, 200, 692,677 bytes, own domain (D-09), xml content type.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 26,137 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 236.8, inWindow 0, maxPerWindow 1.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 26,138 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 237.3, inWindow 0, maxPerWindow 1.
   {
     id: "nviso-labs",
     name: "NVISO Labs",
@@ -539,7 +541,7 @@ export const SOURCES: SourceConfig[] = [
   // Plan 07.1-03 eligibility: final URL https://therecord.media/feed, 200, text/xml, 5,498 bytes, 5 dated items, own domain (D-09).
   // family recorded-future: The Record is published by Recorded Future and family is the publisher-organisation slug, so it counts with the Recorded Future blog as one publisher, not two for corroboration (D-04, the D-06 parent-company rule by analogy).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 5,498 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 11.6, inWindow 1, maxPerWindow 4.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, text/xml, 5,498 bytes, rawItems 5, datedItems 5, normalizedItems 5, newestAgeHours 12, inWindow 1, maxPerWindow 4.
   {
     id: "the-record",
     name: "The Record",
@@ -553,7 +555,7 @@ export const SOURCES: SourceConfig[] = [
   // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 3 to 4 per day.
   // Plan 07.1-03 eligibility: final URL https://www.securityweek.com/feed/, 200, application/rss+xml, 12,297 bytes, 10 dated items, own domain (D-09).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 12,252 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 0.1, inWindow 5, maxPerWindow 5.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 12,252 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 0.6, inWindow 5, maxPerWindow 5.
   {
     id: "securityweek",
     name: "SecurityWeek",
@@ -568,7 +570,7 @@ export const SOURCES: SourceConfig[] = [
   // The www.theregister.com/security/headlines.rss URL answers 302 to api.theregister.com, a cross-host redirect the validated redirect rejects, so the final api.theregister.com hop is configured (D-18). That host is The Register's own domain (D-09).
   // Plan 07.1-03 eligibility: final URL below, 200, application/xml, 285,492 bytes, 50 dated items. Local maxPerWindow is 12, so maxItems 5 caps a busy day (D-13).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml, 285,492 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 64, inWindow 0, maxPerWindow 12.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/xml, 287,113 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 0.3, inWindow 1, maxPerWindow 12.
   {
     id: "the-register-security",
     name: "The Register Security",
@@ -584,7 +586,7 @@ export const SOURCES: SourceConfig[] = [
   // family google (D-22): the same publisher organisation as Google Threat Intelligence and Chrome Releases, so the three do not count as independent corroboration (D-04).
   // Plan 07.1-03 eligibility: final URL https://projectzero.google/feed.xml, 200, text/xml, 901,883 bytes (CONTEXT said about 880 KB; about 56% of the 2 MiB cap, so no maxBodyBytes), 10 dated items, own domain (D-09).
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 901,883 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 148.6, inWindow 0, maxPerWindow 1.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, text/xml, 901,883 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 149, inWindow 0, maxPerWindow 1.
   {
     id: "project-zero",
     name: "Google Project Zero",
@@ -599,7 +601,7 @@ export const SOURCES: SourceConfig[] = [
   // Plan 07.1-03 eligibility: final URL https://www.sophos.com/en-us/category/threat-research/feed, 200, application/rss+xml, 8,823 bytes, 15 dated items, own domain (D-09).
   // D-14: not a mixed feed, on-topic 13 of 15 titles (2026-11-02)
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 8,823 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 83.6, inWindow 0, maxPerWindow 4.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=utf-8, 8,823 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 84, inWindow 0, maxPerWindow 4.
   {
     id: "sophos-xops",
     name: "Sophos X-Ops",
@@ -614,7 +616,7 @@ export const SOURCES: SourceConfig[] = [
   // Plan 07.1-03 eligibility: final URL https://www.zscaler.com/blogs/feeds/security-research, 200, text/xml, 846,880 bytes (about 40% of the 2 MiB cap, so no maxBodyBytes), 50 dated items, own domain (D-09).
   // D-14: not a mixed feed, on-topic 19 of 20 titles (2026-11-02)
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 846,880 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 115.5, inWindow 0, maxPerWindow 3.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, text/xml, 846,880 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 115.9, inWindow 0, maxPerWindow 3.
   {
     id: "zscaler-threatlabz",
     name: "Zscaler ThreatLabz",
@@ -629,7 +631,7 @@ export const SOURCES: SourceConfig[] = [
   // Plan 07.1-03 eligibility: final URL https://www.volexity.com/feed/, 200, application/rss+xml, 410,876 bytes, 10 dated items, own domain (D-09).
   // D-14: not a mixed feed, on-topic 9 of 10 titles (2026-11-02)
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 410,876 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 401.2, inWindow 0, maxPerWindow 1.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=UTF-8, 410,876 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 401.6, inWindow 0, maxPerWindow 1.
   {
     id: "volexity",
     name: "Volexity",
@@ -644,7 +646,7 @@ export const SOURCES: SourceConfig[] = [
   // Plan 07.1-03 eligibility: final URL https://labs.watchtowr.com/rss/, 200, application/rss+xml, 516,052 bytes, 15 dated items, own domain (D-09).
   // D-14: not a mixed feed, on-topic 15 of 15 titles (2026-11-02)
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 516,052 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 570.1, inWindow 0, maxPerWindow 3.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, application/rss+xml; charset=utf-8, 516,052 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 570.5, inWindow 0, maxPerWindow 3.
   {
     id: "watchtowr-labs",
     name: "watchTowr Labs",
@@ -659,7 +661,7 @@ export const SOURCES: SourceConfig[] = [
   // Plan 07.1-03 eligibility: final URL https://portswigger.net/research/rss, 200, text/xml, 28,535 bytes, 40 dated items, own domain (D-09).
   // D-14: not a mixed feed, on-topic 14 of 20 titles (2026-11-02)
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml; charset=utf-8, 28,535 bytes, rawItems 40, datedItems 40, normalizedItems 40, newestAgeHours 141.1, inWindow 0, maxPerWindow 3.
-  // Netlify-egress probe: pending (Plan 07.1-07)
+  // Netlify-egress probe 2026-11-02 (Netlify deploy, Next server function): httpStatus 200, text/xml; charset=utf-8, 28,535 bytes, rawItems 40, datedItems 40, normalizedItems 40, newestAgeHours 141.6, inWindow 0, maxPerWindow 3.
   {
     id: "portswigger-research",
     name: "PortSwigger Research",
@@ -689,6 +691,8 @@ export const SOURCES: SourceConfig[] = [
 //   - Android Security Bulletin (source.android.com bulletin feed paths, 404): no feed. None found; the bulletin is HTML only.
 //   - hibp-breaches (Have I Been Pwned latest breaches, https://feeds.feedburner.com/HaveIBeenPwnedLatestBreaches): no feed. The FeedBurner feed answers 200 (19,924 bytes, 20 items) but haveibeenpwned.com does not link it; the site advertises its own /feed/breaches/ instead, so D-09 fails and no substitute is added (D-22)
 //   - akamai (Akamai blog, http://feeds.feedburner.com/akamai/blog, https form tried): no feed. The FeedBurner feed answers 200 (599,379 bytes, 1,179 items) but akamai.com answers 403 to the crawler's User-Agent, so no first-party page linking that feed could be found and D-09 is not established (D-22)
+//   - Apple Security Releases (support.apple.com security-updates RSS): probe failure from Netlify. HTTP 429 (text/html) from Netlify egress on 2026-11-02, no first-party feed body seen; the laptop also got 429 on three attempts, so the feed's existence is unconfirmed (RESEARCH A3). The developer.apple.com releases feed is OS release notes, not security advisories, and is not used.
+//   - ACSC (cyber.gov.au alerts and advisories RSS, three URLs): probe failure from Netlify. All three candidates (/about-us/view-all-content/alerts-and-advisories/rss, /rss/advisories, /rss/alerts) timed out at the 8 s per-source budget with no response from Netlify egress on 2026-11-02; the laptop connection also failed (RESEARCH A4). No dates were seen, so no AEST/AEDT parsing was added.
 // Rejected URLs (vendor configured through another feed, not gaps):
 //   - Mandiant blog RSS: a cross-host redirect to an HTML page; Google Threat Intelligence covers Mandiant (Plan 07.1-03).
 //   - Proofpoint /us/rss.xml: press releases; the Threat Insight feed covers Proofpoint (Plan 07.1-03).
