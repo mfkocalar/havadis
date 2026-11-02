@@ -393,6 +393,7 @@ export const SOURCES: SourceConfig[] = [
   // ESET WeLiveSecurity (Phase 7.1 SRC-07). The feed is the whole blog, including its monthly digest. Probed 2026-10-31 from a laptop: 200, 70,087 bytes,
   // 100 items, newestAgeHours 31.1, inWindow 2.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml; charset=UTF-8, 70,087 bytes, rawItems 100, datedItems 100, normalizedItems 100, newestAgeHours 68.3, inWindow 1, maxPerWindow 4.
+  // D-14: mixed feed, on-topic 6 of 20 titles (2026-11-02); D-14 chain in Plan 07.1-04
   // Netlify-egress probe: pending (Plan 07.1-07)
   {
     id: "eset-research",
@@ -430,6 +431,7 @@ export const SOURCES: SourceConfig[] = [
   // Check Point Research (Phase 7.1 SRC-07). Also publishes AI-policy posts and a weekly report (D-14 line below). Probed 2026-10-31 from a laptop: 200,
   // 330,334 bytes, 15 items, newestAgeHours 56.0, inWindow 1.
   // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 330,334 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 93.2, inWindow 0, maxPerWindow 3.
+  // D-14: not a mixed feed, on-topic 14 of 15 titles (2026-11-02)
   // Netlify-egress probe: pending (Plan 07.1-07)
   {
     id: "check-point-research",
@@ -498,6 +500,8 @@ export const SOURCES: SourceConfig[] = [
 //   - Citrix/NetScaler (support.citrix.com security-bulletin feed paths): no feed. Every path serves the same HTML app shell.
 //   - Broadcom/VMware (support.broadcom.com security-advisory RSS, 404): JSON/CSAF/HTML only. A JSON feed exists; JSON readers are a deferred idea.
 //   - Android Security Bulletin (source.android.com bulletin feed paths, 404): no feed. None found; the bulletin is HTML only.
+//   - hibp-breaches (Have I Been Pwned latest breaches, https://feeds.feedburner.com/HaveIBeenPwnedLatestBreaches): no feed. The FeedBurner feed answers 200 (19,924 bytes, 20 items) but haveibeenpwned.com does not link it; the site advertises its own /feed/breaches/ instead, so D-09 fails and no substitute is added (D-22)
+//   - akamai (Akamai blog, http://feeds.feedburner.com/akamai/blog, https form tried): no feed. The FeedBurner feed answers 200 (599,379 bytes, 1,179 items) but akamai.com answers 403 to the crawler's User-Agent, so no first-party page linking that feed could be found and D-09 is not established (D-22)
 // Rejected URLs (vendor configured through another feed, not gaps):
 //   - Mandiant blog RSS: a cross-host redirect to an HTML page; Google Threat Intelligence covers Mandiant (Plan 07.1-03).
 //   - Proofpoint /us/rss.xml: press releases; the Threat Insight feed covers Proofpoint (Plan 07.1-03).
