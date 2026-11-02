@@ -248,7 +248,8 @@ export const SOURCES: SourceConfig[] = [
   // inWindow 2. maxItems 5 (D-13): the feed posts in batches, 8 advisories on
   // 2026-10-14 (one identical timestamp) plus 5 on 2026-10-15, so 14 fall in
   // the busiest 72 hours; the cap keeps the newest 5.
-  // Netlify-egress probe: pending (Plan 07.1-04)
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml; charset=utf-8, 8,381 bytes, rawItems 25, datedItems 25, normalizedItems 25, newestAgeHours 55.9, inWindow 1, maxPerWindow 14.
+  // Netlify-egress probe: pending (Plan 07.1-07)
   {
     id: "paloalto-psirt",
     name: "Palo Alto Security Advisories",
@@ -257,6 +258,23 @@ export const SOURCES: SourceConfig[] = [
     lang: "en",
     family: "palo-alto",
     url: "https://security.paloaltonetworks.com/rss.xml",
+    maxItems: 5,
+  },
+  // Cisco Security Advisories (Phase 7.1 SRC-06), probed 2026-10-31 from a
+  // laptop: 200, application/xml, 148,629 bytes, 50 items, newestAgeHours 25.3,
+  // inWindow 4. maxItems 5 (D-13): 12 advisories on 2026-10-07, 14 in the
+  // busiest 72 hours; the cap keeps the newest 5. Family cisco (D-04); Talos
+  // joins it in Plan 07.1-03.
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/xml;charset=utf-8, 148,629 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 62.3, inWindow 3, maxPerWindow 14.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "cisco-psirt",
+    name: "Cisco Security Advisories",
+    tier: "Enterprise Security",
+    sourceType: "advisory",
+    lang: "en",
+    family: "cisco",
+    url: "https://sec.cloudapps.cisco.com/security/center/psirtrss20/CiscoSecurityAdvisory.xml",
     maxItems: 5,
   },
 ];

@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 30 entries", () => {
-  assert.equal(SOURCES.length, 30);
+test("SOURCES has exactly 31 entries", () => {
+  assert.equal(SOURCES.length, 31);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -120,11 +120,12 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   "ncsc-uk": "cert",
   // Phase 7.1 additions (SRC-06, SRC-07)
   "paloalto-psirt": "advisory",
+  "cisco-psirt": "advisory",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
 // Plans 07.1-03 and 07.1-06 extend this list as flood feeds are configured.
-const FLOOD_FEEDS: string[] = ["paloalto-psirt"];
+const FLOOD_FEEDS: string[] = ["paloalto-psirt", "cisco-psirt"];
 
 test("D-03 mapping: every source carries exactly the type the table assigns it", () => {
   assert.deepEqual(
