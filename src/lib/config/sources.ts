@@ -594,6 +594,81 @@ export const SOURCES: SourceConfig[] = [
     family: "google",
     url: "https://projectzero.google/feed.xml",
   },
+  // Sophos X-Ops (Phase 7.1 SRC-08, D-22), the threat-research category feed of the Sophos X-Ops team, so vendor type (D-06).
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 2 per week.
+  // Plan 07.1-03 eligibility: final URL https://www.sophos.com/en-us/category/threat-research/feed, 200, application/rss+xml, 8,823 bytes, 15 dated items, own domain (D-09).
+  // D-14: not a mixed feed, on-topic 13 of 15 titles (2026-11-02)
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 8,823 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 83.6, inWindow 0, maxPerWindow 4.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "sophos-xops",
+    name: "Sophos X-Ops",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "sophos",
+    url: "https://www.sophos.com/en-us/category/threat-research/feed",
+  },
+  // Zscaler ThreatLabz (Phase 7.1 SRC-08, D-22), the security-research blog feed of the Zscaler ThreatLabz team, so vendor type (D-06).
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 2 per week.
+  // Plan 07.1-03 eligibility: final URL https://www.zscaler.com/blogs/feeds/security-research, 200, text/xml, 846,880 bytes (about 40% of the 2 MiB cap, so no maxBodyBytes), 50 dated items, own domain (D-09).
+  // D-14: not a mixed feed, on-topic 19 of 20 titles (2026-11-02)
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml, 846,880 bytes, rawItems 50, datedItems 50, normalizedItems 50, newestAgeHours 115.5, inWindow 0, maxPerWindow 3.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "zscaler-threatlabz",
+    name: "Zscaler ThreatLabz",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "zscaler",
+    url: "https://www.zscaler.com/blogs/feeds/security-research",
+  },
+  // Volexity (Phase 7.1 SRC-08, D-22), the blog of the Volexity threat-intelligence firm, so vendor type (D-06).
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 2 per month.
+  // Plan 07.1-03 eligibility: final URL https://www.volexity.com/feed/, 200, application/rss+xml, 410,876 bytes, 10 dated items, own domain (D-09).
+  // D-14: not a mixed feed, on-topic 9 of 10 titles (2026-11-02)
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=UTF-8, 410,876 bytes, rawItems 10, datedItems 10, normalizedItems 10, newestAgeHours 401.2, inWindow 0, maxPerWindow 1.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "volexity",
+    name: "Volexity",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "volexity",
+    url: "https://www.volexity.com/feed/",
+  },
+  // watchTowr Labs (Phase 7.1 SRC-08, D-22), the research blog of watchTowr, so vendor type (D-06).
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 2 per month.
+  // Plan 07.1-03 eligibility: final URL https://labs.watchtowr.com/rss/, 200, application/rss+xml, 516,052 bytes, 15 dated items, own domain (D-09).
+  // D-14: not a mixed feed, on-topic 15 of 15 titles (2026-11-02)
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, application/rss+xml; charset=utf-8, 516,052 bytes, rawItems 15, datedItems 15, normalizedItems 15, newestAgeHours 570.1, inWindow 0, maxPerWindow 3.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "watchtowr-labs",
+    name: "watchTowr Labs",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "watchtowr",
+    url: "https://labs.watchtowr.com/rss/",
+  },
+  // PortSwigger Research (Phase 7.1 SRC-08, D-22), the research feed of the PortSwigger Burp Suite vendor, so vendor type (D-06).
+  // D-22 trusted addition (user decision 2026-11-02). CONTEXT laptop rate: about 3 per month.
+  // Plan 07.1-03 eligibility: final URL https://portswigger.net/research/rss, 200, text/xml, 28,535 bytes, 40 dated items, own domain (D-09).
+  // D-14: not a mixed feed, on-topic 14 of 20 titles (2026-11-02)
+  // Laptop probe through the probe harness 2026-11-02: httpStatus 200, text/xml; charset=utf-8, 28,535 bytes, rawItems 40, datedItems 40, normalizedItems 40, newestAgeHours 141.1, inWindow 0, maxPerWindow 3.
+  // Netlify-egress probe: pending (Plan 07.1-07)
+  {
+    id: "portswigger-research",
+    name: "PortSwigger Research",
+    tier: "Threat Intelligence",
+    sourceType: "vendor",
+    lang: "en",
+    family: "portswigger",
+    url: "https://portswigger.net/research/rss",
+  },
 ];
 
 // Removed (Phase 7.1 D-23, user decision 2026-11-02; the evidence is the decision plus these measurements, with no item audit):

@@ -28,8 +28,8 @@ const ALL_TIERS: SourceTier[] = [
   "Executive News",
 ];
 
-test("SOURCES has exactly 46 entries", () => {
-  assert.equal(SOURCES.length, 46);
+test("SOURCES has exactly 51 entries", () => {
+  assert.equal(SOURCES.length, 51);
 });
 
 test("every id is unique and matches /^[a-z0-9-]+$/", () => {
@@ -179,6 +179,11 @@ const EXPECTED_SOURCE_TYPE: Record<string, SourceType> = {
   securityweek: "news",
   "the-register-security": "news",
   "project-zero": "research",
+  "sophos-xops": "vendor",
+  "zscaler-threatlabz": "vendor",
+  volexity: "vendor",
+  "watchtowr-labs": "vendor",
+  "portswigger-research": "vendor",
 };
 
 // Feeds whose live probe showed a batch-day flood and so carry maxItems (D-13).
