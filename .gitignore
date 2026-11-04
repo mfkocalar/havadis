@@ -57,3 +57,6 @@ next-env.d.ts
 
 # design review screenshots and mocks (local only)
 .impeccable/
+
+# Local Netlify folder
+.netlify
