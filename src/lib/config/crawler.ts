@@ -3,7 +3,8 @@
  * `USER_AGENT` to a third-party publisher, who may keep it in their logs, so
  * the contact URL inside it must resolve to a page this project controls.
  *
- * The host was confirmed by the user at the phase 5 checkpoint. The value
+ * The host was confirmed by the user at the phase 5 checkpoint, and moved to
+ * havadis-news.vercel.app with the Vercel migration in Phase 07.1.1. The value
  * shipped before Phase 5 pointed at a third-party domain the project does not
  * own; it must never come back. Changing the host or the contact channel is a
  * one-line edit here, but requests already sent keep the old value in
@@ -13,7 +14,7 @@
  */
 
 /** Public page describing the crawler; served by `src/app/about/page.tsx`. */
-export const CRAWLER_CONTACT_URL = "https://havadis.netlify.app/about";
+export const CRAWLER_CONTACT_URL = "https://havadis-news.vercel.app/about";
 
 /** Where a publisher can ask to be removed or report a problem. */
 export const CRAWLER_CONTACT_CHANNEL_URL = "https://github.com/mfkocalar/havadis/issues";

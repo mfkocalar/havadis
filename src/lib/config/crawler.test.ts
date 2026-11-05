@@ -19,6 +19,7 @@ test("CRAWLER_CONTACT_URL is an https /about URL on a non-placeholder host", () 
   const url = new URL(CRAWLER_CONTACT_URL);
   assert.equal(url.protocol, "https:");
   assert.equal(url.pathname, "/about");
+  assert.equal(url.hostname, "havadis-news.vercel.app");
   assert.notEqual(url.hostname, "havadis.app");
   assert.ok(!url.hostname.endsWith(".havadis.app"));
 });
