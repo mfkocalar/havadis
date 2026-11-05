@@ -31,7 +31,7 @@ Source-independent aggregation with deterministic, explained triage: every item 
 - Client-side section filter with per-section counts; reader triage (All / High+ / Critical, unread only, flagged only; flag, mark read, mark all shown read) stored in localStorage only.
 - Sections of 9+ articles show 6 then an expander.
 - Front page must stay a statically prerendered route with a 900-second ISR window: no request-time APIs. Client components receive only opaque ids, closed enums, counts and timestamps, never feed text.
-- Stack: Next.js 16 App Router, React 19, Tailwind CSS 4. Hosted on Netlify.
+- Stack: Next.js 16 App Router, React 19, Tailwind CSS 4. Hosted on Vercel Hobby.
 
 ## Brand Commitments
 

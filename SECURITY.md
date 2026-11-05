@@ -19,8 +19,8 @@ You should get an acknowledgement within 5 working days. We will keep you update
 
 In scope:
 
-- the site at https://havadis.netlify.app and its feeds;
-- this repository's code, including the feed fetcher (redirect validation, size caps, timeouts), parsing, rendering and the scheduled refresh function.
+- the site at https://havadis-news.vercel.app and its feeds;
+- this repository's code, including the feed fetcher (redirect validation, size caps, timeouts), parsing, rendering and the scheduled refresh workflow (`.github/workflows/warm-front-page.yml`).
 
 Out of scope:
 
