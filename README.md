@@ -1,18 +1,18 @@
 <div align="center">
 
-<a href="https://havadis.netlify.app"><img src="docs/images/banner.png" alt="Havadis: the day's security news, triaged like a hazard manifest" width="100%"></a>
+<a href="https://havadis-news.vercel.app"><img src="docs/images/banner.png" alt="Havadis: the day's security news, triaged like a hazard manifest" width="100%"></a>
 
 **A public, source-independent daily security newspaper for security practitioners.**<br>
 51 curated feeds, deduplicated, scored and sorted into seven urgency-ordered sections. No accounts, no database, no tracking.
 
-[![Live site](https://img.shields.io/badge/live-havadis.netlify.app-f97316?style=flat-square)](https://havadis.netlify.app)
+[![Live site](https://img.shields.io/badge/live-havadis--news.vercel.app-f97316?style=flat-square)](https://havadis-news.vercel.app)
 [![CI](https://img.shields.io/github/actions/workflow/status/mfkocalar/havadis/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/mfkocalar/havadis/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-1c1917?style=flat-square)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![RSS + JSON Feed](https://img.shields.io/badge/feeds-RSS%20%2B%20JSON-facc15?style=flat-square&logo=rss&logoColor=black)](#subscribe)
 
-[**Read today's edition**](https://havadis.netlify.app) · [Quick start](#quick-start) · [Subscribe](#subscribe) · [How it works](#how-it-works) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+[**Read today's edition**](https://havadis-news.vercel.app) · [Quick start](#quick-start) · [Subscribe](#subscribe) · [How it works](#how-it-works) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 </div>
 
@@ -82,17 +82,17 @@ Other services and agents can subscribe to the front page. Every feed carries th
 
 | Feed | RSS 2.0 | JSON Feed 1.1 |
 |------|---------|---------------|
-| All stories | [`/feed.xml`](https://havadis.netlify.app/feed.xml) | [`/feed.json`](https://havadis.netlify.app/feed.json) |
-| High and critical | [`/feed/high.xml`](https://havadis.netlify.app/feed/high.xml) | [`/feed/high.json`](https://havadis.netlify.app/feed/high.json) |
-| Critical only | [`/feed/critical.xml`](https://havadis.netlify.app/feed/critical.xml) | [`/feed/critical.json`](https://havadis.netlify.app/feed/critical.json) |
+| All stories | [`/feed.xml`](https://havadis-news.vercel.app/feed.xml) | [`/feed.json`](https://havadis-news.vercel.app/feed.json) |
+| High and critical | [`/feed/high.xml`](https://havadis-news.vercel.app/feed/high.xml) | [`/feed/high.json`](https://havadis-news.vercel.app/feed/high.json) |
+| Critical only | [`/feed/critical.xml`](https://havadis-news.vercel.app/feed/critical.xml) | [`/feed/critical.json`](https://havadis-news.vercel.app/feed/critical.json) |
 | One section | `/feed/<section>.xml` | `/feed/<section>.json` |
 
 Section slugs: `vulnerabilities`, `advisories`, `ransomware`, `breaches`, `threat-intelligence`, `tools-techniques`, `industry-policy`.
 
-Each item carries Havadis's triage fields: section, importance, importance reason, CVE IDs, source and source tier. JSON Feed items have them in a `_havadis` object; RSS items have them as `havadis:` namespaced elements and `<category>` tags. The site's HTML advertises the feeds via `<link rel="alternate">`, and [`/feeds`](https://havadis.netlify.app/feeds) lists every endpoint.
+Each item carries Havadis's triage fields: section, importance, importance reason, CVE IDs, source and source tier. JSON Feed items have them in a `_havadis` object; RSS items have them as `havadis:` namespaced elements and `<category>` tags. The site's HTML advertises the feeds via `<link rel="alternate">`, and [`/feeds`](https://havadis-news.vercel.app/feeds) lists every endpoint.
 
 ```bash
-curl -s https://havadis.netlify.app/feed/critical.json | jq '.items[] | {title, url, why: ._havadis.importance_reason}'
+curl -s https://havadis-news.vercel.app/feed/critical.json | jq '.items[] | {title, url, why: ._havadis.importance_reason}'
 ```
 
 ## How it works
@@ -109,7 +109,7 @@ The whole composed edition is cached once through Next's `unstable_cache` in `sr
 
 Exploitation signals are merged with the cached edition at render, so the page stays static. The CISA KEV catalogue is validated, slimmed to about 135 KB (at today's catalogue size) and cached for 6 hours under its own key; EPSS is requested at render in sorted batches of at most 50 CVEs with a 1-hour fetch cache.
 
-Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Netlify keeps the previous deploy live. Enrichment: a stale KEV map beats an empty one, otherwise KEV and EPSS degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
+Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Vercel keeps the previous deployment live. Enrichment: a stale KEV map beats an empty one, otherwise KEV and EPSS degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
 
 
 ## Configuration
@@ -125,7 +125,7 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 | KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size) | `src/lib/enrichment/config.ts` |
 | Importance rules (critical / high / normal) | `src/lib/pipeline/importance.ts` |
 
-`SITE_URL` sets the public origin used for absolute links in feeds and metadata (e.g. `https://havadis.netlify.app`). It falls back to `http://localhost:4000`; set it in production. The crawler's contact URL points at this site's `/about` page.
+`SITE_URL` sets the public origin used for absolute links in feeds and metadata (e.g. `https://havadis-news.vercel.app`). It falls back to `http://localhost:4000`; set it in production. The crawler's contact URL points at this site's `/about` page.
 
 ## Development
 
@@ -158,15 +158,17 @@ node scripts/verify-viewports.mjs
 
 The front page uses a "hazard placard" visual system built for a fast morning triage pass: a warm vinyl ground (asphalt in dark mode), black ink rules, square 2px corners, and colour used only where it means something (section class, importance, exploitation signal). Type is Barlow Condensed for headings and labels, Barlow for reading and JetBrains Mono for IDs and figures, loaded through `next/font`. Tokens and rules are documented in [`DESIGN.md`](DESIGN.md); the audience and product principles behind them are in [`PRODUCT.md`](PRODUCT.md). Contrast for every control and chip tone is gated by `npm test` in both themes.
 
-**Tech stack:** Next.js 16 (App Router, TypeScript), React 19, Tailwind CSS 4, `rss-parser`. Hosted on Netlify's free tier with no database; one scheduled function keeps the front page fresh.
+**Tech stack:** Next.js 16 (App Router, TypeScript), React 19, Tailwind CSS 4, `rss-parser`. Hosted on Vercel's Hobby plan with no database; a 5-minute uptime monitor, backed up by a GitHub Actions schedule, keeps the front page fresh.
 
 ## Deployment
 
-Hosted on Netlify at https://havadis.netlify.app, which builds and deploys `main` with `npm run build`. A failed build is not published, so the previous deploy stays live.
+Hosted on Vercel (Hobby) at https://havadis-news.vercel.app. Vercel's Git integration builds every push to `main` with `npm run build` for production and builds pull requests as preview deployments. A failed build is not published, so the previous deployment stays live.
 
-Netlify rebuilds an expired page only when a request arrives, so `netlify/functions/refresh-front-page.mts` requests `/` every 5 minutes; readers then see an edition at most about 20 minutes old instead of whatever the last visitor left. It reads `SITE_URL`. Feeds are not warmed: they read the same cached edition as `/`, so a feed rebuild never crawls the sources, but a feed can still be stale until its first request after a quiet spell.
+Vercel regenerates an expired page only when a request arrives, and Hobby's own cron runs at most once a day. So the front page is warmed from outside: an UptimeRobot monitor requests `/` every 5 minutes (the primary warm-up), and `.github/workflows/warm-front-page.yml` requests `/` on a GitHub Actions schedule as a backup. GitHub schedules are best-effort and were measured delivering only about 1% of the 5-minute runs, so the monitor is the one that counts. Readers usually see an edition about 15 to 30 minutes old at most while the monitor is running, and older if requests are missed. Feeds are not warmed: they read the same cached edition as `/`, so a feed rebuild never crawls the sources, but a feed can still be stale until its first request after a quiet spell.
 
-Set `SITE_URL=https://havadis.netlify.app` in the Netlify site's environment variables; without it, feed and metadata links point at `http://localhost:4000`. The crawler's contact URL (`src/lib/config/crawler.ts`) also points at this site's `/about` page, so update both if the domain changes.
+The monitor is a manual dependency outside this repository: keep it enabled, or the front page refreshes only on reader requests. GitHub also disables scheduled workflows in a public repository after 60 days without repository activity; re-enable the workflow on the Actions tab if that happens. A failed request is retried within the run and leaves a warning on every run, but the job fails only for a run that starts in the first five minutes of a UTC hour. During an outage, that sends at most about one failure email an hour, because GitHub's schedule delay can move a run into or out of that window.
+
+Set `SITE_URL=https://havadis-news.vercel.app` in the Vercel project's environment variables for Production and Preview; without it, feed and metadata links point at `http://localhost:4000`. The workflow's `SITE_URL` and the crawler's contact URL (`src/lib/config/crawler.ts`) name the same host, and `npm test` checks that they match, so update all three if the domain changes.
 
 
 ## Contributing

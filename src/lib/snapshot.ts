@@ -33,8 +33,9 @@ import type { EnrichmentSnapshot, KevRead } from "./types.ts";
  *    stale per-source body (local fetch cache: 3 entries instead of about
  *    58). Accepted by the user on 2026-10-07 (Open Question 1).
  * 5. The cache key is EDITION_CACHE_KEY plus the callback's source text, and
- *    Vercel's Data Cache survives deployments, so a shape change must bump
- *    the key. src/lib/edition.test.ts pins the shape per key version.
+ *    Vercel's Runtime Cache (formerly Data Cache) survives deployments, so a
+ *    shape change must bump the key. src/lib/edition.test.ts pins the shape
+ *    per key version.
  * 6. The feed routes also read the entry (08-CONTEXT D-25), and `/cve/[id]`
  *    will. When another reader refreshed the entry, a route regenerates from
  *    it as is, so its edition can be up to about two windows old; the page's
@@ -48,7 +49,7 @@ import type { EnrichmentSnapshot, KevRead } from "./types.ts";
  *        edition or map is served (verified in Phase 6 and Plan 07-01).
  *    (3) With no entry, the edition rethrows. ISR keeps serving the last good
  *        HTML and retries on the next request. A cold build, the first build
- *        after a cache-key bump, or a build after Data Cache eviction fails
+ *        after a cache-key bump, or a build after Runtime Cache eviction fails
  *        loudly during a total feed outage, and Vercel keeps the previous
  *        deployment live. Proven locally and on a Vercel preview in Plan
  *        07-01. This replaces v1.0 D-03's quiet empty state at build time.
