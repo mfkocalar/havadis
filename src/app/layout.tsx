@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Barlow, Barlow_Condensed, JetBrains_Mono } from "next/font/google";
 import { siteUrl } from "@/lib/config/site";
 import "./globals.css";
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <a href="/feeds" className={FOOTER_LINK}>All feeds</a>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   );
