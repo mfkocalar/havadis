@@ -56,8 +56,14 @@ export async function readBodyWithCap(
   return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8");
 }
 
-/** The outcome of `boundedFetchJson`: parsed JSON, or a short reason (never body text). */
-export type BoundedJsonResult = { ok: true; json: unknown } | { ok: false; reason: string };
+/**
+ * The outcome of `boundedFetchJson`: parsed JSON with the HTTP status it came
+ * with (2xx, or a status the caller listed in `acceptStatuses`), or a short
+ * reason (never body text).
+ */
+export type BoundedJsonResult =
+  | { ok: true; json: unknown; status: number }
+  | { ok: false; reason: string };
 
 /**
  * Fetches one URL and parses its body as JSON under a hard byte cap and one
@@ -73,12 +79,18 @@ export type BoundedJsonResult = { ok: true; json: unknown } | { ok: false; reaso
  * request option at all, because inside a cached callback Next already forces
  * every fetch uncached and an explicit option could add request headers.
  *
+ * `opts.acceptStatuses` lists non-2xx statuses whose body the caller wants to
+ * read (SSVC needs the 404 body of the CVE Program API to tell a nonexistent
+ * ID from a path drift). A listed status goes on to the same capped, time-boxed
+ * body read and JSON parse and resolves `{ ok: true, status }`; every other
+ * non-2xx status is still cancelled and reported as `status N`.
+ *
  * No content-type gate: some mirrors serve JSON as text/plain, so parsing plus
  * the caller's schema validation is the authority.
  */
 export async function boundedFetchJson(
   url: string,
-  opts: { maxBytes: number; timeoutMs: number; revalidate?: number },
+  opts: { maxBytes: number; timeoutMs: number; revalidate?: number; acceptStatuses?: readonly number[] },
   deps: { fetcher?: typeof fetchWithValidatedRedirect } = {}
 ): Promise<BoundedJsonResult> {
   const controller = new AbortController();
@@ -92,7 +104,7 @@ export async function boundedFetchJson(
       ...(opts.revalidate === undefined ? {} : { next: { revalidate: opts.revalidate } }),
     });
 
-    if (!res.ok) {
+    if (!res.ok && !(opts.acceptStatuses ?? []).includes(res.status)) {
       await res.body?.cancel().catch(() => {});
       return { ok: false, reason: `status ${res.status}` };
     }
@@ -112,7 +124,7 @@ export async function boundedFetchJson(
     }
 
     try {
-      return { ok: true, json: JSON.parse(text) as unknown };
+      return { ok: true, json: JSON.parse(text) as unknown, status: res.status };
     } catch {
       return { ok: false, reason: "invalid JSON" };
     }

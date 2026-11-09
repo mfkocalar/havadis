@@ -1,9 +1,15 @@
 import { unstable_cache } from "next/cache";
 import { EDITION_CACHE_KEY, produceEdition, type OkEdition } from "./edition.ts";
-import { KEV_REVALIDATE_SECONDS } from "./enrichment/config.ts";
+import { CVE_ID_SHAPE } from "./cveChips.ts";
+import {
+  KEV_REVALIDATE_SECONDS,
+  SSVC_CACHE_KEY,
+  SSVC_REVALIDATE_SECONDS,
+} from "./enrichment/config.ts";
 import { enrichCves, uniqueCves } from "./enrichment/enrich.ts";
 import { KEV_CACHE_KEY, produceKev } from "./enrichment/kev.ts";
-import type { EnrichmentSnapshot, KevRead } from "./types.ts";
+import { produceSsvc } from "./enrichment/ssvc.ts";
+import type { CacheableSsvcState, EnrichmentSnapshot, KevRead } from "./types.ts";
 
 /**
  * The single read path the front page and the feed routes use (feeds since
@@ -70,6 +76,16 @@ import type { EnrichmentSnapshot, KevRead } from "./types.ts";
  *    cached callback. KEV is non-fatal (item 7): `getKev` reports
  *    `unavailable` instead of throwing, and an outage never reads as "not
  *    listed" (ENR-03).
+ * 10. SSVC is a per-CVE keyed seam (`cachedLookup`, Phase 7.2, D-12). The
+ *    argument is a validated CVE ID and is part of the cache key, so there is
+ *    one slim entry per CVE under SSVC_CACHE_KEY with its own tag and a window
+ *    of SSVC_REVALIDATE_SECONDS. A throwing refresh keeps the stale entry, and a
+ *    throw with no entry stores nothing; both were proven on a Vercel preview
+ *    in Plan 07.2-01. It is called at render from `enrichCves`, never from
+ *    inside another cached callback. Only `assessed` and `not-assessed` are ever
+ *    stored (the producer throws on everything else). Every call of the
+ *    producer, a miss or a stale refresh, logs one fixed line and a cache hit
+ *    logs nothing, so the re-fetch count can be read from production logs.
  */
 
 /** The shared cache window, and so the route's ISR window, in seconds. */
@@ -149,6 +165,52 @@ export async function getKev(): Promise<KevRead> {
   }
 }
 
+/** Cache tag carried by the per-CVE SSVC entries; purging the edition tag never purges them. */
+export const SSVC_TAG = "havadis-ssvc";
+
+/**
+ * Generic seam over `unstable_cache` for a producer that takes arguments. The
+ * arguments become part of the cache key, so callers pass only validated,
+ * clock-free values (a CVE ID). The same failure policy as `cachedSnapshot`
+ * holds: `produce` must THROW to reject a refresh, and a throw keeps the last
+ * good entry. Never call it from inside another cached callback.
+ */
+export function cachedLookup<A extends string[], T>(
+  key: string,
+  produce: (...args: A) => Promise<T>,
+  opts: { revalidate: number; tags: string[] }
+): (...args: A) => Promise<T> {
+  return unstable_cache(produce, [key], opts);
+}
+
+/**
+ * `produceSsvc` plus one fixed log line per call. It runs only when
+ * `unstable_cache` calls the producer (a miss or a stale refresh), so a cache
+ * hit logs nothing and Plan 07.2-05 can count re-fetches. The line carries a
+ * fixed prefix, a CVE_ID_SHAPE-validated ID and a state word, never an error
+ * message or any upstream text.
+ */
+async function produceSsvcLogged(id: string): Promise<CacheableSsvcState> {
+  try {
+    const state = await produceSsvc(id);
+    console.info(`ssvc: fetched ${id} ${state.state}`);
+    return state;
+  } catch (err) {
+    console.info(
+      CVE_ID_SHAPE.test(id) ? `ssvc: fetch failed ${id}` : "ssvc: fetch failed (invalid id)"
+    );
+    throw err;
+  }
+}
+
+// The callback's source text is part of the cache key: never edit this arrow
+// function, put logic in `produceSsvcLogged` and `produceSsvc`. The CVE ID is
+// the argument, so it is part of the key. The window must stay at or above 900.
+const readSsvc = cachedLookup(SSVC_CACHE_KEY, (id: string) => produceSsvcLogged(id), {
+  revalidate: SSVC_REVALIDATE_SECONDS,
+  tags: [SSVC_TAG],
+});
+
 /** What the front page renders: the cached edition plus its render-time enrichment. */
 export type FrontPageData = {
   result: OkEdition;
@@ -164,6 +226,11 @@ export type FrontPageData = {
 export async function getFrontPageData(): Promise<FrontPageData> {
   const [result, kev] = await Promise.all([getSnapshot(), getKev()]);
   const now = Date.now();
-  const enrichment = await enrichCves(uniqueCves(result.articles), { kev }, now);
+  const enrichment = await enrichCves(
+    uniqueCves(result.articles),
+    { kev, cardCves: result.articles.map((a) => a.cves) },
+    now,
+    { ssvc: { lookup: readSsvc } }
+  );
   return { result, enrichment };
 }

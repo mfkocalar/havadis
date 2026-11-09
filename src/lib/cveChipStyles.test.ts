@@ -7,6 +7,8 @@ import {
   EPSS_NONE_YET_CHIP_CLASSES,
   EPSS_STRONG_CHIP_CLASSES,
   KEV_CHIP_CLASSES,
+  SSVC_ACTIVE_CHIP_CLASSES,
+  SSVC_POC_CHIP_CLASSES,
 } from "./cveChipStyles.ts";
 
 /**
@@ -25,6 +27,8 @@ const TONES: Record<string, string> = {
   EPSS_CHIP_CLASSES,
   EPSS_STRONG_CHIP_CLASSES,
   EPSS_NONE_YET_CHIP_CLASSES,
+  SSVC_ACTIVE_CHIP_CLASSES,
+  SSVC_POC_CHIP_CLASSES,
 };
 
 /** The colour name of one class family for a theme, with the light class as the dark fallback. */
@@ -61,10 +65,21 @@ for (const [name, classes] of Object.entries(TONES)) {
 test("every tone constant is one string literal, never a concatenation", () => {
   const source = readFileSync(new URL("./cveChipStyles.ts", import.meta.url), "utf8");
   const decls = [...source.matchAll(/^export const (\w+) =\s*([^;]*);/gm)];
-  assert.equal(decls.length, 4);
+  assert.equal(decls.length, 6);
   for (const [, name, rhs] of decls) {
     assert.match(rhs.trim(), /^"[^"+`$]*"$/, `${name} must be a single double-quoted literal`);
   }
+});
+
+test("the SSVC tones are distinct from every other tone and from KEV and EPSS strong (D-04, T-07.2-13)", () => {
+  const all = Object.values(TONES);
+  assert.equal(new Set(all).size, all.length, "the six tone constants must be pairwise different");
+  assert.ok(SSVC_ACTIVE_CHIP_CLASSES.includes("ring-2"), "SSVC active carries the heavy 2px ring");
+  assert.match(SSVC_ACTIVE_CHIP_CLASSES, /(?:^|\s)text-red-\d+(?=\s|$)/, "SSVC active carries red text");
+  assert.ok(!SSVC_ACTIVE_CHIP_CLASSES.includes("bg-stone-950"), "SSVC active is never the solid KEV ink fill");
+  assert.ok(!SSVC_ACTIVE_CHIP_CLASSES.includes("bg-yellow-"), "SSVC active is never the EPSS strong yellow fill");
+  assert.ok(!SSVC_POC_CHIP_CLASSES.includes("red-"), "SSVC poc carries no red");
+  assert.ok(!SSVC_POC_CHIP_CLASSES.includes("yellow-"), "SSVC poc carries no yellow");
 });
 
 test("non-vacuity: a light zinc-300 on zinc-100 pair measures below 4.5:1", () => {

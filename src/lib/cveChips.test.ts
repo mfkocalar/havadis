@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NVD_CVE_DETAIL_BASE, formatEpss, nvdUrl, planCveChips } from "./cveChips.ts";
-import type { CveEnrichment, EpssState, KevState } from "./types.ts";
+import type { CveChip } from "./cveChips.ts";
+import type { CveEnrichment, EpssState, KevState, SsvcState } from "./types.ts";
 
 /**
  * Hermetic fixture tests for the chip cap and link-integrity model (D-13,
@@ -101,13 +102,14 @@ test("formatEpss: two decimals from 0.01 up, 1.00 at the top", () => {
 /** Enrichment literal builders for the D-03 ordering tests. */
 const kevOf = (added: string): KevState => ({ state: "listed", added, due: "2026-12-01", ransomware: false });
 const scored = (score: number): EpssState => ({ state: "scored", score, date: "2026-10-16" });
-const enr = (kev: KevState, epss: EpssState): CveEnrichment => ({ kev, epss });
+const enr = (kev: KevState, epss: EpssState): CveEnrichment => ({ kev, epss, ssvc: { state: "not-assessed" } });
 const NOT_LISTED: KevState = { state: "not-listed" };
 const UNAVAILABLE = { state: "unavailable" } as const;
 const A = "CVE-2026-0001";
 const B = "CVE-2026-0002";
 const C = "CVE-2026-0003";
 const D = "CVE-2026-0004";
+type CveChipSsvc = CveChip["ssvc"];
 const ids = (plan: ReturnType<typeof planCveChips>) => plan.visible.map((c) => c.id);
 
 test("planCveChips: a KEV-listed fourth CVE moves to the front and overflow stays 1 (D-03)", () => {
@@ -228,4 +230,114 @@ test("planCveChips: a prototype-chain key never reads as enrichment", () => {
   const plan = planCveChips(["CVE-2026-0001"], Object.create({ "CVE-2026-0001": enr(kevOf("2026-10-01"), scored(1)) }));
   assert.equal(plan.visible[0].kev, null);
   assert.equal(plan.visible[0].epss, null);
+});
+
+/** SSVC-aware enrichment builder for the Phase 7.2 D-01 and D-03 tests. */
+const assessed = (exploitation: "none" | "poc" | "active"): SsvcState => ({
+  state: "assessed",
+  exploitation,
+  automatable: "no",
+  technicalImpact: "partial",
+});
+const enrS = (kev: KevState, epss: EpssState, ssvc: SsvcState): CveEnrichment => ({ kev, epss, ssvc });
+
+test("planCveChips: the CONTEXT example card orders KEV, SSVC active, EPSS and folds two behind +N (D-03)", () => {
+  const K = "CVE-2026-1111";
+  const S = "CVE-2026-2222";
+  const E = "CVE-2026-3333";
+  const P1 = "CVE-2026-4444";
+  const P2 = "CVE-2026-5555";
+  const plan = planCveChips([P1, E, S, P2, K], {
+    [K]: enrS(kevOf("2026-10-03"), scored(0.91), { state: "skipped" }),
+    [S]: enrS(NOT_LISTED, scored(0.02), assessed("active")),
+    [E]: enrS(NOT_LISTED, scored(0.4), { state: "not-assessed" }),
+  });
+  assert.deepEqual(ids(plan), [K, S, E]);
+  assert.equal(plan.overflow, 2);
+  assert.deepEqual(plan.visible.map((c) => c.ssvc), [null, { level: "active" }, null]);
+});
+
+test("planCveChips: SSVC active with EPSS 0.02 comes before an unassessed CVE with EPSS 0.40 (D-03)", () => {
+  const plan = planCveChips([A, B], {
+    [A]: enrS(NOT_LISTED, scored(0.4), { state: "not-assessed" }),
+    [B]: enrS(NOT_LISTED, scored(0.02), assessed("active")),
+  });
+  assert.deepEqual(ids(plan), [B, A]);
+});
+
+test("planCveChips: SSVC poc sits after active and before plain CVEs, and inside a tier EPSS then index decide", () => {
+  const tiers = planCveChips([A, B, C, D], {
+    [A]: enrS(NOT_LISTED, scored(0.9), { state: "not-assessed" }),
+    [B]: enrS(NOT_LISTED, UNAVAILABLE, assessed("poc")),
+    [C]: enrS(NOT_LISTED, UNAVAILABLE, assessed("active")),
+  });
+  assert.deepEqual(ids(tiers), [C, B, A]);
+  assert.equal(tiers.overflow, 1);
+
+  const inside = planCveChips([A, B, C, D], {
+    [A]: enrS(NOT_LISTED, scored(0.1), assessed("poc")),
+    [B]: enrS(NOT_LISTED, scored(0.7), assessed("poc")),
+    [C]: enrS(NOT_LISTED, scored(0.1), assessed("poc")),
+    [D]: enrS(NOT_LISTED, UNAVAILABLE, assessed("poc")),
+  });
+  assert.deepEqual(ids(inside), [B, A, C]);
+  const sameScore = planCveChips([B, A], {
+    [A]: enrS(NOT_LISTED, scored(0.3), assessed("active")),
+    [B]: enrS(NOT_LISTED, scored(0.3), assessed("active")),
+  });
+  assert.deepEqual(ids(sameScore), [B, A], "equal tier and score fall back to extraction order");
+});
+
+test("planCveChips: a KEV-listed CVE with an assessed active SSVC state has no SSVC chip and ranks by its KEV date (D-01)", () => {
+  const plan = planCveChips([A, B, C], {
+    [A]: enrS(kevOf("2026-09-01"), UNAVAILABLE, assessed("active")),
+    [B]: enrS(kevOf("2026-10-03"), UNAVAILABLE, assessed("poc")),
+    [C]: enrS(NOT_LISTED, scored(0.9), assessed("active")),
+  });
+  assert.deepEqual(ids(plan), [B, A, C]);
+  assert.equal(plan.visible[0].ssvc, null);
+  assert.equal(plan.visible[1].ssvc, null);
+  assert.deepEqual(plan.visible[2].ssvc, { level: "active" });
+});
+
+test("planCveChips: assessed none, not-assessed, skipped and unavailable change neither the order nor the chip", () => {
+  const states: SsvcState[] = [
+    assessed("none"),
+    { state: "not-assessed" },
+    { state: "skipped" },
+    { state: "unavailable" },
+  ];
+  const baseline = planCveChips([A, B, C, D], {
+    [A]: enrS(NOT_LISTED, scored(0.1), states[0]),
+    [B]: enrS(NOT_LISTED, scored(0.6), states[0]),
+    [D]: enrS(kevOf("2026-10-01"), UNAVAILABLE, states[0]),
+  });
+  for (const state of states) {
+    const plan = planCveChips([A, B, C, D], {
+      [A]: enrS(NOT_LISTED, scored(0.1), state),
+      [B]: enrS(NOT_LISTED, scored(0.6), state),
+      [D]: enrS(kevOf("2026-10-01"), UNAVAILABLE, state),
+      [C]: enrS(NOT_LISTED, UNAVAILABLE, state),
+    });
+    assert.deepEqual(ids(plan), ids(baseline), `order must not depend on ${state.state}`);
+    assert.deepEqual(ids(plan), [D, B, A]);
+    assert.equal(plan.overflow, 1);
+    for (const chip of plan.visible) assert.equal(chip.ssvc, null, `${state.state} must give no SSVC chip`);
+  }
+});
+
+test("planCveChips: only an assessed active or poc level ever produces an SSVC chip", () => {
+  const cases: Array<[SsvcState, CveChipSsvc]> = [
+    [assessed("active"), { level: "active" }],
+    [assessed("poc"), { level: "poc" }],
+    [assessed("none"), null],
+    [{ state: "not-assessed" }, null],
+    [{ state: "skipped" }, null],
+    [{ state: "unavailable" }, null],
+  ];
+  for (const [state, expected] of cases) {
+    const plan = planCveChips([A], { [A]: enrS(NOT_LISTED, UNAVAILABLE, state) });
+    assert.deepEqual(plan.visible[0].ssvc, expected, `state ${state.state}`);
+  }
+  assert.equal(planCveChips([A]).visible[0].ssvc, null, "no enrichment at all gives no SSVC chip");
 });

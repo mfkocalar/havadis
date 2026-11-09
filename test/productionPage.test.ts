@@ -544,8 +544,21 @@ test("/about is prerendered as a static route", () => {
 // record what they saw through t.diagnostic.
 
 const NVD_HREF_SHAPE = /^https:\/\/nvd\.nist\.gov\/vuln\/detail\/CVE-\d{4}-\d{4,7}$/;
-const FALSE_ASSURANCE = /not (?:in|listed in) kev|not exploited|no known exploitation/i;
+const FALSE_ASSURANCE =
+  /not (?:in|listed in) kev|not exploited|no known exploitation|exploitation none|ssvc none|not assessed/i;
 const KEV_CHIP_TAIL = "KEV · \\d{4}-\\d{2}-\\d{2}<\\/span>";
+const SSVC_CHIP_TAIL = "SSVC (?:active|poc)<\\/span>";
+
+/**
+ * The notice grammar (UI-SPEC R-5, R-8): a KEV part, an EPSS part and an SSVC
+ * part, each optional, at least one, in that order, joined by " · ".
+ */
+const NOTICE_KEV = "(?:KEV data unavailable|KEV data from \\d{4}-\\d{2}-\\d{2})";
+const NOTICE_EPSS = "(?:EPSS data unavailable|EPSS partially unavailable)";
+const NOTICE_SSVC = "(?:SSVC data unavailable|SSVC partially unavailable)";
+const NOTICE_GRAMMAR = new RegExp(
+  `^(?:${NOTICE_KEV}(?: · ${NOTICE_EPSS})?(?: · ${NOTICE_SSVC})?|${NOTICE_EPSS}(?: · ${NOTICE_SSVC})?|${NOTICE_SSVC})$`
+);
 
 /**
  * The page's own markup: the document without scripts (the flight payload
@@ -567,6 +580,9 @@ test("the page's own markup never says a CVE is not in KEV or not exploited", as
   // The check can fail: it flags the wording it exists to forbid.
   assert.match("CVE is not in KEV", FALSE_ASSURANCE);
   assert.match("Not exploited", FALSE_ASSURANCE);
+  assert.match("Exploitation none", FALSE_ASSURANCE);
+  assert.match("SSVC none", FALSE_ASSURANCE);
+  assert.match("Not assessed", FALSE_ASSURANCE);
 
   const own = ownMarkup(body);
   assert.ok(own.length > 0 && own.length < body.length, "the own-markup filter must remove something");
@@ -599,6 +615,30 @@ test("every KEV chip is a span directly after an NVD anchor, with the sr-only pr
   t.diagnostic(`KEV chips: ${chipCount}`);
 });
 
+test("every SSVC chip is a span directly after an NVD anchor, never after a KEV chip, with the sr-only prefix and a fixed text", async (t) => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const main = mainHtml(body);
+
+  const chipCount = [...main.matchAll(/\sdata-ssvc-chip=/g)].length;
+  const shaped = [
+    ...main.matchAll(
+      /(<a\b[^>]*>)[^<]*<\/a><span data-ssvc-chip="(active|poc)"[^>]*><span class="sr-only">CISA assessment, <\/span>(?:<!-- -->)?SSVC (active|poc)<\/span>/g
+    ),
+  ];
+  assert.equal(shaped.length, chipCount, "every SSVC chip must follow an anchor and have the exact content shape");
+  for (const m of shaped) {
+    const href = attrValue(m[1], "href");
+    assert.ok(href !== null && NVD_HREF_SHAPE.test(href), `SSVC chip follows a non-NVD anchor: ${m[1]}`);
+    assert.equal(m[2], m[3], "the visible SSVC text must name the same level as the data attribute");
+  }
+  assert.doesNotMatch(main, new RegExp(`${KEV_CHIP_TAIL}<span data-ssvc-chip`), "no SSVC chip may follow a KEV chip");
+  for (const tag of openingTags(main, "span").filter((s) => s.includes("data-ssvc-chip"))) {
+    assert.ok(!tag.includes("href="), "an SSVC chip is never a link");
+  }
+  t.diagnostic(`SSVC chips: ${chipCount}`);
+});
+
 test("every EPSS chip is a span after its CVE anchor or its KEV chip, with a score or 'no EPSS yet' text", async (t) => {
   const res = await fetch(BASE_URL);
   const body = await res.text();
@@ -608,12 +648,12 @@ test("every EPSS chip is a span after its CVE anchor or its KEV chip, with a sco
   const shaped = [
     ...main.matchAll(
       new RegExp(
-        `(<\\/a>|${KEV_CHIP_TAIL})<span data-epss-chip="(score|none-yet)"[^>]*>([^<]*)<\\/span>`,
+        `(<\\/a>|${KEV_CHIP_TAIL}|${SSVC_CHIP_TAIL})<span data-epss-chip="(score|none-yet)"[^>]*>([^<]*)<\\/span>`,
         "g"
       )
     ),
   ];
-  assert.equal(shaped.length, chipCount, "every EPSS chip must directly follow an anchor or a KEV chip");
+  assert.equal(shaped.length, chipCount, "every EPSS chip must directly follow an anchor, a KEV chip or an SSVC chip");
 
   let scored = 0;
   let noneYet = 0;
@@ -636,13 +676,33 @@ test("every EPSS chip is a span after its CVE anchor or its KEV chip, with a sco
 });
 
 test("at most one enrichment notice, inside the filter bar before main, from the fixed vocabulary", async (t) => {
+  // The grammar can fail: it accepts the ordered parts and rejects the rest.
+  for (const ok of [
+    "KEV data unavailable",
+    "EPSS partially unavailable",
+    "SSVC data unavailable",
+    "SSVC partially unavailable",
+    "KEV data from 2026-10-06 · SSVC partially unavailable",
+    "KEV data unavailable · EPSS data unavailable · SSVC data unavailable",
+  ]) {
+    assert.match(ok, NOTICE_GRAMMAR);
+  }
+  for (const bad of [
+    "",
+    "SSVC data unavailable · EPSS data unavailable",
+    "EPSS data unavailable · KEV data unavailable",
+    "SSVC data unavailable · ",
+    "SSVC is fine",
+  ]) {
+    assert.doesNotMatch(bad, NOTICE_GRAMMAR);
+  }
   const res = await fetch(BASE_URL);
   const body = await res.text();
 
   const spans = openingTags(body, "span").filter((s) => s.includes("data-enrichment-notice"));
   assert.ok(spans.length <= 1, `expected at most one data-enrichment-notice, got ${spans.length}`);
   if (spans.length === 0) {
-    t.diagnostic("notice: none (both providers healthy)");
+    t.diagnostic("notice: none (every provider healthy)");
     return;
   }
 
@@ -654,10 +714,7 @@ test("at most one enrichment notice, inside the filter bar before main, from the
   const inner = body.slice(at).match(/^data-enrichment-notice=""[^>]*>([^<]*)<\/span>/);
   assert.ok(inner, "expected the notice to hold a single text node");
   const text = inner![1];
-  assert.match(
-    text,
-    /^(?:KEV data unavailable|KEV data from \d{4}-\d{2}-\d{2})(?: · (?:EPSS data unavailable|EPSS partially unavailable))?$|^(?:EPSS data unavailable|EPSS partially unavailable)$/
-  );
+  assert.match(text, NOTICE_GRAMMAR);
   assert.equal(attrValue(spans[0], "title"), text, "the full text is also the title");
   assert.doesNotMatch(text, FALSE_ASSURANCE);
   t.diagnostic(`notice: ${text}`);

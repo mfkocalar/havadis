@@ -5,6 +5,8 @@ import {
   EPSS_NONE_YET_CHIP_CLASSES,
   EPSS_STRONG_CHIP_CLASSES,
   KEV_CHIP_CLASSES,
+  SSVC_ACTIVE_CHIP_CLASSES,
+  SSVC_POC_CHIP_CLASSES,
 } from "@/lib/cveChipStyles";
 import type { CveEnrichment } from "@/lib/types";
 
@@ -27,7 +29,13 @@ import type { CveEnrichment } from "@/lib/types";
  * surface (D-19). A CVE that is not listed, or whose KEV state is unavailable,
  * renders nothing extra (D-09).
  *
- * The EPSS chip is likewise a non-link span after the KEV chip: `EPSS 0.91`
+ * The SSVC chip is a non-link span between the KEV and EPSS chips: `SSVC
+ * active` or `SSVC poc` from the validated CISA level only, with a leading
+ * sr-only "CISA assessment, " and a fixed title (D-02). It is hidden beside a
+ * KEV chip (D-01) and never prints none or not-assessed, so the absence of a
+ * chip is never presented as safety (ENR-07).
+ *
+ * The EPSS chip is likewise a non-link span after the KEV and SSVC chips: `EPSS 0.91`
  * for a scored CVE, a muted `no EPSS yet` only when FIRST answered consistently
  * without a row, and nothing when the lookup was unavailable (D-07, D-11).
  * A score at or above the emphasis threshold uses the strong tone (D-06).
@@ -48,6 +56,9 @@ import type { CveEnrichment } from "@/lib/types";
  */
 const CHIP_CLASSES =
   "inline-flex items-center rounded-xs border-2 border-stone-950 bg-orange-500 dark:border-orange-300 px-1.5 font-mono text-xs leading-5 font-bold whitespace-nowrap text-stone-950 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:focus-visible:outline-stone-100";
+
+const SSVC_ACTIVE_TITLE = "CISA SSVC: exploitation active";
+const SSVC_POC_TITLE = "CISA SSVC: exploitation poc (public proof of concept)";
 
 export function CveChips({
   cves,
@@ -82,6 +93,16 @@ export function CveChips({
             >
               <span className="sr-only">Known exploited, </span>
               {`KEV · ${chip.kev.added}`}
+            </span>
+          ) : null}
+          {chip.ssvc !== null ? (
+            <span
+              data-ssvc-chip={chip.ssvc.level}
+              title={chip.ssvc.level === "active" ? SSVC_ACTIVE_TITLE : SSVC_POC_TITLE}
+              className={chip.ssvc.level === "active" ? SSVC_ACTIVE_CHIP_CLASSES : SSVC_POC_CHIP_CLASSES}
+            >
+              <span className="sr-only">CISA assessment, </span>
+              {`SSVC ${chip.ssvc.level}`}
             </span>
           ) : null}
           {chip.epss !== null && chip.epss.kind === "score" ? (

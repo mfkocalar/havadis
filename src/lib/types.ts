@@ -206,8 +206,33 @@ export type EpssState =
   | { state: "no-row" }
   | { state: "unavailable" };
 
-/** Both providers' standing for one CVE. */
-export type CveEnrichment = { kev: KevState; epss: EpssState };
+/** CISA's SSVC Exploitation decision point, exactly the three values CISA publishes. */
+export type SsvcExploitation = "none" | "poc" | "active";
+
+/**
+ * One CVE's CISA SSVC standing (ENR-06, ENR-07). Four distinct states:
+ * `assessed` carries CISA's three decision points; `not-assessed` means CISA
+ * published no SSVC decision for the CVE; `skipped` means the CVE is KEV-listed
+ * and was deliberately not looked up (D-05); `unavailable` means the lookup
+ * failed, fell past the per-edition cap or returned an ambiguous record (D-06).
+ * Neither `not-assessed` nor `unavailable` ever reads as `none` (ENR-07).
+ */
+export type SsvcState =
+  | {
+      state: "assessed";
+      exploitation: SsvcExploitation;
+      automatable: "yes" | "no";
+      technicalImpact: "partial" | "total";
+    }
+  | { state: "not-assessed" }
+  | { state: "skipped" }
+  | { state: "unavailable" };
+
+/** The only SSVC states ever stored in the shared cache: positively parsed answers, never failures. */
+export type CacheableSsvcState = Extract<SsvcState, { state: "assessed" | "not-assessed" }>;
+
+/** The three providers' standing for one CVE. */
+export type CveEnrichment = { kev: KevState; epss: EpssState; ssvc: SsvcState };
 
 /** How healthy each provider's data is, for the page notice (Plan 07-04). */
 export type EnrichmentHealth = {
@@ -217,9 +242,15 @@ export type EnrichmentHealth = {
     requested: number;
     unavailable: number;
   };
+  /** `requested` counts SSVC candidates (valid IDs minus KEV-skipped); not-assessed and skipped never count as unavailable. */
+  ssvc: {
+    status: "ok" | "partial" | "unavailable";
+    requested: number;
+    unavailable: number;
+  };
 };
 
-/** The render-time join of the edition's CVEs with KEV and EPSS. */
+/** The render-time join of the edition's CVEs with KEV, EPSS and SSVC. */
 export type EnrichmentSnapshot = {
   byCve: Record<string, CveEnrichment>;
   health: EnrichmentHealth;
