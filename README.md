@@ -27,7 +27,7 @@ Security news is scattered across vendor blogs, CERTs, government advisories and
 
 - 🔴 **Know what to act on today.** Every story is scored **Critical**, **High** or **Normal** by transparent rules (actively exploited, zero-day, CISA KEV, emergency patch, …), and the reason is shown.
 - 🧭 **Seven hazard classes.** Vulnerabilities, Advisories, Ransomware, Breaches, Threat Intelligence, Tools/Techniques and Industry/Policy, in urgency order.
-- 🎯 **Exploitation signals inline.** CVE IDs link to NVD, with the CISA KEV date and FIRST EPSS probability beside them.
+- 🎯 **Exploitation signals inline.** CVE IDs link to NVD, with the CISA KEV date, CISA's SSVC exploitation status (SSVC active or SSVC poc) and the FIRST EPSS probability beside them.
 - 🧹 **No duplicates.** The same story from several outlets appears once.
 - ⌨️ **Built for a fast morning pass.** Filter by importance or section, flag and mark read, and move with `j` / `k` / `f` / `r`. Everything stays in your browser.
 - 📡 **Subscribe anywhere.** RSS 2.0 and JSON Feed for the whole page, by importance, or by section.
@@ -45,7 +45,7 @@ Security news is scattered across vendor blogs, CERTs, government advisories and
 - **Ranking** within a section by source tier weight and recency.
 - **Importance triage:** every article is scored Critical, High or Normal by deterministic rules, and the story shows the reason. Critical means act today (actively exploited, zero-day, CISA KEV, emergency patch). High means plan for it (critical severity, remote compromise, public exploit, supply-chain attack, ransomware, any CVE, or a Breaches story). Critical stories get a filled red placard and High stories an outlined one; the level is always printed as a word, never shown by colour alone.
 - **CVE panels** on stories that mention a CVE ID: the ID on an orange identification panel, linking to the NVD entry.
-- **Exploitation signals:** a CVE panel is followed by a KEV chip with the date CISA added the CVE to its Known Exploited Vulnerabilities catalog, and an EPSS chip with the FIRST exploitation probability (a muted "no EPSS yet" for brand-new CVEs). The strongest signal is shown first. When KEV or EPSS data is unavailable, stale or partial, a small notice appears next to "Updated"; nothing on the page ever says a CVE is safe or not exploited.
+- **Exploitation signals:** a CVE panel is followed by a KEV chip with the date CISA added the CVE to its Known Exploited Vulnerabilities catalog, an SSVC chip with CISA's Vulnrichment exploitation status (shown for "active" and "poc" only, and hidden when the CVE is in KEV, where the KEV chip already shows exploitation; nothing is shown for "none" or for a CVE CISA has not assessed), and an EPSS chip with the FIRST exploitation probability (a muted "no EPSS yet" for brand-new CVEs). The strongest signal is shown first. When KEV, EPSS or SSVC data is unavailable, stale or partial, a small notice appears next to "Updated" (for example "KEV data unavailable · EPSS data unavailable · SSVC data unavailable"); nothing on the page ever says a CVE is safe or not exploited.
 - **Client-side section filter:** multi-select section buttons with per-section counts, in a side rail from 1024px and a sticky scrolling strip below that. Filtering never triggers a network request.
 - **Reader triage:** show All, High+ or Critical only, unread only or flagged only; flag or mark any story read, or mark everything shown as read. Choices and marks are kept in the browser's localStorage (marks for a week); nothing is sent to a server.
 - **Keyboard triage:** `j` / `k` move to the next or previous visible story, `f` flags it and `r` marks it read (pressing the story's own Flag and Read buttons). Hidden or collapsed stories are skipped, and with "Unread only" on, `r` moves on to the next story. Shortcuts never fire in text fields or with a modifier key, and "Turn shortcuts off" in the triage bar disables them (WCAG 2.2 SC 2.1.4); that setting is kept in localStorage and survives "Reset filters".
@@ -74,7 +74,7 @@ npm run build
 npm start
 ```
 
-The build prerenders from live feeds, so it needs outbound network access, including to `www.cisa.gov` (KEV) and `api.first.org` (EPSS).
+The build prerenders from live feeds, so it needs outbound network access, including to `www.cisa.gov` (KEV), `api.first.org` (EPSS) and `cveawg.mitre.org` (SSVC, the CVE Program record that carries CISA's Vulnrichment data).
 
 ## Subscribe
 
@@ -102,14 +102,14 @@ curl -s https://havadis-news.vercel.app/feed/critical.json | jq '.items[] | {tit
    → fetchSource (validated redirects, size cap, per-source timeout)
    → normalize → per-source lookback (72h cert/government/vendor/advisory, 24h news/research) → dedupe → classify + CVEs + importance → rank → group by section
    → one cached edition (src/lib/snapshot.ts, 900 s) ─┐
-   CISA KEV catalogue → validated, slim map (6 h)  ───┼→ merged at render with EPSS (FIRST) → static, server-rendered page
+   CISA KEV catalogue → validated, slim map (6 h)  ───┼→ merged at render with EPSS (FIRST) and SSVC (per CVE, 6 h) → static, server-rendered page
 ```
 
 The whole composed edition is cached once through Next's `unstable_cache` in `src/lib/snapshot.ts` (`getSnapshot`, `SNAPSHOT_REVALIDATE_SECONDS` = 900 seconds) and shared by every reader. Inside it each feed is fetched uncached, so a feed that fails during a refresh is missing from that edition until the next good refresh. A refresh that errors or composes zero articles keeps the previous edition, whose "Updated" time then shows its age. Parsing uses `rss-parser` on the fetched XML text. The front page is a static route. Client code is limited to the filters, triage controls, read and flag marks, and clocks; it receives only opaque article ids, closed enums, counts and timestamps, never feed text.
 
-Exploitation signals are merged with the cached edition at render, so the page stays static. The CISA KEV catalogue is validated, slimmed to about 135 KB (at today's catalogue size) and cached for 6 hours under its own key; EPSS is requested at render in sorted batches of at most 50 CVEs with a 1-hour fetch cache.
+Exploitation signals are merged with the cached edition at render, so the page stays static. The CISA KEV catalogue is validated, slimmed to about 135 KB (at today's catalogue size) and cached for 6 hours under its own key; EPSS is requested at render in sorted batches of at most 50 CVEs with a 1-hour fetch cache. SSVC is read per CVE from the CVE Program record at `cveawg.mitre.org` (the CISA-ADP container carries CISA's Vulnrichment decision points), cached per CVE for `SSVC_REVALIDATE_SECONDS` (6 hours) and looked up for at most `SSVC_MAX_LOOKUPS` CVEs per edition, the CVEs behind each card's visible chips first. KEV-listed CVEs are not looked up. An edition with more SSVC candidates than the cap (a Patch-Tuesday-sized day) shows "SSVC partially unavailable" by design, because the CVEs past the cap are not looked up.
 
-Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Vercel keeps the previous deployment live. Enrichment: a stale KEV map beats an empty one, otherwise KEV and EPSS degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
+Failure policy, one sentence each. Edition: the last good edition is kept, and a cold build (or the first build after a cache-key bump) fails during a total feed outage while Vercel keeps the previous deployment live. Enrichment: a stale KEV map beats an empty one, otherwise KEV, EPSS and SSVC degrade to "unavailable", every article still renders, and unavailable is never shown as "not in KEV". The reasoning is written once in the header of `src/lib/snapshot.ts`.
 
 
 ## Configuration
@@ -122,7 +122,7 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 | Section keywords | `src/lib/config/sections.ts` |
 | Ranking weights | `src/lib/config/ranking.ts` |
 | Per-section story cap (6 shown, the rest behind "Show all" once at least 3 would be hidden) | `src/lib/config/frontPageLayout.ts` |
-| KEV and EPSS tunables (feed URLs, cache windows, size caps, timeouts, batch size) | `src/lib/enrichment/config.ts` |
+| KEV, EPSS and SSVC tunables (feed URLs, cache windows, lookup cap, size caps, timeouts, batch size) | `src/lib/enrichment/config.ts` |
 | Importance rules (critical / high / normal) | `src/lib/pipeline/importance.ts` |
 
 `SITE_URL` sets the public origin used for absolute links in feeds and metadata (e.g. `https://havadis-news.vercel.app`). It falls back to `http://localhost:4000`; set it in production. The crawler's contact URL points at this site's `/about` page.
@@ -139,7 +139,7 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 
 ### Testing
 
-`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/` or `next.config.ts` is newer than `.next/BUILD_ID`. Enrichment tests run against a local fixture server on 127.0.0.1 and never call CISA or FIRST. Live-network end-to-end tests are opt-in:
+`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/` or `next.config.ts` is newer than `.next/BUILD_ID`. Enrichment tests run against a local fixture server on 127.0.0.1 and never call CISA, FIRST or MITRE. Live-network end-to-end tests are opt-in:
 
 ```bash
 E2E=1 node --test src/lib/pipeline/frontpage.e2e.test.ts
