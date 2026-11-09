@@ -1,7 +1,13 @@
-import { CVE_ID_SHAPE } from "../cveChips.ts";
+import { CVE_ID_SHAPE, planCveChips } from "../cveChips.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
 import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
-import type { CacheableSsvcState, EpssState, KevState, SsvcState } from "../types.ts";
+import type {
+  CacheableSsvcState,
+  CveEnrichment,
+  EpssState,
+  KevState,
+  SsvcState,
+} from "../types.ts";
 import {
   CISA_ADP_ORG_ID,
   SSVC_CONCURRENCY,
@@ -194,14 +200,33 @@ export async function produceSsvc(
 /** What `selectSsvcIds` decided for one edition's CVEs. */
 export type SsvcSelection = { lookups: string[]; skipped: string[]; overflow: string[] };
 
+/** EPSS score of a candidate, or null when it has none; scored sorts before unscored. */
+function scoreOf(
+  pre: Readonly<Record<string, { kev: KevState; epss: EpssState }>>,
+  id: string
+): number | null {
+  const entry = Object.hasOwn(pre, id) ? pre[id] : undefined;
+  return entry !== undefined && entry.epss.state === "scored" ? entry.epss.score : null;
+}
+
 /**
- * Chooses which CVEs get an SSVC lookup (D-05, D-06, D-08). Unique IDs matching
- * `CVE_ID_SHAPE`, in input order. When `kevKnown`, KEV-listed IDs are `skipped`
- * and never looked up; when KEV is unavailable nobody is skipped. The remaining
- * candidates are split at `cap`: the first `cap` are `lookups`, the rest
- * `overflow` (unavailable). Nothing here consults a cache, so the same edition
- * always gets the same coverage. `epss` and `cardCves` are accepted for the
- * D-07 priority order, which a later plan adds; input order is kept for now.
+ * Chooses which CVEs get an SSVC lookup and in what order (D-05, D-06, D-07,
+ * D-08). Unique IDs matching `CVE_ID_SHAPE`. When `kevKnown`, KEV-listed IDs
+ * are `skipped` and never looked up; when KEV is unavailable nobody is skipped.
+ *
+ * The remaining candidates are ranked and cut at `cap`: the first `cap` are
+ * `lookups`, the rest `overflow` (unavailable). D-07: tier (a) is every
+ * candidate that sits among a card's visible chips under the order the page
+ * would use WITHOUT any SSVC data, tier (b) is every other candidate. The
+ * visible set is whatever the production `planCveChips` returns for each card
+ * in `cardCves` with SSVC treated as unavailable, never a second hand-built
+ * copy of the rule. Ranking uses the pre-SSVC order on purpose: SSVC is what is
+ * being fetched, so ranking by it would be circular. Inside each tier the
+ * higher EPSS score comes first (a scored CVE before an unscored one), then the
+ * CVE ID ascending (the cross-card order inside tier (a) is RESEARCH A4; D-07
+ * orders only within a card). Without `cardCves` tier (a) is empty. The result
+ * never depends on input order, and nothing here consults a cache, so the same
+ * edition always gets the same coverage (D-08).
  */
 export function selectSsvcIds(
   ids: readonly string[],
@@ -211,20 +236,43 @@ export function selectSsvcIds(
   const seen = new Set<string>();
   const skipped: string[] = [];
   const candidates: string[] = [];
+  const preByCve: Record<string, CveEnrichment> = {};
   for (const id of ids) {
     if (typeof id !== "string" || !CVE_ID_SHAPE.test(id) || seen.has(id)) continue;
     seen.add(id);
     const entry = Object.hasOwn(pre, id) ? pre[id] : undefined;
+    preByCve[id] = {
+      kev: entry !== undefined ? entry.kev : { state: "unavailable" },
+      epss: entry !== undefined ? entry.epss : { state: "unavailable" },
+      ssvc: { state: "unavailable" },
+    };
     if (opts.kevKnown && entry !== undefined && entry.kev.state === "listed") {
       skipped.push(id);
     } else {
       candidates.push(id);
     }
   }
+
+  const visible = new Set<string>();
+  for (const card of opts.cardCves ?? []) {
+    for (const chip of planCveChips(card, preByCve).visible) visible.add(chip.id);
+  }
+
+  const byPriority = (a: string, b: string): number => {
+    const aVisible = visible.has(a);
+    if (aVisible !== visible.has(b)) return aVisible ? -1 : 1;
+    const sa = scoreOf(pre, a);
+    const sb = scoreOf(pre, b);
+    if (sa !== null && sb === null) return -1;
+    if (sa === null && sb !== null) return 1;
+    if (sa !== null && sb !== null && sa !== sb) return sb - sa;
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+  const ranked = [...candidates].sort(byPriority);
   return {
-    lookups: candidates.slice(0, opts.cap),
+    lookups: ranked.slice(0, opts.cap),
     skipped,
-    overflow: candidates.slice(opts.cap),
+    overflow: ranked.slice(opts.cap),
   };
 }
 

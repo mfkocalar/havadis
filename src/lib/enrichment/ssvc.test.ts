@@ -182,17 +182,128 @@ test("selectSsvcIds: KEV-listed IDs are skipped only when KEV is known", () => {
   assert.deepStrictEqual(unknown, { lookups: ids, skipped: [], overflow: [] });
 });
 
-test("selectSsvcIds: keeps input order, drops duplicates and invalid IDs, and moves candidates past the cap to overflow", () => {
+test("selectSsvcIds: drops duplicates and invalid IDs, orders unscored candidates by ID, and moves those past the cap to overflow", () => {
   const ids = ["CVE-2024-0003", "not-a-cve", "CVE-2024-0001", "CVE-2024-0003", "CVE-2024-0002", "CVE-2024-0004"];
   const pre = Object.fromEntries(
     ids.map((id) => [id, { kev: unavailableKev, epss: noRow }])
   );
   const out = selectSsvcIds(ids, pre, { kevKnown: false, cap: 2 });
   assert.deepStrictEqual(out, {
-    lookups: ["CVE-2024-0003", "CVE-2024-0001"],
+    lookups: ["CVE-2024-0001", "CVE-2024-0002"],
     skipped: [],
-    overflow: ["CVE-2024-0002", "CVE-2024-0004"],
+    overflow: ["CVE-2024-0003", "CVE-2024-0004"],
   });
+});
+
+const scored = (score: number): EpssState => ({ state: "scored", score, date: "2026-10-09" });
+
+test("selectSsvcIds D-07: a visible CVE with a low EPSS score is looked up before a non-visible CVE with a high one", () => {
+  const card = ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003"];
+  const hidden = ["CVE-2024-0009"];
+  const ids = [...hidden, ...card];
+  const pre = {
+    "CVE-2024-0001": { kev: notListed, epss: scored(0.01) },
+    "CVE-2024-0002": { kev: notListed, epss: scored(0.02) },
+    "CVE-2024-0003": { kev: notListed, epss: noRow },
+    "CVE-2024-0009": { kev: notListed, epss: scored(0.9) },
+  };
+  const out = selectSsvcIds(ids, pre, { kevKnown: true, cap: 3, cardCves: [card] });
+  assert.deepStrictEqual(out.lookups, ["CVE-2024-0002", "CVE-2024-0001", "CVE-2024-0003"]);
+  assert.deepStrictEqual(out.overflow, ["CVE-2024-0009"]);
+});
+
+test("selectSsvcIds D-07: a CVE folded behind +N is tier (b), ordered by EPSS descending then ID ascending", () => {
+  const card = ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003", "CVE-2024-0004", "CVE-2024-0005"];
+  const pre = {
+    "CVE-2024-0001": { kev: notListed, epss: scored(0.5) },
+    "CVE-2024-0002": { kev: notListed, epss: scored(0.4) },
+    "CVE-2024-0003": { kev: notListed, epss: scored(0.3) },
+    "CVE-2024-0004": { kev: notListed, epss: scored(0.2) },
+    "CVE-2024-0005": { kev: notListed, epss: scored(0.2) },
+  };
+  const out = selectSsvcIds(card, pre, { kevKnown: true, cap: 5, cardCves: [card] });
+  assert.deepStrictEqual(out.lookups, [
+    "CVE-2024-0001",
+    "CVE-2024-0002",
+    "CVE-2024-0003",
+    "CVE-2024-0004",
+    "CVE-2024-0005",
+  ]);
+  const tight = selectSsvcIds(card, pre, { kevKnown: true, cap: 4, cardCves: [card] });
+  assert.deepStrictEqual(tight.overflow, ["CVE-2024-0005"]);
+});
+
+test("selectSsvcIds D-07: a scored tier (b) CVE precedes an unscored one, then ID ascending", () => {
+  const card = ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003"];
+  const rest = ["CVE-2024-0008", "CVE-2024-0007", "CVE-2024-0006", "CVE-2024-0005"];
+  const pre = {
+    ...Object.fromEntries(card.map((id) => [id, { kev: notListed, epss: noRow }])),
+    "CVE-2024-0008": { kev: notListed, epss: noRow },
+    "CVE-2024-0007": { kev: notListed, epss: scored(0.05) },
+    "CVE-2024-0006": { kev: notListed, epss: noRow },
+    "CVE-2024-0005": { kev: notListed, epss: scored(0.05) },
+  };
+  const out = selectSsvcIds([...rest, ...card], pre, { kevKnown: true, cap: 10, cardCves: [card] });
+  assert.deepStrictEqual(out.lookups, [
+    "CVE-2024-0001",
+    "CVE-2024-0002",
+    "CVE-2024-0003",
+    "CVE-2024-0005",
+    "CVE-2024-0007",
+    "CVE-2024-0006",
+    "CVE-2024-0008",
+  ]);
+});
+
+test("selectSsvcIds D-07: a KEV-listed visible CVE takes its slot in the planner but is skipped, and with KEV unknown it is a candidate", () => {
+  const card = ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003", "CVE-2024-0004"];
+  const pre = {
+    "CVE-2024-0001": { kev: notListed, epss: scored(0.9) },
+    "CVE-2024-0002": { kev: notListed, epss: scored(0.8) },
+    "CVE-2024-0003": { kev: notListed, epss: scored(0.7) },
+    "CVE-2024-0004": { kev: kevListed, epss: noRow },
+  };
+  // KEV ranks first, so the card shows 0004, 0001, 0002: 0003 is folded behind +N.
+  const known = selectSsvcIds(card, pre, { kevKnown: true, cap: 2, cardCves: [card] });
+  assert.deepStrictEqual(known, {
+    lookups: ["CVE-2024-0001", "CVE-2024-0002"],
+    skipped: ["CVE-2024-0004"],
+    overflow: ["CVE-2024-0003"],
+  });
+  // With KEV unknown nothing is skipped: the listed CVE is a visible candidate, ranked by EPSS inside tier (a).
+  const unknown = selectSsvcIds(card, pre, { kevKnown: false, cap: 3, cardCves: [card] });
+  assert.deepStrictEqual(unknown, {
+    lookups: ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0004"],
+    skipped: [],
+    overflow: ["CVE-2024-0003"],
+  });
+});
+
+test("selectSsvcIds D-07: the same IDs in shuffled orders give identical lookups, skipped and overflow", () => {
+  const cardA = ["CVE-2024-0003", "CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0004", "CVE-2024-0005"];
+  const cardB = ["CVE-2024-0011", "CVE-2024-0010"];
+  const all = [...cardA, ...cardB, "CVE-2024-0020", "CVE-2024-0021", "CVE-2024-0022"];
+  const pre: Record<string, { kev: KevState; epss: EpssState }> = {};
+  all.forEach((id, i) => {
+    pre[id] = { kev: i === 2 ? kevListed : notListed, epss: i % 3 === 0 ? noRow : scored(0.01 * (i % 5)) };
+  });
+  const base = selectSsvcIds(all, pre, { kevKnown: true, cap: 6, cardCves: [cardA, cardB] });
+  const shuffles = [[...all].reverse(), [...all.slice(4), ...all.slice(0, 4)], [...all].sort()];
+  for (const shuffled of shuffles) {
+    assert.deepStrictEqual(selectSsvcIds(shuffled, pre, { kevKnown: true, cap: 6, cardCves: [cardA, cardB] }), base);
+  }
+});
+
+test("selectSsvcIds D-07: without cardCves the order is EPSS descending, then ID ascending", () => {
+  const ids = ["CVE-2024-0004", "CVE-2024-0002", "CVE-2024-0003", "CVE-2024-0001"];
+  const pre = {
+    "CVE-2024-0004": { kev: notListed, epss: scored(0.5) },
+    "CVE-2024-0002": { kev: notListed, epss: noRow },
+    "CVE-2024-0003": { kev: notListed, epss: scored(0.5) },
+    "CVE-2024-0001": { kev: notListed, epss: scored(0.1) },
+  };
+  const out = selectSsvcIds(ids, pre, { kevKnown: true, cap: 10 });
+  assert.deepStrictEqual(out.lookups, ["CVE-2024-0003", "CVE-2024-0004", "CVE-2024-0001", "CVE-2024-0002"]);
 });
 
 test("fetchSsvc: without a lookup every ID is unavailable and nothing is called", async () => {

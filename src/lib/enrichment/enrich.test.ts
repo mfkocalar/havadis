@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { CacheableSsvcState, EnrichmentHealth, KevMap, KevRead } from "../types.ts";
+import { planCveChips } from "../cveChips.ts";
 import { enrichCves, enrichmentNotice, kevHealth, uniqueCves, type EnrichDeps } from "./enrich.ts";
 import { CISA_ADP_ORG_ID } from "./config.ts";
 import { produceSsvc } from "./ssvc.ts";
@@ -388,7 +389,7 @@ test("with KEV unavailable nobody is skipped: the ID that is KEV-listed upstream
     },
   };
   const snap = await enrichCves([SSVC_ID, "CVE-2024-0002"], { kev: { status: "unavailable" } }, NOW, deps);
-  assert.deepStrictEqual(looked, [SSVC_ID, "CVE-2024-0002"]);
+  assert.deepStrictEqual([...looked].sort(), ["CVE-2024-0002", SSVC_ID]);
   assert.equal(snap.byCve[SSVC_ID].ssvc.state, "not-assessed");
   assert.deepStrictEqual(snap.health.ssvc, { status: "ok", requested: 2, unavailable: 0 });
 });
@@ -486,4 +487,59 @@ test("the SSVC enrichment snapshot survives a JSON round trip, and a catch fallb
   const fallback = await enrichCves([SSVC_ID], { kev: hostile }, NOW, epssDeps());
   assert.deepStrictEqual(fallback.byCve[SSVC_ID].ssvc, { state: "unavailable" });
   assert.deepStrictEqual(fallback.health.ssvc, { status: "unavailable", requested: 1, unavailable: 1 });
+});
+
+// ---- D-07 tracer: visible chips first over the cap ----
+
+test("over the cap, every non-KEV CVE among a card's visible chips gets an SSVC lookup first (D-07)", async () => {
+  const cardOf = (k: number): string[] => Array.from({ length: 5 }, (_, j) => `CVE-2024-${k}000${j + 1}`);
+  const cards = [cardOf(1), cardOf(2), cardOf(3)];
+  // 30 CVEs on one other card, all with the lowest EPSS score: 3 of them are visible there.
+  const others = Array.from({ length: 30 }, (_, i) => `CVE-2024-9${String(i).padStart(3, "0")}`);
+  const cardCves = [...cards, others];
+  const all = cardCves.flat();
+  // Card 1 holds high scores, card 3 low ones: ranking by EPSS alone would look up
+  // card 1's folded CVEs and card 2's before card 3's visible ones.
+  const SCORES: Record<number, number[]> = {
+    1: [0.9, 0.8, 0.7, 0.6, 0.5],
+    2: [0.4, 0.3, 0.2, 0.1, 0.05],
+    3: [0.04, 0.03, 0.02, 0.01, 0.005],
+  };
+  const scoreOf = (id: string): number =>
+    id.startsWith("CVE-2024-9") ? 0.001 : SCORES[Number(id[9])][Number(id.slice(-1)) - 1];
+  const kevId = cards[0][0];
+  const deps = epssDeps(
+    (ids) =>
+      new Response(
+        JSON.stringify({
+          status: "OK",
+          total: ids.length,
+          data: ids.map((cve) => ({ cve, epss: scoreOf(cve).toFixed(9), percentile: "0.5", date: "2026-10-09" })),
+        })
+      )
+  );
+  const looked: string[] = [];
+  deps.ssvc = {
+    maxLookups: 10,
+    lookup: async (id) => {
+      looked.push(id);
+      return { state: "assessed", exploitation: "active", automatable: "yes", technicalImpact: "total" };
+    },
+  };
+  const snap = await enrichCves(all, { kev: okRead(mapFetchedAt(NOW, [kevId])), cardCves }, NOW, deps);
+
+  assert.equal(looked.length, 10);
+  assert.equal(new Set(looked).size, 10);
+  assert.equal(snap.byCve[kevId].ssvc.state, "skipped");
+  let checked = 0;
+  for (const card of cards) {
+    for (const chip of planCveChips(card, snap.byCve).visible) {
+      if (chip.kev !== null) continue;
+      checked++;
+      assert.deepStrictEqual(chip.ssvc, { level: "active" }, `${chip.id} shows SSVC active`);
+    }
+  }
+  assert.equal(checked, 8);
+  assert.equal(snap.health.ssvc.status, "partial");
+  assert.deepStrictEqual(snap.health.ssvc, { status: "partial", requested: 44, unavailable: 34 });
 });

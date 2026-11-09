@@ -149,9 +149,10 @@ export type EnrichDeps = { epss?: EpssDeps; ssvc?: SsvcDeps };
  * one nothing is requested and every candidate is `unavailable`, so no caller
  * can reach a live host by omission (D-10). When the KEV map is known (`ok` or
  * `stale`), KEV-listed CVEs are `skipped` and never looked up (D-05); at most
- * the cap are looked up, cached or not (D-06, D-08), and the rest are
- * `unavailable`. `health.ssvc.requested` is the valid IDs minus the skipped
- * ones; `not-assessed` and `skipped` never count as unavailable (ENR-07).
+ * the cap are looked up, cached or not (D-06, D-08), visible-chip CVEs first
+ * (D-07, from `sources.cardCves`), and the rest are `unavailable`.
+ * `health.ssvc.requested` is the valid IDs minus the skipped ones;
+ * `not-assessed` and `skipped` never count as unavailable (ENR-07).
  *
  * Never throws: on any unexpected error every ID comes back `unavailable` in
  * all three providers. Never reads the clock.
