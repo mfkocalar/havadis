@@ -53,3 +53,35 @@ export const EPSS_MAX_BYTES = 256 * 1024;
 
 /** An EPSS score at or above this gets the strong chip tone (D-06, consumed by Plan 07-03). */
 export const EPSS_EMPHASIS_THRESHOLD = 0.1;
+
+/** CVE Program API base for one CVE record; Phase 10 CVE-03 builds the same URL (ENR-06). */
+export const SSVC_RECORD_URL_BASE = "https://cveawg.mitre.org/api/cve";
+
+/** Per-edition ceiling on SSVC lookups, counted whether the answer is cached or fetched (D-06, D-08); confirmed by the 07.2-01 spike. */
+export const SSVC_MAX_LOOKUPS = 100;
+
+/** Parallel SSVC lookups in flight at once (RESEARCH A7). */
+export const SSVC_CONCURRENCY = 12;
+
+/** Per-lookup SSVC budget in milliseconds, spanning connect, redirects and the body read; applied inside the producer. */
+export const SSVC_TIMEOUT_MS = 5_000;
+
+/** Whole-SSVC-phase budget in milliseconds per regeneration (enforced by Plan 07.2-04). */
+export const SSVC_TOTAL_BUDGET_MS = 6_000;
+
+/** Per-record SSVC body cap: 512 KiB (observed p95 12 KB, max 44 KB). */
+export const SSVC_MAX_BYTES = 512 * 1024;
+
+/**
+ * Window of one cached SSVC result, in seconds: 6 hours (D-13). Must stay at or
+ * above 900: `unstable_cache` lowers the route's ISR window to its smallest
+ * entry window. Sized against the Runtime Cache write budget on Vercel Hobby
+ * (D-14), confirmed by the 07.2-01 spike.
+ */
+export const SSVC_REVALIDATE_SECONDS = 21_600;
+
+/** Cache key prefix of the per-CVE SSVC lookup; the CVE ID is the cached call's argument and completes the key. */
+export const SSVC_CACHE_KEY = "havadis-ssvc-v1";
+
+/** The CVE Program organisation id of the CISA-ADP container; the id is compared, never the display name. */
+export const CISA_ADP_ORG_ID = "134c704f-9b21-4f2e-91b3-4a467353bcc0";

@@ -206,6 +206,31 @@ export type EpssState =
   | { state: "no-row" }
   | { state: "unavailable" };
 
+/** CISA's SSVC Exploitation decision point, exactly the three values CISA publishes. */
+export type SsvcExploitation = "none" | "poc" | "active";
+
+/**
+ * One CVE's CISA SSVC standing (ENR-06, ENR-07). Four distinct states:
+ * `assessed` carries CISA's three decision points; `not-assessed` means CISA
+ * published no SSVC decision for the CVE; `skipped` means the CVE is KEV-listed
+ * and was deliberately not looked up (D-05); `unavailable` means the lookup
+ * failed, fell past the per-edition cap or returned an ambiguous record (D-06).
+ * Neither `not-assessed` nor `unavailable` ever reads as `none` (ENR-07).
+ */
+export type SsvcState =
+  | {
+      state: "assessed";
+      exploitation: SsvcExploitation;
+      automatable: "yes" | "no";
+      technicalImpact: "partial" | "total";
+    }
+  | { state: "not-assessed" }
+  | { state: "skipped" }
+  | { state: "unavailable" };
+
+/** The only SSVC states ever stored in the shared cache: positively parsed answers, never failures. */
+export type CacheableSsvcState = Extract<SsvcState, { state: "assessed" | "not-assessed" }>;
+
 /** Both providers' standing for one CVE. */
 export type CveEnrichment = { kev: KevState; epss: EpssState };
 
