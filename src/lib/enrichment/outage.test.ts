@@ -195,6 +195,7 @@ describe("enrichCves across KEV and EPSS degradation", () => {
   async function run(kev: KevCase, epss: EpssCase): Promise<EnrichmentSnapshot> {
     return enrichCves(ids, { kev: kev.read }, NOW, {
       epss: { url: `${server.baseUrl}${epss.route}`, timeoutMs: 300 },
+      ssvc: { lookup: async () => ({ state: "not-assessed" }), maxLookups: 1_000 },
     });
   }
 

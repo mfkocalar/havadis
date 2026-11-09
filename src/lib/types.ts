@@ -231,8 +231,8 @@ export type SsvcState =
 /** The only SSVC states ever stored in the shared cache: positively parsed answers, never failures. */
 export type CacheableSsvcState = Extract<SsvcState, { state: "assessed" | "not-assessed" }>;
 
-/** Both providers' standing for one CVE. */
-export type CveEnrichment = { kev: KevState; epss: EpssState };
+/** The three providers' standing for one CVE. */
+export type CveEnrichment = { kev: KevState; epss: EpssState; ssvc: SsvcState };
 
 /** How healthy each provider's data is, for the page notice (Plan 07-04). */
 export type EnrichmentHealth = {
@@ -242,9 +242,15 @@ export type EnrichmentHealth = {
     requested: number;
     unavailable: number;
   };
+  /** `requested` counts SSVC candidates (valid IDs minus KEV-skipped); not-assessed and skipped never count as unavailable. */
+  ssvc: {
+    status: "ok" | "partial" | "unavailable";
+    requested: number;
+    unavailable: number;
+  };
 };
 
-/** The render-time join of the edition's CVEs with KEV and EPSS. */
+/** The render-time join of the edition's CVEs with KEV, EPSS and SSVC. */
 export type EnrichmentSnapshot = {
   byCve: Record<string, CveEnrichment>;
   health: EnrichmentHealth;

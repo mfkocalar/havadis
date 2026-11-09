@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { EnrichmentHealth, KevMap, KevRead } from "../types.ts";
+import type { CacheableSsvcState, EnrichmentHealth, KevMap, KevRead } from "../types.ts";
 import { enrichCves, enrichmentNotice, kevHealth, uniqueCves, type EnrichDeps } from "./enrich.ts";
+import { CISA_ADP_ORG_ID } from "./config.ts";
+import { produceSsvc } from "./ssvc.ts";
 
 /**
  * Hermetic tests for the render-time join (ENR-03, D-09, D-10): no network,
@@ -24,7 +26,8 @@ const okRead = (map: KevMap): KevRead => ({ status: "ok", map });
 /**
  * enrichCves reaches FIRST by default, so every call with a CVE list passes an
  * injected EPSS fetcher: no test here may make a live request (D-18). The
- * default answers every requested ID with a consistent score row.
+ * default answers every requested ID with a consistent score row. SSVC has no
+ * default live lookup, and the helper injects one that answers not-assessed.
  */
 function epssDeps(
   answer: (ids: string[]) => Response = (ids) =>
@@ -42,6 +45,7 @@ function epssDeps(
       fetcher: async (url: string) =>
         answer(new URL(url).searchParams.get("cve")?.split(",") ?? []),
     },
+    ssvc: { lookup: async () => ({ state: "not-assessed" }) },
   };
 }
 
@@ -214,7 +218,8 @@ test("prototype-named and malformed IDs are dropped, never joined", async () => 
 
 function healthOf(
   kev: EnrichmentHealth["kev"]["status"],
-  epss: EnrichmentHealth["epss"]["status"]
+  epss: EnrichmentHealth["epss"]["status"],
+  ssvc: EnrichmentHealth["ssvc"]["status"] = "ok"
 ): EnrichmentHealth {
   return {
     kev:
@@ -222,6 +227,7 @@ function healthOf(
         ? { status: kev, fetchedAt: null }
         : { status: kev, fetchedAt: "2026-10-06T08:00:00.000Z" },
     epss: { status: epss, requested: 4, unavailable: epss === "ok" ? 0 : epss === "partial" ? 1 : 4 },
+    ssvc: { status: ssvc, requested: 4, unavailable: ssvc === "ok" ? 0 : ssvc === "partial" ? 1 : 4 },
   };
 }
 
@@ -259,17 +265,225 @@ test("enrichmentNotice falls back to unavailable for an unparseable stale date",
 });
 
 test("enrichmentNotice output is null or fixed vocabulary for every status combination, never false assurance", () => {
-  const fixed = /^(KEV data unavailable|KEV data from \d{4}-\d{2}-\d{2})?( · )?(EPSS data unavailable|EPSS partially unavailable)?$/;
+  const fixed =
+    /^(KEV data unavailable|KEV data from \d{4}-\d{2}-\d{2})?( · )?(EPSS data unavailable|EPSS partially unavailable)?( · )?(SSVC data unavailable|SSVC partially unavailable)?$/;
   for (const kev of ["ok", "stale", "unavailable"] as const) {
     for (const epss of ["ok", "partial", "unavailable"] as const) {
-      const out = enrichmentNotice(healthOf(kev, epss));
-      if (out === null) {
-        assert.equal(kev === "ok" && epss === "ok", true);
-        continue;
+      for (const ssvc of ["ok", "partial", "unavailable"] as const) {
+        const out = enrichmentNotice(healthOf(kev, epss, ssvc));
+        const degraded = [kev !== "ok", epss !== "ok", ssvc !== "ok"].filter(Boolean).length;
+        if (out === null) {
+          assert.equal(degraded, 0);
+          continue;
+        }
+        assert.match(out, fixed);
+        assert.doesNotMatch(out, /not (?:in|listed in) kev|not exploited|safe/i);
+        assert.equal(out.split(" · ").length, degraded);
       }
-      assert.match(out, fixed);
-      assert.doesNotMatch(out, /not (?:in|listed in) kev|not exploited|safe/i);
-      assert.equal(out.includes(" · "), kev !== "ok" && epss !== "ok");
     }
   }
+});
+
+// ---- SSVC join (ENR-06, ENR-07, D-05, D-06, D-08, D-10) ----
+
+const SSVC_ID = "CVE-2024-3400";
+
+/** A CVE JSON 5 record with one CISA-ADP container: Exploitation active, Automatable yes, Technical Impact total. */
+function ssvcActiveRecord(id: string): unknown {
+  return {
+    cveMetadata: { cveId: id, state: "PUBLISHED" },
+    containers: {
+      cna: {},
+      adp: [
+        {
+          providerMetadata: { orgId: CISA_ADP_ORG_ID, shortName: "CISA-ADP" },
+          metrics: [
+            {
+              other: {
+                type: "ssvc",
+                content: {
+                  id,
+                  version: "2.0.3",
+                  options: [
+                    { Exploitation: "active" },
+                    { Automatable: "yes" },
+                    { "Technical Impact": "total" },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/** SSVC deps whose lookup is the real producer behind an injected fetcher: no network. */
+function ssvcViaProducer(answer: (id: string) => Response, counter?: { n: number }): EnrichDeps {
+  return {
+    ...epssDeps(),
+    ssvc: {
+      lookup: (id) => {
+        if (counter) counter.n++;
+        return produceSsvc(id, { fetcher: async (url: string) => answer(url.slice(url.lastIndexOf("/") + 1)) });
+      },
+    },
+  };
+}
+
+test("enrichCves joins an assessed SSVC state and reports health.ssvc ok", async () => {
+  const snap = await enrichCves(
+    [SSVC_ID],
+    { kev: okRead(mapFetchedAt(NOW, [])) },
+    NOW,
+    ssvcViaProducer((id) => new Response(JSON.stringify(ssvcActiveRecord(id))))
+  );
+  assert.deepStrictEqual(snap.byCve[SSVC_ID].ssvc, {
+    state: "assessed",
+    exploitation: "active",
+    automatable: "yes",
+    technicalImpact: "total",
+  });
+  assert.deepStrictEqual(snap.health.ssvc, { status: "ok", requested: 1, unavailable: 0 });
+  assert.equal(enrichmentNotice(snap.health), null);
+});
+
+test("enrichCves with an SSVC source answering 503 gives unavailable and the SSVC notice", async () => {
+  const snap = await enrichCves(
+    [SSVC_ID],
+    { kev: okRead(mapFetchedAt(NOW, [])) },
+    NOW,
+    ssvcViaProducer(() => new Response("down", { status: 503 }))
+  );
+  assert.deepStrictEqual(snap.byCve[SSVC_ID].ssvc, { state: "unavailable" });
+  assert.deepStrictEqual(snap.health.ssvc, { status: "unavailable", requested: 1, unavailable: 1 });
+  assert.equal(enrichmentNotice(snap.health), "SSVC data unavailable");
+});
+
+test("a KEV-listed ID is skipped and never looked up when KEV is known, and excluded from requested", async () => {
+  for (const read of [okRead(mapFetchedAt(NOW - HOUR, [SSVC_ID])), okRead(mapFetchedAt(NOW - 100 * HOUR, [SSVC_ID]))]) {
+    const looked: string[] = [];
+    const deps = epssDeps();
+    deps.ssvc = {
+      lookup: async (id) => {
+        looked.push(id);
+        return { state: "not-assessed" };
+      },
+    };
+    const snap = await enrichCves([SSVC_ID, "CVE-2024-0002"], { kev: read }, NOW, deps);
+    assert.deepStrictEqual(snap.byCve[SSVC_ID].ssvc, { state: "skipped" });
+    assert.deepStrictEqual(looked, ["CVE-2024-0002"]);
+    assert.deepStrictEqual(snap.health.ssvc, { status: "ok", requested: 1, unavailable: 0 });
+  }
+});
+
+test("with KEV unavailable nobody is skipped: the ID that is KEV-listed upstream is looked up", async () => {
+  const looked: string[] = [];
+  const deps = epssDeps();
+  deps.ssvc = {
+    lookup: async (id) => {
+      looked.push(id);
+      return { state: "not-assessed" };
+    },
+  };
+  const snap = await enrichCves([SSVC_ID, "CVE-2024-0002"], { kev: { status: "unavailable" } }, NOW, deps);
+  assert.deepStrictEqual(looked, [SSVC_ID, "CVE-2024-0002"]);
+  assert.equal(snap.byCve[SSVC_ID].ssvc.state, "not-assessed");
+  assert.deepStrictEqual(snap.health.ssvc, { status: "ok", requested: 2, unavailable: 0 });
+});
+
+test("past the cap candidates are unavailable and the notice says partially; the cap counts cached answers too (D-06, D-08)", async () => {
+  const ids = ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003"];
+  const cache = new Map<string, CacheableSsvcState>([["CVE-2024-0001", { state: "not-assessed" }]]);
+  let lookups = 0;
+  const deps = epssDeps();
+  deps.ssvc = {
+    maxLookups: 2,
+    lookup: async (id) => {
+      lookups++;
+      return cache.get(id) ?? { state: "not-assessed" };
+    },
+  };
+  const snap = await enrichCves(ids, { kev: okRead(mapFetchedAt(NOW, [])) }, NOW, deps);
+  assert.equal(lookups, 2);
+  assert.equal(snap.byCve["CVE-2024-0001"].ssvc.state, "not-assessed");
+  assert.equal(snap.byCve["CVE-2024-0002"].ssvc.state, "not-assessed");
+  assert.deepStrictEqual(snap.byCve["CVE-2024-0003"].ssvc, { state: "unavailable" });
+  assert.deepStrictEqual(snap.health.ssvc, { status: "partial", requested: 3, unavailable: 1 });
+  assert.equal(enrichmentNotice(snap.health), "SSVC partially unavailable");
+});
+
+test("without ssvc deps every candidate is unavailable and no lookup runs", async () => {
+  const snap = await enrichCves(
+    ["CVE-2024-0001", "CVE-2024-0002"],
+    { kev: okRead(mapFetchedAt(NOW, [])) },
+    NOW,
+    { epss: epssDeps().epss }
+  );
+  for (const e of Object.values(snap.byCve)) assert.deepStrictEqual(e.ssvc, { state: "unavailable" });
+  assert.deepStrictEqual(snap.health.ssvc, { status: "unavailable", requested: 2, unavailable: 2 });
+});
+
+test("each ID is looked up exactly once through the producer", async () => {
+  const counter = { n: 0 };
+  await enrichCves(
+    ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0001"],
+    { kev: okRead(mapFetchedAt(NOW, [])) },
+    NOW,
+    ssvcViaProducer((id) => new Response(JSON.stringify(ssvcActiveRecord(id))), counter)
+  );
+  assert.equal(counter.n, 2);
+});
+
+test("not-assessed, skipped and an assessed none never add an SSVC notice part", async () => {
+  const deps = epssDeps();
+  deps.ssvc = {
+    lookup: async (id) =>
+      id === "CVE-2024-0002"
+        ? { state: "assessed", exploitation: "none", automatable: "no", technicalImpact: "partial" }
+        : { state: "not-assessed" },
+  };
+  const snap = await enrichCves(
+    [SSVC_ID, "CVE-2024-0002", "CVE-2024-0003"],
+    { kev: okRead(mapFetchedAt(NOW, [SSVC_ID])) },
+    NOW,
+    deps
+  );
+  assert.equal(snap.byCve[SSVC_ID].ssvc.state, "skipped");
+  assert.equal(snap.byCve["CVE-2024-0002"].ssvc.state, "assessed");
+  assert.equal(snap.byCve["CVE-2024-0003"].ssvc.state, "not-assessed");
+  assert.deepStrictEqual(snap.health.ssvc, { status: "ok", requested: 2, unavailable: 0 });
+  assert.equal(enrichmentNotice(snap.health), null);
+});
+
+test("enrichmentNotice names the SSVC parts alone and joins the worst case in order", () => {
+  assert.equal(enrichmentNotice(healthOf("ok", "ok", "unavailable")), "SSVC data unavailable");
+  assert.equal(enrichmentNotice(healthOf("ok", "ok", "partial")), "SSVC partially unavailable");
+  const none = healthOf("ok", "ok", "ok");
+  none.ssvc = { status: "ok", requested: 0, unavailable: 0 };
+  assert.equal(enrichmentNotice(none), null);
+  assert.equal(
+    enrichmentNotice(healthOf("unavailable", "unavailable", "unavailable")),
+    "KEV data unavailable · EPSS data unavailable · SSVC data unavailable"
+  );
+  assert.equal(
+    enrichmentNotice(healthOf("stale", "ok", "partial")),
+    "KEV data from 2026-10-06 · SSVC partially unavailable"
+  );
+});
+
+test("the SSVC enrichment snapshot survives a JSON round trip, and a catch fallback carries SSVC unavailable", async () => {
+  const snap = await enrichCves(
+    [SSVC_ID, "CVE-2024-0002"],
+    { kev: okRead(mapFetchedAt(NOW, [])) },
+    NOW,
+    ssvcViaProducer((id) => new Response(JSON.stringify(ssvcActiveRecord(id))))
+  );
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(snap)), snap);
+
+  const hostile = { get status(): never { throw new Error("boom"); } } as unknown as KevRead;
+  const fallback = await enrichCves([SSVC_ID], { kev: hostile }, NOW, epssDeps());
+  assert.deepStrictEqual(fallback.byCve[SSVC_ID].ssvc, { state: "unavailable" });
+  assert.deepStrictEqual(fallback.health.ssvc, { status: "unavailable", requested: 1, unavailable: 1 });
 });

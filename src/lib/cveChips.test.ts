@@ -101,7 +101,7 @@ test("formatEpss: two decimals from 0.01 up, 1.00 at the top", () => {
 /** Enrichment literal builders for the D-03 ordering tests. */
 const kevOf = (added: string): KevState => ({ state: "listed", added, due: "2026-12-01", ransomware: false });
 const scored = (score: number): EpssState => ({ state: "scored", score, date: "2026-10-16" });
-const enr = (kev: KevState, epss: EpssState): CveEnrichment => ({ kev, epss });
+const enr = (kev: KevState, epss: EpssState): CveEnrichment => ({ kev, epss, ssvc: { state: "not-assessed" } });
 const NOT_LISTED: KevState = { state: "not-listed" };
 const UNAVAILABLE = { state: "unavailable" } as const;
 const A = "CVE-2026-0001";
