@@ -355,7 +355,10 @@ test("/epss-partial: only the batch holding a failing ID is unavailable, health 
     }
   }
   const kev: KevMap = { version: 1, fetchedAt: new Date().toISOString(), catalogVersion: "x", entries: {} };
-  const snap = await enrichCves(input, { kev: { status: "ok", map: kev } }, Date.now(), { epss: deps });
+  const snap = await enrichCves(input, { kev: { status: "ok", map: kev } }, Date.now(), {
+    epss: deps,
+    ssvc: { lookup: async () => ({ state: "not-assessed" }) },
+  });
   assert.deepStrictEqual(snap.health.epss, {
     status: "partial",
     requested: 120,
@@ -441,6 +444,7 @@ test("enrichCves against /hang resolves with EPSS unavailable and the KEV states
   const input = fixtureIds(3);
   const snap = await enrichCves(input, { kev: { status: "ok", map: kev } }, Date.now(), {
     epss: { url: `${server.baseUrl}/hang`, ...FAST },
+    ssvc: { lookup: async () => ({ state: "not-assessed" }) },
   });
   assert.deepStrictEqual(snap.health.epss, { status: "unavailable", requested: 3, unavailable: 3 });
   assert.equal(snap.health.kev.status, "ok");

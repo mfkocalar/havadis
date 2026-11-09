@@ -1,5 +1,6 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { CISA_ADP_ORG_ID } from "../../src/lib/enrichment/config.ts";
 
 /**
  * A hermetic, local-only HTTP fixture used exclusively by the test suite to
@@ -30,6 +31,21 @@ import type { AddressInfo } from "node:net";
  * dueDate, knownRansomwareCampaignUse, notes, cwes). They are small on purpose:
  * a test lowers the production floors (`minEntries`, `maxSlimBytes`) through
  * `produceKev` deps, so the same rejection rules run over a tiny feed.
+ *
+ * SSVC routes (Phase 7.2) are prefix routes of the shape `/ssvc-MODE/ID`, the
+ * ID being the last path segment, as the CVE Program API takes it:
+ *   ok         by ID set: SSVC_ACTIVE_IDS, SSVC_POC_IDS and SSVC_NONE_IDS answer a
+ *              record with a CISA-ADP container, SSVC_DNE_IDS answer the 404
+ *              CVE_RECORD_DNE body, any other ID a published record with no
+ *              CISA-ADP container
+ *   active     every ID is assessed active (a forced build in Plan 07.2-03)
+ *   no-adp     a published record with a CNA container only
+ *   dne        404 with the exact CVE_RECORD_DNE body
+ *   wrong-404  404 with any other body
+ *   hostile    one hostile record variant per ID, chosen by its last digit
+ *   malformed  200 with truncated JSON
+ *   html       200 text/html
+ *   status-500 and 429 (with a retry-after header)
  */
 
 /** IDs the consistent EPSS routes answer without a row (FIRST's "no EPSS yet"). */
@@ -95,6 +111,142 @@ function kevBody(entries: unknown[], count: number = entries.length): string {
   });
 }
 
+/** CVE IDs the `/ssvc-ok` route answers as assessed active, poc and none, and as nonexistent. Disjoint from every other fixture ID set. */
+export const SSVC_ACTIVE_IDS: readonly string[] = ["CVE-2024-40001", "CVE-2024-40002", "CVE-2024-40003"];
+export const SSVC_POC_IDS: readonly string[] = ["CVE-2024-41001", "CVE-2024-41002", "CVE-2024-41003"];
+export const SSVC_NONE_IDS: readonly string[] = ["CVE-2024-42001", "CVE-2024-42002", "CVE-2024-42003"];
+export const SSVC_DNE_IDS: readonly string[] = ["CVE-2024-43001", "CVE-2024-43002"];
+
+/** The CVE Program's own ADP container, present on every real record. */
+const CVE_PROGRAM_ADP = {
+  providerMetadata: { shortName: "CVE", orgId: "af854a3a-2127-422b-91ae-364da2661108" },
+};
+
+type SsvcOptions = unknown[];
+
+function ssvcOptions(exploitation: string): SsvcOptions {
+  return [{ Exploitation: exploitation }, { Automatable: "yes" }, { "Technical Impact": "total" }];
+}
+
+/** The CISA-ADP container with one ssvc metric, using the real field names. */
+function cisaContainer(id: string, options: SsvcOptions, over: { version?: unknown; contentId?: unknown } = {}) {
+  return {
+    providerMetadata: { orgId: CISA_ADP_ORG_ID, shortName: "CISA-ADP" },
+    metrics: [
+      {
+        other: {
+          type: "ssvc",
+          content: {
+            id: over.contentId ?? id,
+            role: "CISA Coordinator",
+            version: over.version ?? "2.0.3",
+            timestamp: "2024-04-17T04:00:13.543064Z",
+            options,
+          },
+        },
+      },
+    ],
+  };
+}
+
+function recordOf(cveId: string, adp: unknown[] | undefined) {
+  return {
+    dataType: "CVE_RECORD",
+    dataVersion: "5.1",
+    cveMetadata: { cveId, state: "PUBLISHED" },
+    containers: { cna: {}, ...(adp === undefined ? {} : { adp }) },
+  };
+}
+
+/**
+ * A CVE JSON 5.1 record with the real field names: `containers.cna`, and, when
+ * `exploitation` is given, an `adp` array holding the CISA-ADP container with
+ * one ssvc metric (version 2.0.3, the three options) plus the CVE Program's own
+ * ADP container. With `null` the record is a published CVE CISA has not assessed.
+ */
+export function ssvcRecord(id: string, exploitation: "none" | "poc" | "active" | null): unknown {
+  if (exploitation === null) return recordOf(id, undefined);
+  return recordOf(id, [cisaContainer(id, ssvcOptions(exploitation)), CVE_PROGRAM_ADP]);
+}
+
+/** The ten hostile variants of `/ssvc-hostile`, picked by the ID's last digit. Each must be read as unavailable. */
+function hostileBody(id: string): string {
+  const variant = Number(id.slice(-1));
+  const ok = ssvcOptions("active");
+  switch (variant) {
+    case 0:
+      return JSON.stringify(recordOf("CVE-2099-0001", [cisaContainer(id, ok), CVE_PROGRAM_ADP]));
+    case 1:
+      return JSON.stringify(recordOf(id, [cisaContainer(id, ok), cisaContainer(id, ok)]));
+    case 2:
+      return JSON.stringify(recordOf(id, [cisaContainer(id, ssvcOptions("widespread"))]));
+    case 3: {
+      // JSON.parse makes "__proto__" an own property, which JSON.stringify then emits.
+      const proto: unknown = JSON.parse('{"__proto__":"none"}');
+      return JSON.stringify(recordOf(id, [cisaContainer(id, [...ok, proto])]));
+    }
+    case 4:
+      return JSON.stringify(recordOf(id, [cisaContainer(id, ok, { version: "3.0.0" })]));
+    case 5:
+      return JSON.stringify(recordOf(id, [cisaContainer(id, [...ok, { Exploitation: "none" }])]));
+    case 6:
+      return JSON.stringify(recordOf(id, [cisaContainer(id, [...ok, { Extra: "x" }])]));
+    case 7:
+      return JSON.stringify(
+        recordOf(id, [cisaContainer(id, [{ Exploitation: 1 }, { Automatable: "yes" }, { "Technical Impact": "total" }])])
+      );
+    case 8:
+      return JSON.stringify(recordOf(id, [cisaContainer(id, ok, { contentId: "CVE-2099-0002" })]));
+    default: {
+      const container = cisaContainer(id, ok);
+      container.metrics = [];
+      return JSON.stringify(recordOf(id, [container]));
+    }
+  }
+}
+
+const SSVC_DNE_BODY = '{"error":"CVE_RECORD_DNE","message":"The cve record for the cve id does not exist."}';
+
+/** The answer of one `/ssvc-MODE/ID` request, or null for an unknown mode. */
+function ssvcAnswer(
+  mode: string,
+  id: string
+): { status: number; body: string; contentType?: string; headers?: Record<string, string> } | null {
+  const json = (v: unknown) => ({ status: 200, body: JSON.stringify(v) });
+  switch (mode) {
+    case "ok":
+      if (SSVC_ACTIVE_IDS.includes(id)) return json(ssvcRecord(id, "active"));
+      if (SSVC_POC_IDS.includes(id)) return json(ssvcRecord(id, "poc"));
+      if (SSVC_NONE_IDS.includes(id)) return json(ssvcRecord(id, "none"));
+      if (SSVC_DNE_IDS.includes(id)) return { status: 404, body: SSVC_DNE_BODY };
+      return json(ssvcRecord(id, null));
+    case "active":
+      return json(ssvcRecord(id, "active"));
+    case "no-adp":
+      return json(ssvcRecord(id, null));
+    case "dne":
+      return { status: 404, body: SSVC_DNE_BODY };
+    case "wrong-404":
+      return { status: 404, body: '{"error":"NOT_FOUND"}' };
+    case "hostile":
+      return { status: 200, body: hostileBody(id) };
+    case "malformed":
+      return { status: 200, body: '{"dataType":"CVE_RECORD","cveMetadata":{"cveId":' };
+    case "html":
+      return {
+        status: 200,
+        body: "<!doctype html><html><body><h1>Service notice</h1></body></html>",
+        contentType: "text/html; charset=utf-8",
+      };
+    case "status-500":
+      return { status: 500, body: '{"error":"INTERNAL_SERVER_ERROR"}' };
+    case "429":
+      return { status: 429, body: '{"error":"RATE_LIMITED"}', headers: { "retry-after": "30" } };
+    default:
+      return null;
+  }
+}
+
 export type EnrichmentServer = {
   /** e.g. "http://127.0.0.1:54321" — no trailing slash. */
   baseUrl: string;
@@ -147,6 +299,22 @@ export async function startEnrichmentServer(): Promise<EnrichmentServer> {
     const requested = (url.searchParams.get("cve") ?? "").split(",").filter((c) => c !== "");
     const scoredRows = () =>
       requested.filter((c) => !EPSS_NO_ROW_IDS.has(c)).map((c) => epssRow(c));
+
+    const ssvcRoute = url.pathname.match(/^\/ssvc-([a-z0-9-]+)\/([^/]+)$/);
+    if (ssvcRoute !== null) {
+      const answer = ssvcAnswer(ssvcRoute[1], ssvcRoute[2]);
+      if (answer === null) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      res.writeHead(answer.status, {
+        "Content-Type": answer.contentType ?? "application/json; charset=utf-8",
+        ...(answer.headers ?? {}),
+      });
+      res.end(answer.body);
+      return;
+    }
 
     switch (url.pathname) {
       case "/epss-ok": {

@@ -135,6 +135,15 @@ export function isCacheableSsvc(v: unknown): v is CacheableSsvcState {
   );
 }
 
+/**
+ * True for the CVE Program API's answer for a nonexistent ID: a non-array
+ * object whose own `error` field is exactly `CVE_RECORD_DNE`. Any other 404
+ * body (a proxy page, a path or API-version drift) is not this.
+ */
+export function isDneBody(json: unknown): boolean {
+  return isObj(json) && own(json, "error") === "CVE_RECORD_DNE";
+}
+
 /** Injectable pieces of `produceSsvc`, for hermetic tests. */
 export type SsvcFetchDeps = {
   url?: string;
@@ -150,7 +159,8 @@ export type SsvcFetchDeps = {
  *
  * The fetch passes no `revalidate`: inside the cached callback Next already
  * forces it uncached and keeps its abort signal, and a `revalidate` would add a
- * second cache entry. The ID is checked against `CVE_ID_SHAPE` before any
+ * second cache entry. A 404 is read too (`acceptStatuses`): the exact
+ * `CVE_RECORD_DNE` body is `not-assessed`, any other 404 throws. The ID is checked against `CVE_ID_SHAPE` before any
  * request, so it can never alter the URL path (SSRF).
  */
 export async function produceSsvc(
@@ -160,10 +170,20 @@ export async function produceSsvc(
   if (typeof id !== "string" || !CVE_ID_SHAPE.test(id)) throw new Error("ssvc: invalid id");
   const res = await boundedFetchJson(
     cveRecordUrl(id, deps.url ?? SSVC_RECORD_URL_BASE),
-    { maxBytes: deps.maxBytes ?? SSVC_MAX_BYTES, timeoutMs: deps.timeoutMs ?? SSVC_TIMEOUT_MS },
+    {
+      maxBytes: deps.maxBytes ?? SSVC_MAX_BYTES,
+      timeoutMs: deps.timeoutMs ?? SSVC_TIMEOUT_MS,
+      acceptStatuses: [404],
+    },
     { fetcher: deps.fetcher }
   );
   if (!res.ok) throw new Error("ssvc: lookup failed");
+  if (res.status === 404) {
+    // Only the exact CVE_RECORD_DNE body is a positively observed "no such
+    // record" (not-assessed); any other 404 is drift and must not read as that.
+    if (isDneBody(res.json)) return { state: "not-assessed" };
+    throw new Error("ssvc: unexpected 404");
+  }
   const parsed = parseSsvcRecord(res.json, id);
   if (parsed.state !== "assessed" && parsed.state !== "not-assessed") {
     throw new Error("ssvc: unusable record");
