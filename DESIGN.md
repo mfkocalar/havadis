@@ -299,6 +299,7 @@ A 2px ink frame holding All / High+ / Critical in label caps, each with its mono
 - **CVE identification panel:** mono ID on Identification Orange with a 2px ink border (orange-300 on the dark ground, where ink would vanish), linked to NVD; hover underlines. The "+N" overflow reuses the same panel.
 - **KEV chip:** solid ink with the catalogue date, inverted per theme. The strongest signal.
 - **EPSS chip:** white with a 1px stone outline; at or above the threshold it turns Signal Yellow with an ink ring; "no EPSS yet" is muted on a dashed outline.
+- **SSVC chip:** CISA's exploitation decision for a CVE that is not in KEV. `SSVC active` is a 2px red inset ring with red text and no fill (red-700 and red-800 on the light ground, red-400 and red-200 on the dark one; Placard Red stays reserved for Critical); `SSVC poc` is a neutral 1px stone ring on a stone fill. It sits between the KEV and EPSS chips, never appears beside a KEV chip, and nothing is shown for none or not assessed.
 - **Tier tag:** neutral 1px outlined tag in condensed caps. Context, not signal: never coloured.
 
 ### Manifest Row
