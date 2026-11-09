@@ -547,6 +547,7 @@ const NVD_HREF_SHAPE = /^https:\/\/nvd\.nist\.gov\/vuln\/detail\/CVE-\d{4}-\d{4,
 const FALSE_ASSURANCE =
   /not (?:in|listed in) kev|not exploited|no known exploitation|exploitation none|ssvc none|not assessed/i;
 const KEV_CHIP_TAIL = "KEV · \\d{4}-\\d{2}-\\d{2}<\\/span>";
+const SSVC_CHIP_TAIL = "SSVC (?:active|poc)<\\/span>";
 
 /**
  * The notice grammar (UI-SPEC R-5, R-8): a KEV part, an EPSS part and an SSVC
@@ -614,6 +615,30 @@ test("every KEV chip is a span directly after an NVD anchor, with the sr-only pr
   t.diagnostic(`KEV chips: ${chipCount}`);
 });
 
+test("every SSVC chip is a span directly after an NVD anchor, never after a KEV chip, with the sr-only prefix and a fixed text", async (t) => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const main = mainHtml(body);
+
+  const chipCount = [...main.matchAll(/\sdata-ssvc-chip=/g)].length;
+  const shaped = [
+    ...main.matchAll(
+      /(<a\b[^>]*>)[^<]*<\/a><span data-ssvc-chip="(active|poc)"[^>]*><span class="sr-only">CISA assessment, <\/span>(?:<!-- -->)?SSVC (active|poc)<\/span>/g
+    ),
+  ];
+  assert.equal(shaped.length, chipCount, "every SSVC chip must follow an anchor and have the exact content shape");
+  for (const m of shaped) {
+    const href = attrValue(m[1], "href");
+    assert.ok(href !== null && NVD_HREF_SHAPE.test(href), `SSVC chip follows a non-NVD anchor: ${m[1]}`);
+    assert.equal(m[2], m[3], "the visible SSVC text must name the same level as the data attribute");
+  }
+  assert.doesNotMatch(main, new RegExp(`${KEV_CHIP_TAIL}<span data-ssvc-chip`), "no SSVC chip may follow a KEV chip");
+  for (const tag of openingTags(main, "span").filter((s) => s.includes("data-ssvc-chip"))) {
+    assert.ok(!tag.includes("href="), "an SSVC chip is never a link");
+  }
+  t.diagnostic(`SSVC chips: ${chipCount}`);
+});
+
 test("every EPSS chip is a span after its CVE anchor or its KEV chip, with a score or 'no EPSS yet' text", async (t) => {
   const res = await fetch(BASE_URL);
   const body = await res.text();
@@ -623,12 +648,12 @@ test("every EPSS chip is a span after its CVE anchor or its KEV chip, with a sco
   const shaped = [
     ...main.matchAll(
       new RegExp(
-        `(<\\/a>|${KEV_CHIP_TAIL})<span data-epss-chip="(score|none-yet)"[^>]*>([^<]*)<\\/span>`,
+        `(<\\/a>|${KEV_CHIP_TAIL}|${SSVC_CHIP_TAIL})<span data-epss-chip="(score|none-yet)"[^>]*>([^<]*)<\\/span>`,
         "g"
       )
     ),
   ];
-  assert.equal(shaped.length, chipCount, "every EPSS chip must directly follow an anchor or a KEV chip");
+  assert.equal(shaped.length, chipCount, "every EPSS chip must directly follow an anchor, a KEV chip or an SSVC chip");
 
   let scored = 0;
   let noneYet = 0;

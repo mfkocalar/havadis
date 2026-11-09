@@ -5,11 +5,18 @@
  * lives in `src/components/CveChips.tsx`, which imports from here.
  *
  * D-03: before the `MAX_VISIBLE_CVE_CHIPS` cut, a card's CVEs are ordered
- * KEV-listed first (newest `added` first), then CVEs with an EPSS score
- * (higher first), then the rest in extraction order, so a KEV-listed CVE is
- * never folded behind "+N" while a plain CVE is visible. Assumption A4
- * (accepted by the user): among KEV-listed CVEs with the same `added` date,
- * the higher EPSS score comes first, then extraction order.
+ * KEV-listed first (newest `added` first), then CISA SSVC `active`, then SSVC
+ * `poc`, then CVEs with an EPSS score (higher first), then the rest in
+ * extraction order, so a KEV-listed CVE is never folded behind "+N" while a
+ * plain CVE is visible, and an SSVC-active CVE with a low EPSS score still
+ * outranks an unassessed one with a high score. Inside a tier the higher EPSS
+ * score comes first, then extraction order (assumption A4, accepted by the
+ * user, for KEV-listed CVEs with the same `added` date).
+ *
+ * D-01: a KEV-listed CVE never carries an SSVC chip and ranks as KEV even if an
+ * SSVC level is present for it. Only an assessed `active` or `poc` level makes
+ * a chip; assessed `none`, `not-assessed`, `skipped` and `unavailable` are one
+ * plain tier with no chip.
  */
 
 import type { CveEnrichment } from "./types.ts";
@@ -45,14 +52,17 @@ export function nvdUrl(id: string): string | null {
 
 /**
  * One CVE's chip: the NVD link plus the validated enrichment that decides the
- * KEV and EPSS chips after it. `kev` is non-null only for a listed CVE; `epss`
- * is null when the lookup was unavailable (D-09, D-11), `none-yet` only after a
- * consistent FIRST answer without a row (D-07). Only `href` is ever a link.
+ * KEV, SSVC and EPSS chips after it. `kev` is non-null only for a listed CVE;
+ * `ssvc` is non-null only for an assessed `active` or `poc` level of a CVE that
+ * is not KEV-listed (D-01); `epss` is null when the lookup was unavailable
+ * (D-09, D-11), `none-yet` only after a consistent FIRST answer without a row
+ * (D-07). Only `href` is ever a link.
  */
 export type CveChip = {
   id: string;
   href: string;
   kev: { added: string } | null;
+  ssvc: { level: "active" | "poc" } | null;
   epss:
     | { kind: "score"; label: string; strong: boolean; date: string }
     | { kind: "none-yet" }
@@ -64,6 +74,9 @@ export type CveChipPlan = {
   visible: CveChip[];
   overflow: number;
 };
+
+/** D-03 SSVC tiers, lower sorts first: active, then poc, then everything else. */
+const SSVC_TIER = { active: 0, poc: 1, none: 2 } as const;
 
 type Ranked = { chip: CveChip; index: number; score: number | null };
 
@@ -80,6 +93,9 @@ function compareRanked(a: Ranked, b: Ranked): number {
     // ISO dates compare as text: the later date (newer addition) first.
     return aKev.added < bKev.added ? 1 : -1;
   }
+  const aSsvc = SSVC_TIER[a.chip.ssvc?.level ?? "none"];
+  const bSsvc = SSVC_TIER[b.chip.ssvc?.level ?? "none"];
+  if (aSsvc !== bSsvc) return aSsvc - bSsvc;
   if (a.score !== null && b.score === null) return -1;
   if (a.score === null && b.score !== null) return 1;
   if (a.score !== null && b.score !== null && a.score !== b.score) {
@@ -107,6 +123,10 @@ export function planCveChips(
     if (href === null) return;
     const entry = Object.hasOwn(byCve, id) ? byCve[id] : null;
     const kev = entry !== null && entry.kev.state === "listed" ? { added: entry.kev.added } : null;
+    const exploitation =
+      kev === null && entry !== null && entry.ssvc.state === "assessed" ? entry.ssvc.exploitation : null;
+    const ssvc: CveChip["ssvc"] =
+      exploitation === "active" || exploitation === "poc" ? { level: exploitation } : null;
     let epss: CveChip["epss"] = null;
     let score: number | null = null;
     if (entry !== null && entry.epss.state === "scored") {
@@ -120,7 +140,7 @@ export function planCveChips(
     } else if (entry !== null && entry.epss.state === "no-row") {
       epss = { kind: "none-yet" };
     }
-    ranked.push({ chip: { id, href, kev, epss }, index, score });
+    ranked.push({ chip: { id, href, kev, ssvc, epss }, index, score });
   });
 
   ranked.sort(compareRanked);
