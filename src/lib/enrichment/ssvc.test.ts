@@ -4,10 +4,20 @@ import type { AddressInfo } from "node:net";
 import http from "node:http";
 import { USER_AGENT } from "../config/crawler.ts";
 import type { CacheableSsvcState, EpssState, KevState } from "../types.ts";
-import { CISA_ADP_ORG_ID, SSVC_RECORD_URL_BASE } from "./config.ts";
+import {
+  CISA_ADP_ORG_ID,
+  SSVC_CONCURRENCY,
+  SSVC_MAX_LOOKUPS,
+  SSVC_RECORD_URL_BASE,
+  SSVC_REVALIDATE_SECONDS,
+  SSVC_TIMEOUT_MS,
+  SSVC_TOTAL_BUDGET_MS,
+} from "./config.ts";
+import { enrichCves } from "./enrich.ts";
 import {
   SSVC_ACTIVE_IDS,
   SSVC_DNE_IDS,
+  SSVC_FAIL_IDS,
   SSVC_NONE_IDS,
   SSVC_POC_IDS,
   ssvcRecord,
@@ -742,4 +752,189 @@ test("fetchSsvc with produceSsvc against failing routes gives unavailable for ev
     const out = await fetchSsvc(ids, { lookup: (id) => produceSsvc(id, at(mode)) });
     for (const id of ids) assert.deepStrictEqual(out[id], { state: "unavailable" }, `${mode} ${id}`);
   }
+});
+
+// ---- Plan 07.2-04: bounded pool, one total budget, real sockets ----
+
+const idsFrom = (start: number, n: number): string[] =>
+  Array.from({ length: n }, (_, i) => `CVE-2024-${String(start + i)}`);
+
+/** A throwaway fixture server for a test that reads maxInFlight, so earlier tests cannot raise the peak. */
+async function withServer<T>(body: (s: EnrichmentServer) => Promise<T>): Promise<T> {
+  const own = await startEnrichmentServer();
+  try {
+    return await body(own);
+  } finally {
+    await own.close();
+  }
+}
+
+/** An injected EPSS answer so enrichCves never reaches FIRST. */
+const noEpssNetwork = {
+  url: "https://epss.test/api",
+  fetcher: async (url: string) => {
+    const ids = new URL(url).searchParams.get("cve")?.split(",") ?? [];
+    return new Response(
+      JSON.stringify({
+        status: "OK",
+        total: ids.length,
+        data: ids.map((cve) => ({ cve, epss: "0.010000000", percentile: "0.5", date: "2026-10-09" })),
+      })
+    );
+  },
+};
+
+test("enrichCves over 120 candidates on /ssvc-slow makes exactly 100 requests, at most 8 in flight, 20 unavailable", async () => {
+  await withServer(async (own) => {
+    const ids = idsFrom(47000, 120);
+    const base = `${own.baseUrl}/ssvc-slow`;
+    const snap = await enrichCves(
+      ids,
+      { kev: { status: "unavailable" }, cardCves: [ids] },
+      Date.parse("2026-10-09T12:00:00.000Z"),
+      { epss: noEpssNetwork, ssvc: { lookup: (id) => produceSsvc(id, { url: base, ...FAST }), concurrency: 8 } }
+    );
+    const slow = own.requests.filter((r) => r.startsWith("/ssvc-slow/"));
+    assert.equal(SSVC_MAX_LOOKUPS, 100);
+    assert.equal(slow.length, 100);
+    assert.equal(new Set(slow).size, 100, "one request per looked-up CVE");
+    const looked = ids.filter((id) => snap.byCve[id].ssvc.state !== "unavailable");
+    assert.equal(looked.length, 100);
+    for (const id of looked) {
+      assert.equal(slow.filter((r) => r === new URL(cveRecordUrl(id, base)).pathname).length, 1, id);
+    }
+    assert.ok(own.maxInFlight() <= 8, `maxInFlight ${own.maxInFlight()}`);
+    assert.ok(own.maxInFlight() >= 2, "the pool ran in parallel");
+    assert.equal(ids.length - looked.length, 20);
+    assert.deepStrictEqual(snap.health.ssvc, { status: "partial", requested: 120, unavailable: 20 });
+    console.log(`# SSVC_POOL requests=${slow.length} maxInFlight=${own.maxInFlight()}`);
+  });
+});
+
+test("an uncached lookup requests byte-identical record URLs on every regeneration", async () => {
+  await withServer(async (own) => {
+    const ids = idsFrom(47200, 12);
+    const base = `${own.baseUrl}/ssvc-ok`;
+    const lookup = (id: string) => produceSsvc(id, { url: base, ...FAST });
+    await fetchSsvc(ids, { lookup, concurrency: 3 });
+    const first = own.requests.filter((r) => r.startsWith("/ssvc-ok/")).sort();
+    own.requests.length = 0;
+    await fetchSsvc(ids, { lookup, concurrency: 3 });
+    const second = own.requests.filter((r) => r.startsWith("/ssvc-ok/")).sort();
+    assert.deepStrictEqual(first, ids.map((id) => new URL(cveRecordUrl(id, base)).pathname).sort());
+    assert.deepStrictEqual(second, first);
+  });
+});
+
+test("a hanging source with a per-lookup timeout leaves every looked-up ID unavailable within budget plus slack", async () => {
+  await withServer(async (own) => {
+    const ids = idsFrom(47300, 10);
+    const t0 = performance.now();
+    const snap = await enrichCves(
+      ids,
+      { kev: { status: "unavailable" }, cardCves: [ids] },
+      Date.parse("2026-10-09T12:00:00.000Z"),
+      {
+        epss: noEpssNetwork,
+        ssvc: {
+          lookup: (id) => produceSsvc(id, { url: `${own.baseUrl}/ssvc-hang`, timeoutMs: 300, maxBytes: 64 * 1024 }),
+          concurrency: 5,
+        },
+      }
+    );
+    const elapsed = performance.now() - t0;
+    for (const id of ids) assert.deepStrictEqual(snap.byCve[id].ssvc, { state: "unavailable" }, id);
+    assert.deepStrictEqual(snap.health.ssvc, { status: "unavailable", requested: 10, unavailable: 10 });
+    assert.ok(elapsed < 300 * 2 + 1_500, `took ${Math.round(elapsed)} ms`);
+  });
+});
+
+test("fetchSsvc stops at totalBudgetMs even when every lookup would run for 5 s", async () => {
+  await withServer(async (own) => {
+    const ids = idsFrom(47400, 40);
+    const t0 = performance.now();
+    const out = await fetchSsvc(ids, {
+      lookup: (id) => produceSsvc(id, { url: `${own.baseUrl}/ssvc-hang`, timeoutMs: 5_000, maxBytes: 64 * 1024 }),
+      totalBudgetMs: 500,
+    });
+    const elapsed = performance.now() - t0;
+    assert.ok(elapsed >= 450, `returned too early: ${Math.round(elapsed)} ms`);
+    assert.ok(elapsed < 900, `took ${Math.round(elapsed)} ms`);
+    assert.deepStrictEqual(Object.keys(out).sort(), [...ids].sort());
+    for (const id of ids) assert.deepStrictEqual(out[id], { state: "unavailable" }, id);
+    console.log(`# SSVC_BUDGET elapsed=${Math.round(elapsed)}ms`);
+  });
+});
+
+test("fetchSsvc: a lookup finishing after the deadline stays unavailable, and no new ID starts after it", async () => {
+  const called: string[] = [];
+  const ids = ["CVE-2024-47500", "CVE-2024-47501", "CVE-2024-47502"];
+  const out = await fetchSsvc(ids, {
+    concurrency: 1,
+    totalBudgetMs: 150,
+    lookup: async (id) => {
+      called.push(id);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return { state: "not-assessed" };
+    },
+  });
+  assert.deepStrictEqual(out, {
+    "CVE-2024-47500": { state: "not-assessed" },
+    "CVE-2024-47501": { state: "unavailable" },
+    "CVE-2024-47502": { state: "unavailable" },
+  });
+  const frozen = JSON.stringify(out);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(JSON.stringify(out), frozen, "a late completion never changes the returned result");
+  assert.deepStrictEqual(called, ["CVE-2024-47500", "CVE-2024-47501"], "the third ID was never started");
+});
+
+test("a failed lookup stores no cache entry, so the next regeneration retries it", async () => {
+  const cache = new Map<string, CacheableSsvcState>();
+  let producerCalls = 0;
+  const failing = new Set(["CVE-2024-47601"]);
+  // The stand-in for the shipped seam: a thrown producer stores nothing.
+  const cached = async (id: string): Promise<CacheableSsvcState> => {
+    const hit = cache.get(id);
+    if (hit !== undefined) return hit;
+    producerCalls += 1;
+    if (failing.has(id)) throw new Error("ssvc: lookup failed");
+    const value: CacheableSsvcState = { state: "not-assessed" };
+    cache.set(id, value);
+    return value;
+  };
+  const ids = ["CVE-2024-47600", "CVE-2024-47601", "CVE-2024-47602"];
+  const first = await fetchSsvc(ids, { lookup: cached });
+  assert.equal(first["CVE-2024-47601"].state, "unavailable");
+  assert.deepStrictEqual([...cache.keys()].sort(), ["CVE-2024-47600", "CVE-2024-47602"]);
+  failing.clear();
+  producerCalls = 0;
+  const second = await fetchSsvc(ids, { lookup: cached });
+  assert.equal(producerCalls, 1, "only the failed ID is fetched again");
+  for (const id of ids) assert.deepStrictEqual(second[id], { state: "not-assessed" }, id);
+});
+
+test("/ssvc-drip and /ssvc-oversize give unavailable for every ID", async () => {
+  const ids = idsFrom(47700, 3);
+  for (const [mode, opts] of [
+    ["drip", { timeoutMs: 300, maxBytes: 64 * 1024 }],
+    ["oversize", { timeoutMs: 2_000, maxBytes: 64 * 1024 }],
+  ] as const) {
+    const out = await fetchSsvc(ids, { lookup: (id) => produceSsvc(id, { url: `${server.baseUrl}/ssvc-${mode}`, ...opts }) });
+    for (const id of ids) assert.deepStrictEqual(out[id], { state: "unavailable" }, `${mode} ${id}`);
+  }
+});
+
+test("/ssvc-partial gives unavailable only for its failing IDs", async () => {
+  const ids = [...SSVC_FAIL_IDS, "CVE-2024-47801", "CVE-2024-47802"];
+  const out = await fetchSsvc(ids, { lookup: (id) => produceSsvc(id, at("partial")) });
+  for (const id of SSVC_FAIL_IDS) assert.deepStrictEqual(out[id], { state: "unavailable" }, id);
+  assert.deepStrictEqual(out["CVE-2024-47801"], { state: "not-assessed" });
+  assert.deepStrictEqual(out["CVE-2024-47802"], { state: "not-assessed" });
+});
+
+test("config bounds: revalidate at least 900, budget at least the per-lookup timeout, concurrency within the cap", () => {
+  assert.ok(SSVC_REVALIDATE_SECONDS >= 900, `SSVC_REVALIDATE_SECONDS ${SSVC_REVALIDATE_SECONDS}`);
+  assert.ok(SSVC_TOTAL_BUDGET_MS >= SSVC_TIMEOUT_MS, "the total budget covers one lookup");
+  assert.ok(SSVC_CONCURRENCY >= 1 && SSVC_CONCURRENCY <= SSVC_MAX_LOOKUPS, `SSVC_CONCURRENCY ${SSVC_CONCURRENCY}`);
 });

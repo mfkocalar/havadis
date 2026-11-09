@@ -46,6 +46,13 @@ import { CISA_ADP_ORG_ID } from "../../src/lib/enrichment/config.ts";
  *   malformed  200 with truncated JSON
  *   html       200 text/html
  *   status-500 and 429 (with a retry-after header)
+ *   slow       the ok answer after a 30 ms delay (the in-flight bound test)
+ *   hang       never answers
+ *   drip       headers, then one byte every 50 ms (only a time budget stops it)
+ *   oversize   a stream past any byte cap
+ *   partial    500 for SSVC_FAIL_IDS, the ok answer for every other ID
+ * Every /ssvc- request counts as in flight from its arrival to the close of its
+ * response, and `maxInFlight()` reports the peak (Phase 7.2, ENR-06).
  */
 
 /** IDs the consistent EPSS routes answer without a row (FIRST's "no EPSS yet"). */
@@ -116,6 +123,8 @@ export const SSVC_ACTIVE_IDS: readonly string[] = ["CVE-2024-40001", "CVE-2024-4
 export const SSVC_POC_IDS: readonly string[] = ["CVE-2024-41001", "CVE-2024-41002", "CVE-2024-41003"];
 export const SSVC_NONE_IDS: readonly string[] = ["CVE-2024-42001", "CVE-2024-42002", "CVE-2024-42003"];
 export const SSVC_DNE_IDS: readonly string[] = ["CVE-2024-43001", "CVE-2024-43002"];
+/** IDs whose `/ssvc-partial` request answers 500; every other ID gets the ok answer. */
+export const SSVC_FAIL_IDS: readonly string[] = ["CVE-2024-46001", "CVE-2024-46002"];
 
 /** The CVE Program's own ADP container, present on every real record. */
 const CVE_PROGRAM_ADP = {
@@ -252,6 +261,8 @@ export type EnrichmentServer = {
   baseUrl: string;
   /** Every request's path plus query, in arrival order. */
   requests: string[];
+  /** The most /ssvc- requests that were in flight at once since the server started. */
+  maxInFlight: () => number;
   /** Closes the server and force-drops any still-open sockets. */
   close: () => Promise<void>;
 };
@@ -283,6 +294,8 @@ function sendJson(res: http.ServerResponse, status: number, body: string): void 
 export async function startEnrichmentServer(): Promise<EnrichmentServer> {
   const activeTimers = new Set<NodeJS.Timeout>();
   const requests: string[] = [];
+  let inFlight = 0;
+  let peakInFlight = 0;
 
   const track = (res: http.ServerResponse, timer: NodeJS.Timeout) => {
     timer.unref();
@@ -302,18 +315,76 @@ export async function startEnrichmentServer(): Promise<EnrichmentServer> {
 
     const ssvcRoute = url.pathname.match(/^\/ssvc-([a-z0-9-]+)\/([^/]+)$/);
     if (ssvcRoute !== null) {
-      const answer = ssvcAnswer(ssvcRoute[1], ssvcRoute[2]);
-      if (answer === null) {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
-      res.writeHead(answer.status, {
-        "Content-Type": answer.contentType ?? "application/json; charset=utf-8",
-        ...(answer.headers ?? {}),
+      inFlight++;
+      peakInFlight = Math.max(peakInFlight, inFlight);
+      res.on("close", () => {
+        inFlight--;
       });
-      res.end(answer.body);
-      return;
+      const mode = ssvcRoute[1];
+      const id = ssvcRoute[2];
+      const send = (answer: NonNullable<ReturnType<typeof ssvcAnswer>>) => {
+        res.writeHead(answer.status, {
+          "Content-Type": answer.contentType ?? "application/json; charset=utf-8",
+          ...(answer.headers ?? {}),
+        });
+        res.end(answer.body);
+      };
+      switch (mode) {
+        case "slow": {
+          const ok = ssvcAnswer("ok", id);
+          if (ok === null) return;
+          track(
+            res,
+            setTimeout(() => send(ok), 30)
+          );
+          return;
+        }
+        case "hang":
+          // Never answers: only the lookup's own timeout or the total budget ends the wait.
+          return;
+        case "drip":
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.write('{"dataType":');
+          track(
+            res,
+            setInterval(() => {
+              res.write(" ");
+            }, 50)
+          );
+          return;
+        case "oversize": {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.write('{"dataType":"CVE_RECORD","x":[');
+          const chunk = `"${"x".repeat(65_534)}",`;
+          let sent = 0;
+          track(
+            res,
+            setInterval(() => {
+              res.write(chunk);
+              sent += chunk.length;
+              if (sent > 8 * 1024 * 1024) res.end();
+            }, 2)
+          );
+          return;
+        }
+        case "partial": {
+          const answer = SSVC_FAIL_IDS.includes(id)
+            ? ssvcAnswer("status-500", id)
+            : ssvcAnswer("ok", id);
+          if (answer !== null) send(answer);
+          return;
+        }
+        default: {
+          const answer = ssvcAnswer(mode, id);
+          if (answer === null) {
+            res.writeHead(404);
+            res.end();
+            return;
+          }
+          send(answer);
+          return;
+        }
+      }
     }
 
     switch (url.pathname) {
@@ -483,6 +554,7 @@ export async function startEnrichmentServer(): Promise<EnrichmentServer> {
   return {
     baseUrl,
     requests,
+    maxInFlight: () => peakInFlight,
     close: () =>
       new Promise<void>((resolve) => {
         for (const timer of activeTimers) {

@@ -14,6 +14,7 @@ import {
   SSVC_MAX_BYTES,
   SSVC_RECORD_URL_BASE,
   SSVC_TIMEOUT_MS,
+  SSVC_TOTAL_BUDGET_MS,
 } from "./config.ts";
 
 /**
@@ -281,6 +282,8 @@ export type SsvcDeps = {
   lookup?: (id: string) => Promise<CacheableSsvcState>;
   concurrency?: number;
   maxLookups?: number;
+  /** Deadline for the whole SSVC phase, in milliseconds; defaults to `SSVC_TOTAL_BUDGET_MS`. */
+  totalBudgetMs?: number;
 };
 
 /**
@@ -288,15 +291,21 @@ export type SsvcDeps = {
  * lookup every ID is `unavailable` and nothing is requested, so no test can
  * reach a live host by omission (D-10). With one, an index-counter worker pool
  * of at most `min(concurrency, ids)` workers calls it once per ID; a throw or a
- * value failing `isCacheableSsvc` is `unavailable` for that ID only. The
- * result is a fresh object keyed only by the given IDs that match
- * `CVE_ID_SHAPE`.
+ * value failing `isCacheableSsvc` is `unavailable` for that ID only.
+ *
+ * One deadline of `totalBudgetMs` (default `SSVC_TOTAL_BUDGET_MS`) is raced
+ * against the pool, so a hung or dripping source cannot hold a regeneration
+ * (T-07.2-16). At the deadline workers take no further ID, the result is a
+ * fresh copy taken at that moment, and every ID without an answer is
+ * `unavailable`; a lookup that completes later cannot change what was
+ * returned. That late lookup still finishes inside the cache seam, which
+ * stores a success, so the next regeneration resumes from the cached part. The
+ * result is keyed only by the given IDs that match `CVE_ID_SHAPE`.
  */
 export async function fetchSsvc(
   ids: readonly string[],
   deps: SsvcDeps = {}
 ): Promise<Record<string, SsvcState>> {
-  const out: Record<string, SsvcState> = {};
   const valid: string[] = [];
   try {
     const seen = new Set<string>();
@@ -306,20 +315,27 @@ export async function fetchSsvc(
         valid.push(id);
       }
     }
+    const unavailableAll = (): Record<string, SsvcState> => {
+      const all: Record<string, SsvcState> = {};
+      for (const id of valid) all[id] = { state: "unavailable" };
+      return all;
+    };
     const lookup = deps.lookup;
-    if (lookup === undefined) {
-      for (const id of valid) out[id] = { state: "unavailable" };
-      return out;
-    }
+    if (lookup === undefined) return unavailableAll();
+
+    const answers: Record<string, SsvcState> = {};
+    let closed = false;
     let next = 0;
     const worker = async (): Promise<void> => {
       for (;;) {
+        if (closed) return;
         const i = next++;
         if (i >= valid.length) return;
         const id = valid[i];
+        let state: SsvcState;
         try {
           const value: unknown = await lookup(id);
-          out[id] = isCacheableSsvc(value)
+          state = isCacheableSsvc(value)
             ? value.state === "assessed"
               ? {
                   state: "assessed",
@@ -330,12 +346,29 @@ export async function fetchSsvc(
               : { state: "not-assessed" }
             : { state: "unavailable" };
         } catch {
-          out[id] = { state: "unavailable" };
+          state = { state: "unavailable" };
         }
+        if (!closed) answers[id] = state;
       }
     };
+
     const width = Math.max(1, Math.min(deps.concurrency ?? SSVC_CONCURRENCY, valid.length));
-    await Promise.all(Array.from({ length: width }, worker));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, deps.totalBudgetMs ?? SSVC_TOTAL_BUDGET_MS);
+      timer.unref();
+    });
+    try {
+      await Promise.race([Promise.all(Array.from({ length: width }, worker)), deadline]);
+    } finally {
+      closed = true;
+      clearTimeout(timer);
+    }
+
+    const out: Record<string, SsvcState> = {};
+    for (const id of valid) {
+      out[id] = Object.hasOwn(answers, id) ? { ...answers[id] } : { state: "unavailable" };
+    }
     return out;
   } catch {
     const all: Record<string, SsvcState> = {};

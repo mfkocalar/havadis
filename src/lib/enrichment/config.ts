@@ -66,7 +66,7 @@ export const SSVC_CONCURRENCY = 12;
 /** Per-lookup SSVC budget in milliseconds, spanning connect, redirects and the body read; applied inside the producer. */
 export const SSVC_TIMEOUT_MS = 5_000;
 
-/** Whole-SSVC-phase budget in milliseconds per regeneration (enforced by Plan 07.2-04). */
+/** Whole-SSVC-phase budget in milliseconds per regeneration, enforced by `fetchSsvc` (D-13, T-07.2-16). */
 export const SSVC_TOTAL_BUDGET_MS = 6_000;
 
 /** Per-record SSVC body cap: 512 KiB (observed p95 12 KB, max 44 KB). */
