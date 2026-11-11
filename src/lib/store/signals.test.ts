@@ -13,6 +13,7 @@ import {
   persistPostEnrich,
   persistSsvcPositive,
   readKevFromDb,
+  readStoredSsvc,
   recordProviderAttempt,
   replaceKevCatalog,
   selectEnrichmentCandidates,
@@ -315,6 +316,28 @@ test("persistSsvcPositive stores assessed and not-assessed and appends an observ
   }
 });
 
+test("readStoredSsvc returns only a stored positive answer", async () => {
+  const h = await open();
+  try {
+    const runId = await newRun(h);
+    const id = "CVE-2026-41003";
+    await addCve(h, id);
+    assert.equal(await readStoredSsvc(h.db, id), null, "never checked");
+    assert.equal(await readStoredSsvc(h.db, "CVE-2026-41999"), null, "no such row");
+
+    await persistSsvcPositive(h.db, id, { state: "assessed", exploitation: "active", automatable: "yes", technicalImpact: "total" }, iso(T), runId);
+    assert.deepEqual(await readStoredSsvc(h.db, id), { state: "assessed", exploitation: "active", automatable: "yes", technicalImpact: "total" });
+
+    await persistSsvcPositive(h.db, id, { state: "not-assessed" }, iso(T + HOUR), runId);
+    assert.deepEqual(await readStoredSsvc(h.db, id), { state: "not-assessed" });
+
+    await persistPostEnrich(h.db, snap({ [id]: { ssvc: { state: "skipped" } } }), iso(T + 2 * HOUR), runId);
+    assert.equal(await readStoredSsvc(h.db, id), null, "skipped is not a lookup result");
+  } finally {
+    await h.close();
+  }
+});
+
 test("an observation records the full current tuple of all three providers", async () => {
   const h = await open();
   try {
@@ -451,6 +474,23 @@ test("persistPostEnrich SSVC: skipped is stored with NULL decision points, unava
   }
 });
 
+test("persistPostEnrich leaves assessed and not-assessed SSVC answers to the lookup callback, so a cached answer never extends its own TTL", async () => {
+  const h = await open();
+  try {
+    const runId = await newRun(h);
+    const id = "CVE-2026-43003";
+    await addCve(h, id);
+    await persistSsvcPositive(h.db, id, { state: "assessed", exploitation: "poc", automatable: "no", technicalImpact: "partial" }, iso(T), runId);
+
+    await persistPostEnrich(h.db, snap({ [id]: { ssvc: assessed("active") } }), iso(T + HOUR), runId);
+    const r = await row(h, id);
+    assert.deepEqual([r.ssvc_state, r.ssvc_exploitation, r.ssvc_checked_at], ["assessed", "poc", iso(T)]);
+    assert.equal((await observations(h, id)).length, 1);
+  } finally {
+    await h.close();
+  }
+});
+
 test("PLAT-08/ordering: observations of one CVE read back in id order when observed_at is equal", async () => {
   const h = await open();
   try {
@@ -554,7 +594,8 @@ test("candidates: the CVEs of the stories readers see, due by TTL and cooldown, 
     // Fresh EPSS and SSVC: not due. Fresh EPSS only: still due through SSVC.
     const [first, second, third] = adapterOrder;
     const runId = (await h.db.selectFrom("fetch_runs").select("id").executeTakeFirstOrThrow()).id;
-    await persistPostEnrich(h.db, snap({ [first!]: { epss: scored(0.2), ssvc: { state: "not-assessed" } }, [second!]: { epss: scored(0.3) } }), iso(T), runId);
+    await persistSsvcPositive(h.db, first!, { state: "not-assessed" }, iso(T), runId);
+    await persistPostEnrich(h.db, snap({ [first!]: { epss: scored(0.2) }, [second!]: { epss: scored(0.3) } }), iso(T), runId);
     const afterFresh = await selectEnrichmentCandidates(h.db, T + HOUR, TTL, COOLDOWN);
     assert.ok(!afterFresh.staleIds.includes(first!), "fresh on both providers");
     assert.ok(afterFresh.staleIds.includes(second!), "SSVC for the second is still due");

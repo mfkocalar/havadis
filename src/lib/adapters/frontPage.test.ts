@@ -15,8 +15,8 @@ import { composeFrontPage } from "../pipeline/getFrontPage.ts";
 import { rankScore } from "../pipeline/rank.ts";
 import type { FeedFetchResult } from "../pipeline/feedResult.ts";
 import { runIngestCycle } from "../worker/cycle.ts";
-import { readFrontPage } from "./frontPage.ts";
-import type { FrontPageRead } from "./frontPage.ts";
+import { cveEnrichmentFromRow, readFrontPage } from "./frontPage.ts";
+import type { CveSignalRow, FrontPageRead } from "./frontPage.ts";
 import { makeArticle, makeSource } from "../../../test/fixtures/makeArticle.ts";
 import type { Article, SourceConfig } from "../types.ts";
 
@@ -420,4 +420,95 @@ test("inReadSnapshot: returns the callback's value, and a throw rolls back, reth
   } finally {
     await h.close();
   }
+});
+
+// ---------------------------------------------------------------------------
+// (9) cveEnrichmentFromRow: every stored state combination
+// ---------------------------------------------------------------------------
+
+/** A never-checked row: every provider unavailable, every field NULL. */
+const NEVER_CHECKED: CveSignalRow = {
+  kev_state: "unavailable",
+  kev_added: null,
+  kev_due: null,
+  kev_ransomware: null,
+  epss_state: "unavailable",
+  epss_score: null,
+  epss_date: null,
+  ssvc_state: "unavailable",
+  ssvc_exploitation: null,
+  ssvc_automatable: null,
+  ssvc_technical_impact: null,
+};
+
+const row = (overrides: Partial<CveSignalRow>): CveSignalRow => ({ ...NEVER_CHECKED, ...overrides });
+
+test("cveEnrichmentFromRow: a never-checked row is unavailable in all three providers, never not-listed, none or not-assessed", () => {
+  assert.deepEqual(cveEnrichmentFromRow(NEVER_CHECKED), {
+    kev: { state: "unavailable" },
+    epss: { state: "unavailable" },
+    ssvc: { state: "unavailable" },
+  });
+});
+
+test("cveEnrichmentFromRow: every KEV state, with an empty due date read back as an empty string", () => {
+  const kev = (overrides: Partial<CveSignalRow>) => cveEnrichmentFromRow(row(overrides)).kev;
+  assert.deepEqual(kev({ kev_state: "listed", kev_added: "2026-11-01", kev_due: "2026-11-22", kev_ransomware: 1 }), {
+    state: "listed",
+    added: "2026-11-01",
+    due: "2026-11-22",
+    ransomware: true,
+  });
+  assert.deepEqual(kev({ kev_state: "listed", kev_added: "2026-11-01", kev_due: null, kev_ransomware: 0 }), {
+    state: "listed",
+    added: "2026-11-01",
+    due: "",
+    ransomware: false,
+  });
+  assert.deepEqual(kev({ kev_state: "not-listed" }), { state: "not-listed" });
+  assert.deepEqual(kev({ kev_state: "unavailable" }), { state: "unavailable" });
+  // A listed state without its fields is not trusted.
+  assert.deepEqual(kev({ kev_state: "listed", kev_added: null }), { state: "unavailable" });
+});
+
+test("cveEnrichmentFromRow: every EPSS state, a scored row with a NULL date reads as scored with an empty date", () => {
+  const epss = (overrides: Partial<CveSignalRow>) => cveEnrichmentFromRow(row(overrides)).epss;
+  assert.deepEqual(epss({ epss_state: "scored", epss_score: 0.42, epss_date: "2026-11-10" }), {
+    state: "scored",
+    score: 0.42,
+    date: "2026-11-10",
+  });
+  assert.deepEqual(epss({ epss_state: "scored", epss_score: 0, epss_date: null }), { state: "scored", score: 0, date: "" });
+  assert.deepEqual(epss({ epss_state: "no-row" }), { state: "no-row" });
+  assert.deepEqual(epss({ epss_state: "unavailable" }), { state: "unavailable" });
+  assert.deepEqual(epss({ epss_state: "scored", epss_score: null }), { state: "unavailable" });
+});
+
+test("cveEnrichmentFromRow: every SSVC state, skipped stays skipped and is never a failure", () => {
+  const ssvc = (overrides: Partial<CveSignalRow>) => cveEnrichmentFromRow(row(overrides)).ssvc;
+  assert.deepEqual(
+    ssvc({ ssvc_state: "assessed", ssvc_exploitation: "active", ssvc_automatable: "yes", ssvc_technical_impact: "total" }),
+    { state: "assessed", exploitation: "active", automatable: "yes", technicalImpact: "total" },
+  );
+  assert.deepEqual(ssvc({ ssvc_state: "not-assessed" }), { state: "not-assessed" });
+  assert.deepEqual(ssvc({ ssvc_state: "skipped" }), { state: "skipped" });
+  assert.deepEqual(ssvc({ ssvc_state: "unavailable" }), { state: "unavailable" });
+  assert.deepEqual(ssvc({ ssvc_state: "assessed", ssvc_exploitation: "poc", ssvc_automatable: null, ssvc_technical_impact: "partial" }), {
+    state: "unavailable",
+  });
+});
+
+test("cveEnrichmentFromRow: a fully populated row combines the three providers independently", () => {
+  assert.deepEqual(
+    cveEnrichmentFromRow(
+      row({
+        kev_state: "not-listed",
+        epss_state: "scored",
+        epss_score: 0.07,
+        epss_date: "2026-11-10",
+        ssvc_state: "skipped",
+      }),
+    ),
+    { kev: { state: "not-listed" }, epss: { state: "scored", score: 0.07, date: "2026-11-10" }, ssvc: { state: "skipped" } },
+  );
 });

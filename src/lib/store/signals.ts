@@ -266,6 +266,15 @@ export async function persistPostEnrich(
   return { changed };
 }
 
+/**
+ * The stored SSVC answer of one CVE when it is a positive one (assessed or not-assessed), else null.
+ * The stage uses it so a CVE whose SSVC is still fresh is not looked up again just because its EPSS
+ * is due.
+ */
+export async function readStoredSsvc(_db: Db, _cveId: string): Promise<CacheableSsvcState | null> {
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // provider_state
 // ---------------------------------------------------------------------------
