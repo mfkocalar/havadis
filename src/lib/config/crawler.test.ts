@@ -6,27 +6,29 @@ import {
   CRAWLER_CONTACT_CHANNEL_URL,
   USER_AGENT,
 } from "./crawler.ts";
+import { HAVADIS_VERSION } from "./version.ts";
 import { SOURCES } from "./sources.ts";
-import { fetchSource } from "../pipeline/fetchSource.ts";
+import { fetchFeed } from "../pipeline/fetchSource.ts";
 
 /**
- * Hermetic tests for the crawler's public identity (D-12, PLAT-04, threat
- * T-05-02). No network: the outgoing request is captured with a recording
- * fetcher injected through fetchSource's deps parameter.
+ * Hermetic tests for the crawler's public identity (D-12, PLAT-04, SAFE-03, threats T-05-02 and
+ * T-14-19). No network: the outgoing request is captured with a recording fetcher injected through
+ * fetchFeed's options.
  */
 
-test("CRAWLER_CONTACT_URL is an https /about URL on a non-placeholder host", () => {
-  const url = new URL(CRAWLER_CONTACT_URL);
-  assert.equal(url.protocol, "https:");
-  assert.equal(url.pathname, "/about");
-  assert.equal(url.hostname, "havadis-news.vercel.app");
-  assert.notEqual(url.hostname, "havadis.app");
-  assert.ok(!url.hostname.endsWith(".havadis.app"));
+test("CRAWLER_CONTACT_URL is the public project repository", () => {
+  assert.equal(CRAWLER_CONTACT_URL, "https://github.com/mfkocalar/havadis");
 });
 
-test("USER_AGENT keeps the browser-compatible shape and embeds the contact URL", () => {
-  assert.ok(USER_AGENT.startsWith("Mozilla/5.0 (compatible; HavadisBot/"));
-  assert.ok(USER_AGENT.includes(`+${CRAWLER_CONTACT_URL})`));
+test("USER_AGENT names HavadisBot, its package.json version and the repository", () => {
+  assert.ok(USER_AGENT.includes(`HavadisBot/${HAVADIS_VERSION}`));
+  assert.ok(USER_AGENT.includes("+https://github.com/mfkocalar/havadis"));
+  assert.ok(USER_AGENT.endsWith(") automated cybersecurity news aggregator"));
+});
+
+test("USER_AGENT keeps the browser-compatible prefix and is printable ASCII", () => {
+  assert.ok(USER_AGENT.startsWith("Mozilla/5.0 (compatible; "));
+  assert.match(USER_AGENT, /^[\x20-\x7E]+$/);
   assert.equal(USER_AGENT, USER_AGENT.trim());
 });
 
@@ -35,7 +37,7 @@ test("CRAWLER_CONTACT_CHANNEL_URL is an https or mailto URL", () => {
   assert.ok(url.protocol === "https:" || url.protocol === "mailto:");
 });
 
-test("fetchSource sends exactly USER_AGENT on the outgoing request", async () => {
+test("fetchFeed sends exactly USER_AGENT on the outgoing request", async () => {
   const rss =
     '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>' +
     "<item><title>Probe item</title><link>https://fixture.test/a</link>" +
@@ -48,7 +50,7 @@ test("fetchSource sends exactly USER_AGENT on the outgoing request", async () =>
       headers: { "content-type": "application/rss+xml" },
     });
   };
-  const result = await fetchSource(
+  const result = await fetchFeed(
     { ...SOURCES[0], url: "https://fixture.test/ua-probe.xml" },
     { fetcher }
   );

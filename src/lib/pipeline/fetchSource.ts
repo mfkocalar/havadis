@@ -5,6 +5,7 @@ import { normalize } from "./normalize.ts";
 import { USER_AGENT } from "../config/crawler.ts";
 import { safeFetch } from "../egress/safeFetch.ts";
 import type { SafeFetch } from "../egress/safeFetch.ts";
+import type { FeedFetchResult, FeedValidators } from "./feedResult.ts";
 
 // The User-Agent sent on every source fetch (the crawler's public identity and
 // contact URL) lives in config/crawler.ts so the host and contact channel are
@@ -134,4 +135,12 @@ export async function fetchSource(
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Skeleton for the RED commit; the implementation lands in the GREEN commit.
+export async function fetchFeed(
+  _source: SourceConfig,
+  _opts: { fetcher?: SafeFetch; validators?: FeedValidators; now?: () => number } = {}
+): Promise<FeedFetchResult> {
+  return { status: "error", code: "network_error", httpStatus: null, retryAfterMs: null };
 }
