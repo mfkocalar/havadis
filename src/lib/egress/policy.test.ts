@@ -118,6 +118,39 @@ test("nameDenied: ordinary public names are allowed", () => {
   }
 });
 
+test("nameDenied: case and repeated or leading dots do not bypass the name rules", () => {
+  for (const h of ["LOCALHOST.", "LocalHost", "localhost..", "foo.localhost..", "x.localhost..", "a..localhost", "a..example.com", ".localhost", ".example.com", "example.com..", ".", ".."]) {
+    assert.equal(nameDenied(h), true, h);
+  }
+});
+
+test("ipDenied: IPv4-embedding IPv6 ranges are denied whole (IPv4-compatible, NAT64, local-use NAT64, 6to4, Teredo, discard)", () => {
+  for (const ip of [
+    "::127.0.0.1",
+    "::7f00:1",
+    "::a9fe:a9fe",
+    "::8.8.8.8",
+    "64:ff9b::a9fe:a9fe",
+    "64:ff9b::127.0.0.1",
+    "64:ff9b:1::7f00:1",
+    "64:ff9b:1:ffff::1",
+    "2002:7f00:1::",
+    "2002:a9fe:a9fe::1",
+    "2001::1",
+    "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+    "100::1",
+    "100::ffff:ffff:ffff:ffff",
+  ]) {
+    assert.equal(ipDenied(ip), true, ip);
+  }
+});
+
+test("ipDenied: neighbours of the new IPv6 ranges stay allowed", () => {
+  for (const ip of ["2001:1::1", "2001:4860:4860::8888", "100:0:0:1::1", "64:ff9b:2::1", "64:ff9c::1", "2003::1"]) {
+    assert.equal(ipDenied(ip), false, ip);
+  }
+});
+
 // --- checkUrl ----------------------------------------------------------------
 
 test("checkUrl: userinfo is refused with egress_denied_credentials, before anything else", () => {
@@ -173,6 +206,25 @@ test("checkUrl: denied names are refused with egress_denied_private", () => {
     "https://intranet/",
     "https://localhost./",
     "https://intranet./",
+  ]) {
+    assert.equal(codeOf(url), "egress_denied_private", url);
+  }
+});
+
+test("checkUrl: dotted and cased localhost variants and IPv4-embedding IPv6 literals are refused with egress_denied_private", () => {
+  for (const url of [
+    "https://LOCALHOST./",
+    "https://localhost../",
+    "https://foo.localhost../",
+    "https://a..localhost/",
+    "https://x.localhost../",
+    "https://[::127.0.0.1]/",
+    "https://[::7f00:1]/",
+    "https://[64:ff9b::a9fe:a9fe]/",
+    "https://[64:ff9b:1::7f00:1]/",
+    "https://[2002:7f00:1::]/",
+    "https://[2001::1]/",
+    "https://[100::1]/",
   ]) {
     assert.equal(codeOf(url), "egress_denied_private", url);
   }
