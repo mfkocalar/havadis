@@ -5,16 +5,15 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 4000",
-    "build": "next build",
-    "start": "next start -p 4000",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev -p 4000",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "NEXT_TELEMETRY_DISABLED=1 next start -p 4000",
     "lint": "eslint",
     "test": "node --experimental-strip-types --test",
     "worker": "node --env-file-if-exists=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/worker/main.ts",
     "havadis": "node --env-file-if-exists=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli/havadis.ts"
   },
   "dependencies": {
-    "@vercel/analytics": "^2.0.1",
     "better-sqlite3": "13.0.3",
     "clsx": "2.1.1",
     "kysely": "0.29.8",

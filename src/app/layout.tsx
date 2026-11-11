@@ -1,24 +1,32 @@
 import type { Metadata } from "next";
-import { Analytics } from "@vercel/analytics/next";
-import { Barlow, Barlow_Condensed, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { siteUrl } from "@/lib/config/site";
 import "./globals.css";
 
-const barlow = Barlow({
+const barlow = localFont({
   variable: "--font-barlow",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  src: [
+    { path: "./fonts/Barlow-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/Barlow-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/Barlow-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/Barlow-700.woff2", weight: "700", style: "normal" },
+  ],
 });
 
-const barlowCondensed = Barlow_Condensed({
+const barlowCondensed = localFont({
   variable: "--font-barlow-condensed",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  src: [
+    { path: "./fonts/BarlowCondensed-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/BarlowCondensed-700.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/BarlowCondensed-800.woff2", weight: "800", style: "normal" },
+  ],
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
   variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
+  src: "./fonts/JetBrainsMono-Variable.woff2",
+  weight: "100 800",
+  style: "normal",
 });
 
 export const metadata: Metadata = {
@@ -73,7 +81,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <a href="/feeds" className={FOOTER_LINK}>All feeds</a>
           </div>
         </footer>
-        <Analytics />
       </body>
     </html>
   );
