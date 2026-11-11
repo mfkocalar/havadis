@@ -118,6 +118,20 @@ async function denial(p: Promise<unknown>): Promise<EgressCode> {
   return assert.fail("expected the call to be refused");
 }
 
+/** Awaits a call that must fail and returns what it threw. */
+async function thrown(p: Promise<unknown>): Promise<unknown> {
+  try {
+    await p;
+  } catch (e) {
+    return e;
+  }
+  return assert.fail("expected the call to fail");
+}
+
+function codeOfError(e: unknown): unknown {
+  return typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+}
+
 let origin: Origin;
 let proxy: StubProxy;
 
@@ -288,32 +302,28 @@ test("redirects: SAFE-01/boundary: 5 redirects are followed and the 6th is refus
   assert.equal(await ok.text(), "end");
   assert.equal(origin.hits.length, 6);
   origin.hits.length = 0;
-  await assert.rejects(
-    () => f(`http://${base()}/chain/6`),
-    (e: unknown) => e instanceof Error && (e as { code?: string }).code === "redirect_error" && e.message === "redirect_error",
-  );
+  const err = await thrown(f(`http://${base()}/chain/6`));
+  assert.equal(codeOfError(err), "redirect_error");
+  assert.equal((err as Error).message, "redirect_error");
   assert.equal(origin.hits.length, 6);
 });
 
 test("redirects: maxRedirects is configurable", async () => {
   const f = createSafeFetch({ allowHosts: ["127.0.0.1"], env: {}, maxRedirects: 2 });
   assert.equal((await f(`http://${base()}/chain/2`)).status, 200);
-  await assert.rejects(() => f(`http://${base()}/chain/3`), { code: "redirect_error" });
+  assert.equal(codeOfError(await thrown(f(`http://${base()}/chain/3`))), "redirect_error");
 });
 
 test("redirects: a 3xx without Location is a redirect_error", async () => {
   const f = makeLoopbackFetch();
-  await assert.rejects(() => f(`http://${base()}/no-location`), { code: "redirect_error" });
+  assert.equal(codeOfError(await thrown(f(`http://${base()}/no-location`))), "redirect_error");
 });
 
 test("redirects: an https upgrade on the same allow-listed host is re-checked and followed only when it passes the policy", async () => {
   const f = makeLoopbackFetch();
   // Same host name, different scheme and default port: the hop passes the host rule and the
   // loopback allow-list but there is no TLS listener, so it fails as a plain network error, not a denial.
-  await assert.rejects(
-    () => f(`http://${base()}/to-https-same-host`),
-    (e: unknown) => !isEgressDenied(e),
-  );
+  assert.equal(isEgressDenied(await thrown(f(`http://${base()}/to-https-same-host`))), false);
 });
 
 // --- timeouts ------------------------------------------------------------------------
@@ -321,10 +331,8 @@ test("redirects: an https upgrade on the same allow-listed host is re-checked an
 test("timeout: a hanging origin aborts at the injected per-hop timeout", async () => {
   const f = createSafeFetch({ allowHosts: ["127.0.0.1"], env: {}, hopTimeoutMs: 150 });
   const started = Date.now();
-  await assert.rejects(
-    () => f(`http://${base()}/hang`),
-    (e: unknown) => e instanceof Error && e.name === "AbortError",
-  );
+  const err = await thrown(f(`http://${base()}/hang`));
+  assert.equal((err as Error).name, "AbortError");
   assert.ok(Date.now() - started < 3000);
 });
 
@@ -333,10 +341,10 @@ test("timeout: a caller signal is composed into every hop", async () => {
   const controller = new AbortController();
   const pending = f(`http://${base()}/hang`, { signal: controller.signal });
   setTimeout(() => controller.abort(new Error("caller gave up")), 100);
-  await assert.rejects(() => pending);
+  await thrown(pending);
   const pre = new AbortController();
   pre.abort(new Error("pre-aborted"));
-  await assert.rejects(() => f(`http://${base()}/ok`, { signal: pre.signal }));
+  await thrown(f(`http://${base()}/ok`, { signal: pre.signal }));
 });
 
 // --- transport seam (ported cases of the old hop loop) --------------------------------
@@ -372,9 +380,8 @@ test("transport: exactly 5 same-host https redirects complete and the 6th is a r
   assert.equal(ok.status, 200);
   assert.equal(five.seen.length, 6);
   const six = sequenceTransport([hop]);
-  await assert.rejects(() => createSafeFetch({ env: {}, transport: six.transport })("https://original.test/feed"), {
-    code: "redirect_error",
-  });
+  const err = await thrown(createSafeFetch({ env: {}, transport: six.transport })("https://original.test/feed"));
+  assert.equal(codeOfError(err), "redirect_error");
   assert.equal(six.seen.length, 6);
 });
 
@@ -424,10 +431,7 @@ test("proxy: policy-denied URLs never reach the proxy", async () => {
 
 test("proxy: a policy-allowed public name reaches the proxy as CONNECT host:443", async () => {
   const f = createSafeFetch({ env: proxyEnv() });
-  await assert.rejects(
-    () => f("https://public.example.test/"),
-    (e: unknown) => !isEgressDenied(e),
-  );
+  assert.equal(isEgressDenied(await thrown(f("https://public.example.test/"))), false);
   assert.deepEqual(proxy.log, ["CONNECT public.example.test:443"]);
 });
 
@@ -450,7 +454,7 @@ test("proxy: PLAT-15/adjacency: NO_PROXY=example.test sends example.test direct 
   });
   assert.equal(await denial(f("https://example.test/")), "egress_denied_private");
   assert.deepEqual(proxy.log, []);
-  await assert.rejects(() => f("https://other.test/"));
+  await thrown(f("https://other.test/"));
   assert.deepEqual(proxy.log, ["CONNECT other.test:443"]);
   assert.deepEqual(calls.map((c) => c.host), ["example.test"]);
 });
@@ -481,12 +485,12 @@ test("proxy: PLAT-15/concurrency: changing process.env after construction does n
     const proxied = createSafeFetch({});
     delete process.env.HTTPS_PROXY;
     delete process.env.HTTP_PROXY;
-    await assert.rejects(() => proxied("https://still-proxied.example.test/"));
+    await thrown(proxied("https://still-proxied.example.test/"));
     assert.deepEqual(proxy.log, ["CONNECT still-proxied.example.test:443"]);
     // NO_PROXY set after construction does not exempt the host either.
     process.env.NO_PROXY = "still-proxied.example.test";
     proxy.log.length = 0;
-    await assert.rejects(() => proxied("https://still-proxied.example.test/"));
+    await thrown(proxied("https://still-proxied.example.test/"));
     assert.deepEqual(proxy.log, ["CONNECT still-proxied.example.test:443"]);
   } finally {
     for (const n of names) {
@@ -541,10 +545,10 @@ test("default safeFetch: invalid configuration throws a plain Error naming the v
   const saved = process.env.HAVADIS_EGRESS_ALLOW_HOSTS;
   try {
     process.env.HAVADIS_EGRESS_ALLOW_HOSTS = "10.0.0.0/8";
-    await assert.rejects(
-      () => safeFetch("https://feeds.example.com/"),
-      (e: unknown) => e instanceof Error && !isEgressDenied(e) && e.message.includes("HAVADIS_EGRESS_ALLOW_HOSTS"),
-    );
+    const err = await thrown(safeFetch("https://feeds.example.com/"));
+    assert.ok(err instanceof Error);
+    assert.equal(isEgressDenied(err), false);
+    assert.equal(err.message.includes("HAVADIS_EGRESS_ALLOW_HOSTS"), true);
   } finally {
     if (saved === undefined) delete process.env.HAVADIS_EGRESS_ALLOW_HOSTS;
     else process.env.HAVADIS_EGRESS_ALLOW_HOSTS = saved;
