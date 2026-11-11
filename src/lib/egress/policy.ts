@@ -27,13 +27,18 @@ for (const [address, prefix] of [
 }
 
 for (const [address, prefix] of [
-  ["::", 128],
-  ["::1", 128],
+  // ::/96 covers the unspecified address, ::1 and the deprecated IPv4-compatible form (::127.0.0.1).
+  ["::", 96],
   ["fc00::", 7],
   ["fe80::", 10],
   ["ff00::", 8],
+  // NAT64, local-use NAT64, 6to4, Teredo and the discard prefix embed or tunnel IPv4 addresses.
+  // They are denied whole, which also refuses every embedded loopback, private or metadata IPv4.
   ["64:ff9b::", 96],
+  ["64:ff9b:1::", 48],
   ["2002::", 16],
+  ["2001::", 32],
+  ["100::", 64],
   // AWS IPv6 instance metadata (RESEARCH A11, accepted).
   ["fd00:ec2::254", 128],
 ] as const) {
@@ -47,9 +52,15 @@ export function ipDenied(ip: string): boolean {
   return DENY_LIST.check(ip, family === 4 ? "ipv4" : "ipv6");
 }
 
-/** Names that resolve inside the host or the local network. A trailing root dot does not bypass the rules. */
+/**
+ * Names that resolve inside the host or the local network. The name is lowercased, one trailing root
+ * dot is allowed (FQDN form), and any empty label (leading dot, "..", or several trailing dots) is
+ * refused outright: resolvers differ on such names, so none of them is trusted.
+ */
 export function nameDenied(host: string): boolean {
-  const h = host.endsWith(".") ? host.slice(0, -1) : host;
+  const lower = host.toLowerCase();
+  const h = lower.endsWith(".") ? lower.slice(0, -1) : lower;
+  if (h.split(".").some((label) => label === "")) return true;
   return (
     h === "localhost" ||
     h.endsWith(".localhost") ||
