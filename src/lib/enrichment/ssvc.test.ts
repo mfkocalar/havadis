@@ -10,7 +10,6 @@ import {
   SSVC_CONCURRENCY,
   SSVC_MAX_LOOKUPS,
   SSVC_RECORD_URL_BASE,
-  SSVC_REVALIDATE_SECONDS,
   SSVC_TIMEOUT_MS,
   SSVC_TOTAL_BUDGET_MS,
 } from "./config.ts";
@@ -934,8 +933,7 @@ test("/ssvc-partial gives unavailable only for its failing IDs", async () => {
   assert.deepStrictEqual(out["CVE-2024-47802"], { state: "not-assessed" });
 });
 
-test("config bounds: revalidate at least 900, budget at least the per-lookup timeout, concurrency within the cap", () => {
-  assert.ok(SSVC_REVALIDATE_SECONDS >= 900, `SSVC_REVALIDATE_SECONDS ${SSVC_REVALIDATE_SECONDS}`);
+test("config bounds: budget at least the per-lookup timeout, concurrency within the cap", () => {
   assert.ok(SSVC_TOTAL_BUDGET_MS >= SSVC_TIMEOUT_MS, "the total budget covers one lookup");
   assert.ok(SSVC_CONCURRENCY >= 1 && SSVC_CONCURRENCY <= SSVC_MAX_LOOKUPS, `SSVC_CONCURRENCY ${SSVC_CONCURRENCY}`);
 });

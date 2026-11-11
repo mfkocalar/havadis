@@ -27,11 +27,12 @@ const WEB_SIDE_DIRS = ["src/app/", "src/components/", "src/lib/adapters/", "src/
 const WEB_SIDE_FILES = ["src/proxy.ts", "src/instrumentation.ts"];
 
 /**
- * Files the walk does not descend into: the build-time feed path, which still reaches the network
- * through `src/lib/snapshot.ts` until Plan 12 deletes it. Plan 12 empties this list; the existence
- * test below fails as soon as the file is gone, so the exemption cannot outlive it.
+ * Files the walk does not descend into. Empty since Plan 12 deleted `src/lib/snapshot.ts`, the last
+ * build-time path that reached the network: the walk now runs from every web-side entry with no
+ * exemption. The existence test below passes vacuously while the list is empty and still fails if a
+ * listed file is ever deleted, so an exemption cannot outlive its file.
  */
-const INTERIM_EXEMPT: readonly string[] = ["src/lib/snapshot.ts"];
+const INTERIM_EXEMPT: readonly string[] = [];
 
 // ---------------------------------------------------------------------------------------------
 // Statement extraction

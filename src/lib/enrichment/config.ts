@@ -9,9 +9,6 @@
 export const KEV_URL =
   "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
 
-/** KEV map cache window in seconds (D-12): 6 hours, the catalog changes a few times a week. */
-export const KEV_REVALIDATE_SECONDS = 21_600;
-
 /** A KEV map older than this many hours is `stale` (still used, never dropped; D-10). */
 export const KEV_MAX_AGE_HOURS = 72;
 
@@ -68,17 +65,6 @@ export const SSVC_TOTAL_BUDGET_MS = 6_000;
 
 /** Per-record SSVC body cap: 512 KiB (observed p95 12 KB, max 44 KB). */
 export const SSVC_MAX_BYTES = 512 * 1024;
-
-/**
- * Window of one cached SSVC result, in seconds: 6 hours (D-13). Must stay at or
- * above 900: `unstable_cache` lowers the route's ISR window to its smallest
- * entry window. Sized against the Runtime Cache write budget on Vercel Hobby
- * (D-14), confirmed by the 07.2-01 spike.
- */
-export const SSVC_REVALIDATE_SECONDS = 21_600;
-
-/** Cache key prefix of the per-CVE SSVC lookup; the CVE ID is the cached call's argument and completes the key. */
-export const SSVC_CACHE_KEY = "havadis-ssvc-v1";
 
 /** The CVE Program organisation id of the CISA-ADP container; the id is compared, never the display name. */
 export const CISA_ADP_ORG_ID = "134c704f-9b21-4f2e-91b3-4a467353bcc0";
