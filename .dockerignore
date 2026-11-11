@@ -1,0 +1,15 @@
+.git
+.planning
+.claude
+.impeccable
+.gsd
+.env*
+.next
+node_modules
+data
+backups
+.vercel
+.netlify
+coverage
+docs
+scripts

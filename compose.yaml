@@ -1,0 +1,68 @@
+# Havadis self-hosted stack: migrate runs once, then web and worker. See docs/self-hosting.md.
+name: havadis
+
+x-havadis: &havadis
+  build: .
+  image: havadis:local
+  env_file:
+    - path: ${HAVADIS_ENV_FILE:-.env}
+      required: false
+  user: "65532:65532"
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  init: true
+
+services:
+  migrate:
+    <<: *havadis
+    entrypoint: []
+    command: ["havadis", "migrate"]
+    restart: "no"
+    volumes:
+      - data:/data
+      - ./backups:/backups
+
+  web:
+    <<: *havadis
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # Loopback by default: there is no sign-in until the accounts release (HAVADIS_BIND=0.0.0.0 is an unsafe opt-out).
+    ports:
+      - "${HAVADIS_BIND:-127.0.0.1}:${HAVADIS_PORT:-4000}:4000"
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/havadis", "healthcheck", "web"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    <<: *havadis
+    entrypoint: []
+    command: ["/nodejs/bin/node", "/app/src/worker/main.ts"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - data:/data
+      - ./backups:/backups
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/havadis", "healthcheck", "worker"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  data: {}
