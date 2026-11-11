@@ -1,11 +1,16 @@
 /**
- * Pure checkers for the D-08 static-route gate.
+ * Pure checkers for the production-build gates (PLAT-13).
  *
  * Test-only module: no file under `src` may import it (same convention as
  * `makeArticle.ts` and `hostileRedirectServer.ts`). It is used by
- * `test/productionPage.test.ts` for the static-route gate and unit-tested in
- * `test/staticRouteGate.test.ts`; it lives in `test/fixtures` because that is
- * the repository's existing home for test-only modules.
+ * `test/productionPage.test.ts` and unit-tested in `test/staticRouteGate.test.ts`;
+ * it lives in `test/fixtures` because that is the repository's existing home for
+ * test-only modules.
+ *
+ * Every data route reads the database on each request, so none may appear in the
+ * build's prerender manifest: a prerendered route would freeze its first read at
+ * build time. `assertNotPrerendered` proves one route stayed out; `findStaleSources`
+ * keeps that proof honest by refusing a build older than the sources it covers.
  *
  * Pure by construction: no `node:fs`, no clock read, no top-level side effect.
  * The caller reads the manifest and the file mtimes and hands them in.
@@ -18,27 +23,13 @@ export type PrerenderManifest = {
 export type SourceStamp = { path: string; mtimeMs: number };
 
 /**
- * Throws when `route` is not prerendered static with the given revalidation
- * window. The message names the route and the offending value. Check order:
- * presence, compute, window.
+ * Throws, naming the route, when `route` is an entry of the prerender manifest.
+ * A route that is absent (served per request) passes.
  */
-export function assertStaticRoute(
-  manifest: PrerenderManifest,
-  route: string,
-  seconds: number | false
-): void {
-  const entry = manifest.routes[route];
-  if (!entry) {
+export function assertNotPrerendered(manifest: PrerenderManifest, route: string): void {
+  if (Object.hasOwn(manifest.routes, route)) {
     throw new Error(
-      `"${route}" is not in the prerender manifest (the route became dynamic or was removed)`
-    );
-  }
-  if (entry.compute !== "static") {
-    throw new Error(`"${route}" compute is ${String(entry.compute)}, expected "static"`);
-  }
-  if (entry.initialRevalidateSeconds !== seconds) {
-    throw new Error(
-      `"${route}" initialRevalidateSeconds is ${String(entry.initialRevalidateSeconds)}, expected ${String(seconds)}`
+      `"${route}" is in the prerender manifest: it must read the database on every request, never be prerendered`
     );
   }
 }

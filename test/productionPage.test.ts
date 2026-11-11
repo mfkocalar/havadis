@@ -9,12 +9,18 @@ import { SOURCE_TYPE_LABEL } from "../src/lib/config/sourceTypes.ts";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
 import { FEED_VARIANTS, feedPath } from "../src/lib/feeds/buildFeed.ts";
 import {
+  assertNotPrerendered,
   findStaleSources,
   type PrerenderManifest,
   type SourceStamp,
 } from "./fixtures/staticRouteGate.ts";
 import { PAGE_FIXTURE_TITLES, seedPageFixtureDb } from "./fixtures/pageFixture.ts";
 import { generateKey } from "../src/lib/secrets/key.ts";
+import { dbFile } from "../src/lib/db/paths.ts";
+import { loadMigrations, runMigrations } from "../src/lib/db/migrator.ts";
+import { openDb } from "../src/lib/db/openDb.ts";
+import { seedBuiltins } from "../src/lib/db/seed.ts";
+import { beat } from "../src/lib/store/jobs.ts";
 
 /**
  * Drives a real `next start` production server and asserts the public
@@ -33,11 +39,16 @@ const PORT = 3100;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 /** The second server of the startup-refusal test; nothing may ever answer here. */
 const REFUSED_PORT = 3102;
+/** The waiting-state server: a migrated, seeded database with no cycle yet. */
+const WAITING_PORT = 3103;
 const REFUSAL_TIMEOUT_MS = 20_000;
 const READY_TIMEOUT_MS = 30_000;
 const READY_POLL_INTERVAL_MS = 500;
 
 let server: ChildProcess | null = null;
+let waitingServer: ChildProcess | null = null;
+let waitingDir = "";
+let mainServerEnv: NodeJS.ProcessEnv | null = null;
 let stderrLog = "";
 let dataDir = "";
 let partialAt = 0;
@@ -133,11 +144,13 @@ before(async () => {
   }
 
   operatorKey = generateKey();
+  // HAVADIS_BASE_URL makes the absolute URLs in metadata name this test server, the same origin a
+  // deployed instance would configure, so the third-party origin gate below judges the real markup.
+  // The object is kept: the waiting-state server below starts from a copy of it.
+  mainServerEnv = serverEnv({ HAVADIS_DATA_DIR: dataDir, HAVADIS_SECRET_KEY: operatorKey, HAVADIS_BASE_URL: BASE_URL });
   server = spawn(NEXT_BIN, ["start", "-p", String(PORT)], {
     stdio: ["ignore", "ignore", "pipe"],
-    // HAVADIS_BASE_URL makes the absolute URLs in metadata name this test server, the same origin a
-    // deployed instance would configure, so the third-party origin gate below judges the real markup.
-    env: serverEnv({ HAVADIS_DATA_DIR: dataDir, HAVADIS_SECRET_KEY: operatorKey, HAVADIS_BASE_URL: BASE_URL }),
+    env: mainServerEnv,
   });
   server.stderr?.on("data", (chunk: Buffer) => {
     stderrLog += chunk.toString();
@@ -158,7 +171,12 @@ after(async () => {
     server.kill();
     server = null;
   }
+  if (waitingServer) {
+    waitingServer.kill();
+    waitingServer = null;
+  }
   if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+  if (waitingDir) rmSync(waitingDir, { recursive: true, force: true });
 });
 
 test("GET / returns 200 with no authentication surface anywhere", async () => {
@@ -525,7 +543,8 @@ function nonTestSourceStamps(): SourceStamp[] {
   return stamps;
 }
 
-test("the production build is fresh and / is not prerendered", () => {
+/** The build's prerender manifest, after the stale-build guard has proved the build covers the current sources. */
+function freshPrerenderManifest(): PrerenderManifest {
   let buildMtimeMs: number;
   try {
     buildMtimeMs = statSync(path.join(process.cwd(), ".next", "BUILD_ID")).mtimeMs;
@@ -537,14 +556,21 @@ test("the production build is fresh and / is not prerendered", () => {
     [],
     "stale .next build: run npm run build before npm test (these files are newer than .next/BUILD_ID)"
   );
-
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
-  assert.equal(
-    manifest.routes["/"],
-    undefined,
-    '"/" must stay out of the prerender manifest: it reads the database on every request (force-dynamic)'
-  );
+  return JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
+}
+
+// PLAT-13: every data route reads the database per request, so none may be in the prerender
+// manifest (a prerendered route would freeze its first read at build time). The stale-build guard
+// comes first so the manifest being judged belongs to the current sources (T-14-36).
+test("no data route is prerendered", () => {
+  const manifest = freshPrerenderManifest();
+  const feedRoutes = FEED_VARIANTS.flatMap((variant) => [feedPath(variant, "xml"), feedPath(variant, "json")]);
+  assert.ok(feedRoutes.includes("/feed.xml") && feedRoutes.includes("/feed.json"));
+  assert.equal(new Set(feedRoutes).size, FEED_VARIANTS.length * 2);
+  for (const route of ["/", "/feed.xml", "/feed.json", ...feedRoutes, "/about", "/feeds", "/api/health"]) {
+    assertNotPrerendered(manifest, route);
+  }
 });
 
 test("each source keeps its own last good window", async () => {
@@ -565,22 +591,9 @@ test("each source keeps its own last good window", async () => {
 });
 
 // Feeds are served from the database through the same read adapter as the page (PLAT-09, Plan 14-12):
-// every feed route reads per request, so none may be prerendered (a prerendered feed would freeze its
-// first read at build time), and every feed holds each source's last good items like the page does.
-test("no feed route is prerendered: every feed reads the database per request", () => {
-  const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
-  const routes = FEED_VARIANTS.flatMap((variant) => [
-    feedPath(variant, "xml"),
-    feedPath(variant, "json"),
-  ]);
-  assert.ok(routes.includes("/feed.xml") && routes.includes("/feed.json"));
-  assert.equal(new Set(routes).size, FEED_VARIANTS.length * 2);
-  for (const route of routes) {
-    assert.equal(manifest.routes[route], undefined, `"${route}" must stay out of the prerender manifest`);
-  }
-});
-
+// every feed holds each source's last good items like the page does. The read happens four days after
+// the good cycle, one day after a partial cycle in which only F succeeded, and right after a failed
+// cycle, so these bodies prove feeds keep each source's last good state.
 test("feeds list each source's last good items, carry no CORS header and 404 an unknown name", async () => {
   const xml = await fetch(`${BASE_URL}/feed.xml`);
   assert.equal(xml.status, 200);
@@ -595,16 +608,102 @@ test("feeds list each source's last good items, carry no CORS header and 404 an 
   const json = await fetch(`${BASE_URL}/feed.json`);
   assert.equal(json.status, 200);
   assert.equal(json.headers.get("access-control-allow-origin"), null);
-  assert.ok((await json.text()).includes(PAGE_FIXTURE_TITLES.kept));
+  const jsonBody = await json.text();
+  assert.ok(jsonBody.includes(PAGE_FIXTURE_TITLES.kept), "K's four-day-old story stays in the JSON feed");
+  assert.ok(jsonBody.includes(PAGE_FIXTURE_TITLES.fresh), "F's fresh story is in the JSON feed");
+  assert.ok(!jsonBody.includes(PAGE_FIXTURE_TITLES.agedOut), "F's older story is gone from the JSON feed");
 
   const scoped = await fetch(`${BASE_URL}/feed/${FEED_VARIANTS[1]!.slug}.json`);
   assert.equal(scoped.status, 200, "a scoped feed is served from the database too");
   await scoped.arrayBuffer();
 
-  for (const bad of ["/feed/all.xml", "/feed/nope.xml", "/feed/high.txt", "/feed/..%2Fx.json"]) {
+  for (const bad of ["/feed/all.xml", "/feed/nope.xml", "/feed/nonexistent.xml", "/feed/high.txt", "/feed/..%2Fx.json"]) {
     const res = await fetch(`${BASE_URL}${bad}`);
     assert.equal(res.status, 404, `${bad} must be a 404`);
     await res.arrayBuffer();
+  }
+});
+
+// PLAT-11: the Docker healthcheck endpoint answers from the database with exactly four keys.
+test("GET /api/health answers 200 JSON with exactly status, web, worker and schema", async () => {
+  const waiting = await fetch(`${BASE_URL}/api/health`);
+  assert.equal(waiting.status, 200, "a missing heartbeat is degraded, never a failing healthcheck");
+  assert.match(waiting.headers.get("content-type") ?? "", /^application\/json/);
+  assert.equal(waiting.headers.get("cache-control"), "no-store");
+  const waitingText = await waiting.text();
+  const waitingBody = JSON.parse(waitingText) as Record<string, string>;
+  assert.deepEqual(Object.keys(waitingBody).sort(), ["schema", "status", "web", "worker"]);
+  assert.equal(waitingBody.schema, "ok");
+  assert.equal(waitingBody.web, "ok");
+  assert.equal(waitingBody.worker, "waiting", "the fixture has no worker heartbeat yet");
+  assert.equal(waitingBody.status, "degraded");
+  assert.equal(waitingText, JSON.stringify(waitingBody), "nothing but the four keys is serialized");
+
+  // A real heartbeat written by another connection is visible to the running server at once.
+  const worker = openDb(dbFile(dataDir), "worker");
+  try {
+    await beat(worker.db, new Date().toISOString(), "idle");
+  } finally {
+    await worker.close();
+  }
+  const alive = await fetch(`${BASE_URL}/api/health`);
+  assert.equal(alive.status, 200);
+  assert.deepEqual(await alive.json(), { status: "ok", web: "ok", worker: "ok", schema: "ok" });
+});
+
+/** Polls `url` until any HTTP answer arrives or `server` exits; throws with the captured stderr otherwise. */
+async function pollServerReady(url: string, child: ChildProcess, stderr: () => string): Promise<void> {
+  const deadline = Date.now() + READY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) throw new Error(`the server exited with ${child.exitCode} before answering:\n${stderr()}`);
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      await res.body?.cancel();
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, READY_POLL_INTERVAL_MS));
+    }
+  }
+  throw new Error(`the server never answered on ${url} within ${READY_TIMEOUT_MS}ms:\n${stderr()}`);
+}
+
+// Before the first good cycle the page and the feeds say so. The second server runs the same build
+// with a copy of the main server's exact environment (same key, same base URL, every variable the
+// startup check reads) and differs only in data directory and port, so a startup refusal cannot be
+// what makes this test pass or fail.
+test("before the first good cycle a production server shows the waiting state on / and answers /feed.json with 503", async () => {
+  assert.ok(mainServerEnv, "before() records the main server's environment");
+  waitingDir = mkdtempSync(path.join(os.tmpdir(), "havadis-waiting-"));
+  const worker = openDb(dbFile(waitingDir), "worker");
+  try {
+    await runMigrations(worker, { migrations: loadMigrations(), backup: async () => null, now: () => Date.now() });
+    await seedBuiltins(worker.db, [], Date.now());
+  } finally {
+    await worker.close();
+  }
+
+  let waitingStderr = "";
+  const child = spawn(NEXT_BIN, ["start", "-p", String(WAITING_PORT)], {
+    stdio: ["ignore", "ignore", "pipe"],
+    env: { ...mainServerEnv, HAVADIS_DATA_DIR: waitingDir, PORT: String(WAITING_PORT) } as NodeJS.ProcessEnv,
+  });
+  waitingServer = child;
+  child.stderr?.on("data", (chunk: Buffer) => void (waitingStderr += chunk.toString()));
+  try {
+    const base = `http://127.0.0.1:${WAITING_PORT}`;
+    await pollServerReady(base, child, () => waitingStderr);
+
+    const page = await fetch(base);
+    assert.equal(page.status, 200);
+    assert.ok((await page.text()).includes("Waiting for the first ingestion"), "the page must show the waiting state");
+
+    const feed = await fetch(`${base}/feed.json`);
+    assert.equal(feed.status, 503);
+    assert.equal(feed.headers.get("retry-after"), "300");
+    assert.equal(await feed.text(), "Waiting for the first ingestion");
+  } finally {
+    child.kill();
+    waitingServer = null;
   }
 });
 
@@ -622,13 +721,6 @@ test("GET /about returns 200 with no cookie, names HavadisBot, shows the exact U
   if (!CRAWLER_CONTACT_CHANNEL_URL.startsWith("mailto:")) {
     assert.ok(!body.includes("mailto:"), "/about must not publish a mailto: link");
   }
-});
-
-test("/about and /feeds render dynamically so every response can carry its own nonce", () => {
-  const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
-  assert.equal(manifest.routes["/about"], undefined, '"/about" must stay out of the prerender manifest');
-  assert.equal(manifest.routes["/feeds"], undefined, '"/feeds" must stay out of the prerender manifest');
 });
 
 // ENR-03 / ENR-04 / ENR-05, Phase 7. These four tests read whatever the live
@@ -688,6 +780,7 @@ test("every KEV chip is a span directly after an NVD anchor, with the sr-only pr
   const main = mainHtml(body);
 
   const chipCount = [...main.matchAll(/\sdata-kev-chip=/g)].length;
+  assert.ok(chipCount >= 1, "the fixture lists one CVE in KEV, so the page must render at least one KEV chip");
   const shaped = [
     ...main.matchAll(
       new RegExp(
@@ -713,6 +806,7 @@ test("every SSVC chip is a span directly after an NVD anchor, never after a KEV 
   const main = mainHtml(body);
 
   const chipCount = [...main.matchAll(/\sdata-ssvc-chip=/g)].length;
+  assert.ok(chipCount >= 1, "the fixture assesses one CVE as actively exploited, so the page must render at least one SSVC chip");
   const shaped = [
     ...main.matchAll(
       /(<a\b[^>]*>)[^<]*<\/a><span data-ssvc-chip="(active|poc)"[^>]*><span class="sr-only">CISA assessment, <\/span>(?:<!-- -->)?SSVC (active|poc)<\/span>/g
@@ -763,6 +857,8 @@ test("every EPSS chip is a span after its CVE anchor or its KEV chip, with a sco
       assert.equal(m[3], "no EPSS yet");
     }
   }
+  assert.ok(chipCount >= 1, "the fixture scores one CVE in EPSS, so the page must render at least one EPSS chip");
+  assert.ok(scored >= 1, "at least one EPSS chip must carry a score");
   assert.ok(!main.includes("EPSS 0.00"), "a score below 0.01 reads <0.01, never 0.00");
   t.diagnostic(`EPSS chips: ${chipCount} (${scored} scored, ${noneYet} no EPSS yet)`);
 });

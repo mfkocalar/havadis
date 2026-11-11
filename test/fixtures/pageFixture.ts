@@ -1,9 +1,12 @@
+import type { Kysely, Updateable } from "kysely";
 import { openDb } from "../../src/lib/db/openDb.ts";
+import type { CveSignalsTable, Database } from "../../src/lib/db/schema.ts";
 import { dbFile } from "../../src/lib/db/paths.ts";
 import { loadMigrations, runMigrations } from "../../src/lib/db/migrator.ts";
 import { seedBuiltins } from "../../src/lib/db/seed.ts";
 import { SOURCES } from "../../src/lib/config/sources.ts";
 import type { FeedFetchResult } from "../../src/lib/pipeline/feedResult.ts";
+import { recordProviderAttempt } from "../../src/lib/store/signals.ts";
 import { runIngestCycle } from "../../src/lib/worker/cycle.ts";
 import type { Article, SourceConfig } from "../../src/lib/types.ts";
 
@@ -21,6 +24,11 @@ import type { Article, SourceConfig } from "../../src/lib/types.ts";
  *      with one fresh article, so F's window moves forward and every other source keeps its own;
  *   3. a failed cycle at `now` in which every source fails.
  * The page read that follows therefore happens four days after the good cycle.
+ *
+ * After the cycles, enrichment rows are written directly with SQL that satisfies the table's CHECKs
+ * (the enrichment stage needs the network, which the fixture never has): one KEV-listed CVE, one
+ * EPSS-scored CVE and one SSVC-assessed CVE (exploitation active), each in a story that is still
+ * shown, plus untouched CVEs that read `unavailable`. KEV provider health reads ok at read time.
  */
 
 /** Age of the good cycle at read time: four days, far outside every lookback window. */
@@ -38,6 +46,18 @@ export const PAGE_FIXTURE_TITLES = {
   kept: "Harbor lighting audit finds quiet corners still unmapped",
   fresh: "Orchard bridge survey notes a calm week for fiber routes",
   agedOut: "Lantern pier schedule changes announced for the winter ferry",
+} as const;
+
+/**
+ * CVE ids of the pool titles above that carry enrichment rows. Each sits in a story published by a
+ * source that failed in the partial cycle, so the story is still on the page. `untouched` ids keep
+ * the all-unavailable defaults the cycle wrote.
+ */
+export const PAGE_FIXTURE_CVES = {
+  kev: "CVE-2026-20011",
+  epss: "CVE-2026-20012",
+  ssvc: "CVE-2026-20041",
+  untouched: ["CVE-2026-20013", "CVE-2026-20077"],
 } as const;
 
 /** F's second article of the good cycle; it ages out with `agedOut`. */
@@ -130,6 +150,60 @@ function ok(articles: Article[]): FeedFetchResult {
   return { status: "ok", articles, validators: { etag: null, lastModified: null }, httpStatus: 200 };
 }
 
+const DAY = 86_400_000;
+
+/**
+ * Gives three CVEs real enrichment rows and marks the KEV provider as last succeeded at `now`, so
+ * KEV health reads ok at read time. Each update must hit exactly one row: a CVE the cycle did not
+ * create would otherwise leave the page with no chip and the chip tests with nothing to prove.
+ */
+async function writeEnrichment(db: Kysely<Database>, now: number): Promise<void> {
+  const checkedAt = new Date(now).toISOString();
+  const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const updates: Array<[string, Updateable<CveSignalsTable>]> = [
+    [
+      PAGE_FIXTURE_CVES.kev,
+      {
+        kev_state: "listed",
+        kev_added: day(now - 3 * DAY),
+        kev_due: day(now + 18 * DAY),
+        kev_ransomware: 0,
+        kev_checked_at: checkedAt,
+        ssvc_state: "skipped",
+        ssvc_checked_at: checkedAt,
+      },
+    ],
+    [
+      PAGE_FIXTURE_CVES.epss,
+      {
+        kev_state: "not-listed",
+        kev_checked_at: checkedAt,
+        epss_state: "scored",
+        epss_score: 0.42,
+        epss_date: day(now - DAY),
+        epss_checked_at: checkedAt,
+      },
+    ],
+    [
+      PAGE_FIXTURE_CVES.ssvc,
+      {
+        kev_state: "not-listed",
+        kev_checked_at: checkedAt,
+        ssvc_state: "assessed",
+        ssvc_exploitation: "active",
+        ssvc_automatable: "yes",
+        ssvc_technical_impact: "total",
+        ssvc_checked_at: checkedAt,
+      },
+    ],
+  ];
+  for (const [cveId, set] of updates) {
+    const result = await db.updateTable("cve_signals").set(set).where("cve_id", "=", cveId).executeTakeFirst();
+    if (Number(result.numUpdatedRows) !== 1) throw new Error(`fixture CVE ${cveId} has no cve_signals row to enrich`);
+  }
+  await recordProviderAttempt(db, "kev", { ok: true, catalogVersion: "2026.11.10" }, checkedAt);
+}
+
 /**
  * Opens `dbFile(dir)` as the worker, migrates and seeds it, and runs the three cycles described
  * above with injected feeds. Closes the handle and returns the file and the two cycle times.
@@ -188,6 +262,7 @@ export async function seedPageFixtureDb(
     await cycle(goodAt, goodFeeds);
     await cycle(partialAt, partialFeeds);
     await cycle(now, new Map());
+    await writeEnrichment(handle.db, now);
   } finally {
     await handle.close();
   }

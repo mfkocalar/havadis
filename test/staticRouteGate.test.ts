@@ -1,95 +1,54 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  assertStaticRoute,
+  assertNotPrerendered,
   findStaleSources,
   type PrerenderManifest,
 } from "./fixtures/staticRouteGate.ts";
 
 /**
- * Proves the D-08 static-route gate checker can fail. The gate in
- * test/productionPage.test.ts is only as good as these checkers: if
- * assertStaticRoute silently accepted a bad manifest, the gate would certify a
- * route that stopped being static (threat T-06-11).
+ * Proves the prerender gate checker can fail. The gate in test/productionPage.test.ts is only as
+ * good as these checkers: if assertNotPrerendered silently accepted a manifest that lists a data
+ * route, the gate would certify a route that froze its first database read at build time (T-14-36).
  */
 
-const BAD_MANIFESTS: Array<{ name: string; manifest: PrerenderManifest; message: RegExp }> = [
-  {
-    name: "route missing from the manifest",
-    manifest: { routes: {} },
-    message: /"\/" is not in the prerender manifest/,
+const PRERENDERED: PrerenderManifest = {
+  routes: {
+    "/": { initialRevalidateSeconds: 900, compute: "static" },
+    "/feed.xml": { initialRevalidateSeconds: false, compute: "static" },
+    "/api/health": { compute: "dynamic" },
   },
-  {
-    name: "revalidate false (page no longer refreshes)",
-    manifest: { routes: { "/": { initialRevalidateSeconds: false, compute: "static" } } },
-    message: /"\/" initialRevalidateSeconds is false, expected 900/,
-  },
-  {
-    name: "revalidate 3600 (wrong window)",
-    manifest: { routes: { "/": { initialRevalidateSeconds: 3600, compute: "static" } } },
-    message: /"\/" initialRevalidateSeconds is 3600, expected 900/,
-  },
-  {
-    name: "revalidate 0 (revalidates on every request)",
-    manifest: { routes: { "/": { initialRevalidateSeconds: 0, compute: "static" } } },
-    message: /"\/" initialRevalidateSeconds is 0, expected 900/,
-  },
-  {
-    name: "revalidate missing entirely",
-    manifest: { routes: { "/": { compute: "static" } } },
-    message: /"\/" initialRevalidateSeconds is undefined, expected 900/,
-  },
-  {
-    name: "compute dynamic",
-    manifest: { routes: { "/": { initialRevalidateSeconds: 900, compute: "dynamic" } } },
-    message: /"\/" compute is dynamic, expected "static"/,
-  },
-  {
-    name: "compute field missing",
-    manifest: { routes: { "/": { initialRevalidateSeconds: 900 } } },
-    message: /"\/" compute is undefined, expected "static"/,
-  },
-];
+};
 
-for (const row of BAD_MANIFESTS) {
-  test(`assertStaticRoute rejects: ${row.name}`, () => {
-    assert.throws(() => assertStaticRoute(row.manifest, "/", 900), row.message);
+for (const route of Object.keys(PRERENDERED.routes)) {
+  test(`assertNotPrerendered rejects a manifest that lists ${route}, naming the route`, () => {
+    assert.throws(
+      () => assertNotPrerendered(PRERENDERED, route),
+      (err: unknown) => err instanceof Error && err.message.includes(`"${route}" is in the prerender manifest`)
+    );
   });
 }
 
-test("assertStaticRoute names the offending route, not a fixed one", () => {
+test("assertNotPrerendered names the offending route, not a fixed one", () => {
   assert.throws(
-    () => assertStaticRoute({ routes: {} }, "/cve", 900),
-    /"\/cve" is not in the prerender manifest/
+    () => assertNotPrerendered({ routes: { "/feed/high.json": {} } }, "/feed/high.json"),
+    /"\/feed\/high\.json" is in the prerender manifest/
   );
 });
 
-test("assertStaticRoute accepts a static route with the 900-second window", () => {
-  assert.doesNotThrow(() =>
-    assertStaticRoute({ routes: { "/": { initialRevalidateSeconds: 900, compute: "static" } } }, "/", 900)
-  );
+test("assertNotPrerendered accepts a route that is absent from the manifest", () => {
+  assert.doesNotThrow(() => assertNotPrerendered(PRERENDERED, "/about"));
+  assert.doesNotThrow(() => assertNotPrerendered({ routes: {} }, "/"));
 });
 
-test("assertStaticRoute accepts a fully static route when false is expected", () => {
-  assert.doesNotThrow(() =>
-    assertStaticRoute(
-      { routes: { "/about": { initialRevalidateSeconds: false, compute: "static" } } },
-      "/about",
-      false
-    )
-  );
+test("assertNotPrerendered judges only the exact route: a prefix of a listed route is absent", () => {
+  assert.doesNotThrow(() => assertNotPrerendered(PRERENDERED, "/feed"));
+  assert.doesNotThrow(() => assertNotPrerendered(PRERENDERED, "/api"));
 });
 
-test("assertStaticRoute rejects a 900-second route when false is expected", () => {
-  assert.throws(
-    () =>
-      assertStaticRoute(
-        { routes: { "/about": { initialRevalidateSeconds: 900, compute: "static" } } },
-        "/about",
-        false
-      ),
-    /"\/about" initialRevalidateSeconds is 900, expected false/
-  );
+test("assertNotPrerendered is not fooled by inherited object keys", () => {
+  assert.doesNotThrow(() => assertNotPrerendered({ routes: {} }, "constructor"));
+  assert.doesNotThrow(() => assertNotPrerendered({ routes: {} }, "toString"));
 });
 
 test("findStaleSources treats a source with the same mtime as the build as fresh", () => {
