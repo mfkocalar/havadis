@@ -29,7 +29,7 @@ function ids(n: number, start = 0): string[] {
   return Array.from({ length: n }, (_, i) => id(start + i));
 }
 
-type Recorded = { url: string; init: RequestInit & { next?: { revalidate?: number } } };
+type Recorded = { url: string; init: RequestInit };
 
 /** A fetcher that answers every batch with a consistent OK body, skipping `noRow`, and records each request. */
 function okFetcher(noRow: ReadonlySet<string> = new Set()) {
@@ -149,14 +149,14 @@ test("exactly 500 IDs make 10 requests and exactly 51 make 2", async () => {
   assert.equal(c.requests.length, 1);
 });
 
-test("every request carries the crawler User-Agent and next.revalidate 3600", async () => {
+test("every request carries the crawler User-Agent and no next field", async () => {
   const { requests, fetcher } = okFetcher();
   await fetchEpss(ids(60), { url: BASE, fetcher });
   assert.equal(requests.length, 2);
   for (const r of requests) {
     const headers = r.init.headers as Record<string, string>;
     assert.equal(headers["User-Agent"], USER_AGENT);
-    assert.deepStrictEqual(r.init.next, { revalidate: 3600 });
+    assert.equal(Object.hasOwn(r.init, "next"), false);
     assert.equal(Object.hasOwn(r.init, "cache"), false);
   }
 });

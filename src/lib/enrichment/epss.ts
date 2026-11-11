@@ -1,12 +1,11 @@
 import { CVE_ID_SHAPE } from "../cveChips.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
-import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
+import type { SafeFetch } from "../egress/safeFetch.ts";
 import type { EpssState } from "../types.ts";
 import {
   EPSS_BATCH_SIZE,
   EPSS_MAX_BYTES,
   EPSS_MAX_IDS,
-  EPSS_REVALIDATE_SECONDS,
   EPSS_TIMEOUT_MS,
   EPSS_URL,
 } from "./config.ts";
@@ -24,10 +23,9 @@ import {
  * only believed from an answer that passes the consistency rule in
  * `parseEpssChunk`.
  *
- * Requests go through `fetch` with `next.revalidate` outside every cached
- * callback. A hostile or glitched 200 can therefore be cached for up to
- * `EPSS_REVALIDATE_SECONDS` (Pitfall 7): accepted for a trusted host and
- * mitigated by the strict row validation below.
+ * Requests are plain worker requests through `safeFetch`; nothing is cached
+ * between runs, so a hostile or glitched 200 can only affect the run that read
+ * it, and the strict row validation below limits what it can say.
  */
 
 const EPSS_ROW_NUMBER = /^\d+(\.\d+)?$/;
@@ -131,7 +129,7 @@ export function parseEpssChunk(json: unknown, batch: readonly string[]): EpssChu
 /** Injectable pieces of `fetchEpss`, for hermetic tests. */
 export type EpssDeps = {
   url?: string;
-  fetcher?: typeof fetchWithValidatedRedirect;
+  fetcher?: SafeFetch;
   batchSize?: number;
   maxIds?: number;
   timeoutMs?: number;
@@ -167,7 +165,6 @@ export async function fetchEpss(
           {
             maxBytes: deps.maxBytes ?? EPSS_MAX_BYTES,
             timeoutMs: deps.timeoutMs ?? EPSS_TIMEOUT_MS,
-            revalidate: EPSS_REVALIDATE_SECONDS,
           },
           { fetcher: deps.fetcher }
         );

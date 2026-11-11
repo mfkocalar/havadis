@@ -1,6 +1,6 @@
 import { CVE_ID_SHAPE } from "../cveChips.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
-import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
+import type { SafeFetch } from "../egress/safeFetch.ts";
 import type { KevEntry, KevMap } from "../types.ts";
 import {
   KEV_EARLIEST_DATE_ADDED,
@@ -138,15 +138,14 @@ export function parseKev(
  * never logs, never puts upstream text in a message (reasons name the
  * failure only) and never reads the clock.
  *
- * It passes no `revalidate`: it runs inside a cached callback, where Next
- * forces every fetch uncached, so the 1.78 MB raw body never reaches the Data
- * Cache (RESEARCH Pitfall 3); only the slim map does.
+ * The request is a plain worker request through `safeFetch`; only the slim
+ * map is kept, never the 1.78 MB raw body.
  */
 export async function produceKev(
   now: number,
   deps: {
     url?: string;
-    fetcher?: typeof fetchWithValidatedRedirect;
+    fetcher?: SafeFetch;
     maxRawBytes?: number;
     timeoutMs?: number;
     minEntries?: number;

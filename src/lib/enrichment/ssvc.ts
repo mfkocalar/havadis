@@ -1,6 +1,6 @@
 import { CVE_ID_SHAPE, planCveChips } from "../cveChips.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
-import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
+import type { SafeFetch } from "../egress/safeFetch.ts";
 import type {
   CacheableSsvcState,
   CveEnrichment,
@@ -154,7 +154,7 @@ export function isDneBody(json: unknown): boolean {
 /** Injectable pieces of `produceSsvc`, for hermetic tests. */
 export type SsvcFetchDeps = {
   url?: string;
-  fetcher?: typeof fetchWithValidatedRedirect;
+  fetcher?: SafeFetch;
   timeoutMs?: number;
   maxBytes?: number;
 };
@@ -164,10 +164,9 @@ export type SsvcFetchDeps = {
  * `assessed` or `not-assessed` state and THROWS everything else, so a failure
  * is never stored (D-12). Messages are fixed text, never upstream text.
  *
- * The fetch passes no `revalidate`: inside the cached callback Next already
- * forces it uncached and keeps its abort signal, and a `revalidate` would add a
- * second cache entry. A 404 is read too (`acceptStatuses`): the exact
- * `CVE_RECORD_DNE` body is `not-assessed`, any other 404 throws. The ID is checked against `CVE_ID_SHAPE` before any
+ * The fetch is a plain worker request through `safeFetch`. A 404 is read too
+ * (`acceptStatuses`): the exact `CVE_RECORD_DNE` body is `not-assessed`, any
+ * other 404 throws. The ID is checked against `CVE_ID_SHAPE` before any
  * request, so it can never alter the URL path (SSRF).
  */
 export async function produceSsvc(

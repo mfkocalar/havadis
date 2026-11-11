@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 
 /**
  * A hermetic, local-only HTTP fixture used exclusively by the test suite to
- * prove `fetchWithValidatedRedirect`'s reject and timeout branches — the
+ * prove `safeFetch`'s reject and timeout branches — the
  * branches real Krebs on Security traffic never exercises, because Krebs's
  * own configured redirect is same-host and HTTPS (RESEARCH.md Pitfall P1-3).
  *
@@ -15,7 +15,7 @@ import type { AddressInfo } from "node:net";
  * Every route below returns a REAL HTTP response over a real socket; none
  * of the redirect targets these routes point to are ever actually
  * connected to by a correctly-behaving caller, because
- * `fetchWithValidatedRedirect` rejects an invalid target before issuing a
+ * `safeFetch` rejects an invalid target before issuing a
  * second request. That is exactly the property these routes exist to
  * prove.
  *

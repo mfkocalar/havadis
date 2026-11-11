@@ -42,9 +42,6 @@ export const EPSS_BATCH_SIZE = 50;
 /** Per-edition ceiling on EPSS lookups: 10 requests of 50; IDs past it are unavailable (D-13). */
 export const EPSS_MAX_IDS = 500;
 
-/** Fetch Data Cache window per EPSS batch URL, in seconds: 1 hour, so a cached "no row" cannot outlive the next hourly refresh. */
-export const EPSS_REVALIDATE_SECONDS = 3600;
-
 /** Per-batch EPSS budget in milliseconds, spanning connect, redirects and the body read. */
 export const EPSS_TIMEOUT_MS = 5_000;
 
