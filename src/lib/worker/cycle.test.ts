@@ -7,7 +7,7 @@ import type { DbHandle } from "../db/openDb.ts";
 import { loadMigrations, runMigrations } from "../db/migrator.ts";
 import { seedBuiltins } from "../db/seed.ts";
 import type { FetchErrorCode } from "../reasonCodes.ts";
-import type { FeedFetchResult } from "../pipeline/feedResult.ts";
+import type { FeedFetchResult, FeedValidators } from "../pipeline/feedResult.ts";
 import { dedupeGroups, pickLead } from "../pipeline/dedupe.ts";
 import { fanOutWithOutcomes } from "../pipeline/fanOut.ts";
 import { readLastGood, readSourceAnchors, selectInWindowArticles, sourceAnchorsQuery } from "../store/articles.ts";
@@ -23,9 +23,9 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const iso = (ms: number): string => new Date(ms).toISOString();
 
-const SRC_A = makeSource({ id: "src-a", name: "Source A", family: "fam-a", sourceType: "news", tier: "Security Research" });
-const SRC_B = makeSource({ id: "src-b", name: "Source B", family: "fam-b", sourceType: "news", tier: "Security Research" });
-const SRC_C = makeSource({ id: "src-c", name: "Source C", family: "fam-c", sourceType: "news", tier: "Security Research" });
+const SRC_A = makeSource({ id: "src-a", name: "Source A", family: "fam-a", sourceType: "news", tier: "Security Research", url: "https://host-a.test/feed.xml" });
+const SRC_B = makeSource({ id: "src-b", name: "Source B", family: "fam-b", sourceType: "news", tier: "Security Research", url: "https://host-b.test/feed.xml" });
+const SRC_C = makeSource({ id: "src-c", name: "Source C", family: "fam-c", sourceType: "news", tier: "Security Research", url: "https://host-c.test/feed.xml" });
 
 type Feed = FeedFetchResult | "reject";
 
@@ -49,8 +49,17 @@ function art(source: SourceConfig, title: string, url: string, publishedAt: numb
   });
 }
 
+/** Sources on one shared host and one on another, for the per-host back-off tests. */
+const SHARED_1 = makeSource({ id: "sh-1", name: "Shared 1", family: "fam-s1", url: "https://shared.test/one.xml" });
+const SHARED_2 = makeSource({ id: "sh-2", name: "Shared 2", family: "fam-s2", url: "https://shared.test/two.xml" });
+const OTHER = makeSource({ id: "other", name: "Other", family: "fam-o", url: "https://other.test/feed.xml" });
+
+type FetchCall = { id: string; validators: FeedValidators };
+
 type Harness = {
   handle: DbHandle;
+  /** Every fetchFeed call the cycles made, in order. */
+  calls: FetchCall[];
   cycle: (at: number, feeds: Record<string, Feed>, order?: readonly SourceConfig[]) => ReturnType<typeof runIngestCycle>;
   rows: (sql: string) => Array<Record<string, unknown>>;
   close: () => Promise<void>;
@@ -62,8 +71,10 @@ async function harness(sources: readonly SourceConfig[]): Promise<Harness> {
   await seedBuiltins(handle.db, sources, T);
   let counter = 0;
   const newId = () => `story-${String(++counter).padStart(3, "0")}`;
+  const calls: FetchCall[] = [];
   return {
     handle,
+    calls,
     cycle: (at, feeds, order) =>
       runIngestCycle(
         handle.db,
@@ -71,7 +82,10 @@ async function harness(sources: readonly SourceConfig[]): Promise<Harness> {
           sources: order ?? sources,
           newId,
           concurrency: 2,
-          fetchFeed: async (source) => {
+          // Jitter pinned to its midpoint: the first back-off is exactly 15 minutes.
+          random: () => 0.5,
+          fetchFeed: async (source, validators) => {
+            calls.push({ id: source.id, validators });
             const feed = feeds[source.id];
             if (feed === "reject") throw new Error("boom");
             return feed ?? failFeed("network_error");
@@ -686,6 +700,146 @@ test("validators are stored for ok outcomes only", async () => {
       { id: "src-a", etag: '"abc"', last_modified: "Wed, 11 Nov 2026 07:00:00 GMT" },
       { id: "src-b", etag: null, last_modified: null },
     ]);
+  } finally {
+    await h.close();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Per-host back-off, conditional validators and 304 (SAFE-03, PLAT-09)
+// ---------------------------------------------------------------------------
+
+const MIN = 60_000;
+const items = (source: SourceConfig, slug: string) => okFeed([art(source, `Headline about ${slug}`, `https://${slug}.test/1`, T - HOUR)]);
+const backoffRows = (h: Harness) => h.rows("SELECT host, failures, next_attempt_at, last_outcome FROM host_backoff ORDER BY host");
+
+test("a failing source writes a host_backoff row, also when the whole cycle is failed, and the delay doubles", async () => {
+  const h = await harness([SHARED_1, OTHER]);
+  try {
+    const report = await h.cycle(T, { "sh-1": failFeed("http_error"), other: failFeed("timeout") });
+    assert.equal(report.status, "failed");
+    assert.deepEqual(backoffRows(h), [
+      { host: "other.test", failures: 1, next_attempt_at: iso(T + 15 * MIN), last_outcome: "timeout" },
+      { host: "shared.test", failures: 1, next_attempt_at: iso(T + 15 * MIN), last_outcome: "http_error" },
+    ]);
+
+    await h.cycle(T + 20 * MIN, { "sh-1": failFeed("http_error"), other: items(OTHER, "other") });
+    assert.deepEqual(backoffRows(h), [
+      { host: "shared.test", failures: 2, next_attempt_at: iso(T + 50 * MIN), last_outcome: "http_error" },
+    ]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("a host inside its back-off is skipped with no request, and fetched again after next_attempt_at; a success deletes the row", async () => {
+  const h = await harness([SHARED_1, SHARED_2, OTHER]);
+  try {
+    await h.cycle(T, { "sh-1": failFeed(), "sh-2": failFeed("timeout"), other: items(OTHER, "other") });
+    assert.equal(backoffRows(h).length, 1);
+
+    const before = h.calls.length;
+    const skipped = await h.cycle(T + 5 * MIN, { "sh-1": items(SHARED_1, "one"), "sh-2": items(SHARED_2, "two"), other: items(OTHER, "other2") });
+    assert.deepEqual(h.calls.slice(before).map((c) => c.id), ["other"], "no request is sent to the backed-off host");
+    assert.deepEqual(
+      skipped.outcomes.map((o) => [o.sourceId, o.outcome, o.code]),
+      [["sh-1", "skipped_backoff", null], ["sh-2", "skipped_backoff", null], ["other", "ok", null]],
+    );
+    assert.equal(skipped.status, "partial");
+    assert.deepEqual(backoffRows(h), [{ host: "shared.test", failures: 1, next_attempt_at: iso(T + 15 * MIN), last_outcome: "http_error" }], "a skip changes nothing");
+
+    const mark = h.calls.length;
+    await h.cycle(T + 16 * MIN, { "sh-1": items(SHARED_1, "one"), "sh-2": items(SHARED_2, "two"), other: items(OTHER, "other3") });
+    assert.deepEqual(h.calls.slice(mark).map((c) => c.id).sort(), ["other", "sh-1", "sh-2"]);
+    assert.deepEqual(backoffRows(h), [], "a success clears the host");
+  } finally {
+    await h.close();
+  }
+});
+
+test("a cycle in which every source is skipped is recorded failed and leaves the back-off row alone", async () => {
+  const h = await harness([SHARED_1]);
+  try {
+    await h.cycle(T, { "sh-1": failFeed() });
+    const report = await h.cycle(T + 5 * MIN, { "sh-1": items(SHARED_1, "one") });
+    assert.equal(report.status, "failed");
+    assert.deepEqual(report.outcomes.map((o) => o.outcome), ["skipped_backoff"]);
+    assert.deepEqual(h.rows("SELECT outcome, reason_code FROM source_fetches ORDER BY run_id DESC LIMIT 1"), [{ outcome: "skipped_backoff", reason_code: null }]);
+    assert.equal(backoffRows(h)[0]!.failures, 1);
+  } finally {
+    await h.close();
+  }
+});
+
+test("Retry-After longer than the computed delay sets next_attempt_at", async () => {
+  const h = await harness([SHARED_1]);
+  try {
+    await h.cycle(T, { "sh-1": { status: "error", code: "http_error", httpStatus: 429, retryAfterMs: 2 * HOUR } });
+    assert.equal(backoffRows(h)[0]!.next_attempt_at, iso(T + 2 * HOUR));
+  } finally {
+    await h.close();
+  }
+});
+
+test("an egress-denied source is recorded failed with its code but creates no back-off row", async () => {
+  const h = await harness([SHARED_1, OTHER]);
+  try {
+    const report = await h.cycle(T, { "sh-1": failFeed("egress_denied_private"), other: items(OTHER, "other") });
+    assert.deepEqual(report.outcomes.map((o) => [o.sourceId, o.outcome, o.code]), [["sh-1", "failed", "egress_denied_private"], ["other", "ok", null]]);
+    assert.deepEqual(backoffRows(h), []);
+  } finally {
+    await h.close();
+  }
+});
+
+test("a source failing next to a healthy one on the same host does not back the host off", async () => {
+  const h = await harness([SHARED_1, SHARED_2]);
+  try {
+    await h.cycle(T, { "sh-1": failFeed("http_error"), "sh-2": items(SHARED_2, "two") });
+    assert.deepEqual(backoffRows(h), []);
+  } finally {
+    await h.close();
+  }
+});
+
+test("validators from an ok result are stored and passed to the next fetchFeed call", async () => {
+  const h = await harness([SRC_A]);
+  try {
+    const validators = { etag: 'W/"v1"', lastModified: "Wed, 11 Nov 2026 07:00:00 GMT" };
+    await h.cycle(T, { "src-a": { status: "ok", articles: [art(SRC_A, "Alpha ransomware campaign", "https://a.test/1", T - HOUR)], validators, httpStatus: 200 } });
+    await h.cycle(T + HOUR, { "src-a": NOT_MODIFIED });
+    assert.deepEqual(h.calls.map((c) => c.validators), [{ etag: null, lastModified: null }, validators]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("a not_modified source adds no article, updates none and counts as a success", async () => {
+  const h = await harness([SRC_A, SRC_B]);
+  try {
+    await h.cycle(T, { "src-a": items(SRC_A, "alpha"), "src-b": items(SRC_B, "bravo") });
+    const rowsOf = () => JSON.stringify(["stories", "articles", "story_cves"].map((table) => h.rows(`SELECT * FROM ${table} ORDER BY 1, 2`)));
+    const before = rowsOf();
+    const report = await h.cycle(T + HOUR, { "src-a": NOT_MODIFIED, "src-b": NOT_MODIFIED });
+    assert.equal(report.status, "ok");
+    assert.equal(report.sourcesOk, 2);
+    assert.equal(report.articlesNew, 0);
+    assert.equal(rowsOf(), before);
+    assert.deepEqual(h.rows("SELECT outcome FROM source_fetches WHERE run_id = " + report.runId + " ORDER BY source_id"), [{ outcome: "not_modified" }, { outcome: "not_modified" }]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("failed after good with back-off rows being written: stories, articles, cves and meta stay identical", async () => {
+  const h = await harness([SRC_A, SRC_B]);
+  try {
+    await h.cycle(T, { "src-a": items(SRC_A, "alpha"), "src-b": items(SRC_B, "bravo") });
+    const before = snapshotTables(h);
+    const failed = await h.cycle(T + DAY, { "src-a": failFeed("timeout"), "src-b": failFeed("http_error") });
+    assert.equal(failed.status, "failed");
+    assert.equal(snapshotTables(h), before);
+    assert.deepEqual(backoffRows(h).map((r) => r.host), ["host-a.test", "host-b.test"]);
   } finally {
     await h.close();
   }

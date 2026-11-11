@@ -1,7 +1,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fanOut } from "./fanOut.ts";
+import { fanOut, fanOutWithOutcomes } from "./fanOut.ts";
 import { fetchSource } from "./fetchSource.ts";
 import { startHostileServer } from "../../../test/fixtures/hostileRedirectServer.ts";
 import { makeLoopbackFetch } from "../../../test/fixtures/loopbackFetch.ts";
@@ -199,4 +199,50 @@ test("D-06 copy contract: page.tsx still renders the verbatim Phase 1 empty-stat
     /No articles in the last 24 hours\./,
     "the D-06 all-sources-failed presentation reuses this exact Phase 1 copy verbatim"
   );
+});
+
+test("fanOutWithOutcomes with hostOf never overlaps two sources on one host while other hosts run concurrently", async () => {
+  const sources = ["a1", "a2", "a3", "b1", "b2"].map((id) =>
+    makeSource({ id, name: id, url: `https://${id[0]}.test/${id}` })
+  );
+  const hostOf = (s: SourceConfig) => new URL(s.url).host;
+  const running = new Map<string, number>();
+  const maxPerHost = new Map<string, number>();
+  const started: string[] = [];
+  let total = 0;
+  let maxTotal = 0;
+  const fetcher = async (s: SourceConfig) => {
+    const host = hostOf(s);
+    started.push(s.id);
+    running.set(host, (running.get(host) ?? 0) + 1);
+    total++;
+    maxPerHost.set(host, Math.max(maxPerHost.get(host) ?? 0, running.get(host)!));
+    maxTotal = Math.max(maxTotal, total);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    running.set(host, running.get(host)! - 1);
+    total--;
+    return s.id;
+  };
+
+  const out = await fanOutWithOutcomes(sources, fetcher, { concurrency: 4, onRejected: () => "rejected", hostOf });
+
+  assert.deepEqual(out.map((o) => o.result), ["a1", "a2", "a3", "b1", "b2"], "results stay in input order");
+  assert.equal(maxPerHost.get("a.test"), 1);
+  assert.equal(maxPerHost.get("b.test"), 1);
+  assert.equal(maxTotal, 2, "the two hosts do run concurrently");
+  assert.ok(started.indexOf("b1") < started.indexOf("a2"), "a host waiting on its predecessor does not hold up another host");
+});
+
+test("fanOutWithOutcomes without hostOf keeps running same-host sources concurrently", async () => {
+  const sources = ["a1", "a2", "a3"].map((id) => makeSource({ id, name: id, url: `https://a.test/${id}` }));
+  let total = 0;
+  let maxTotal = 0;
+  const fetcher = async (s: SourceConfig) => {
+    maxTotal = Math.max(maxTotal, ++total);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    total--;
+    return s.id;
+  };
+  await fanOutWithOutcomes(sources, fetcher, { concurrency: 3, onRejected: () => "rejected" });
+  assert.equal(maxTotal, 3);
 });
