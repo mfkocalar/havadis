@@ -20,6 +20,10 @@
 # production
 /build
 
+# local database and backups (self-hosted dev loop)
+/data
+/backups
+
 # misc
 .DS_Store
 *.pem
