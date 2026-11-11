@@ -2,7 +2,8 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import os from "node:os";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
 import { SOURCE_TYPE_LABEL } from "../src/lib/config/sourceTypes.ts";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
@@ -13,6 +14,7 @@ import {
   type PrerenderManifest,
   type SourceStamp,
 } from "./fixtures/staticRouteGate.ts";
+import { PAGE_FIXTURE_TITLES, seedPageFixtureDb } from "./fixtures/pageFixture.ts";
 
 /**
  * Drives a real `next start` production server and asserts the public
@@ -20,6 +22,11 @@ import {
  * empty edge). RESEARCH.md Pitfall P1-4: Next.js never caches pages in
  * `next dev` — this criterion is unverifiable there, so this test spawns
  * the actual production build's start script instead.
+ *
+ * The page reads SQLite, so `before()` seeds its own temp database through the real ingest cycle
+ * (test/fixtures/pageFixture.ts): a good cycle four days before the read, a partial cycle one day
+ * before it in which one source succeeds, and a failed cycle at read time. Every test below
+ * therefore runs against a read four days after the good cycle (PLAT-09 last-good rule).
  */
 
 const PORT = 3100;
@@ -29,6 +36,8 @@ const READY_POLL_INTERVAL_MS = 500;
 
 let server: ChildProcess | null = null;
 let stderrLog = "";
+let dataDir = "";
+let partialAt = 0;
 
 /**
  * Detects "at least one article anchor rendered" tolerant of attribute
@@ -101,10 +110,18 @@ async function pollUntilReady(): Promise<void> {
 }
 
 before(async () => {
+  dataDir = mkdtempSync(path.join(os.tmpdir(), "havadis-page-"));
+  try {
+    ({ partialAt } = await seedPageFixtureDb(dataDir, Date.now()));
+  } catch (err) {
+    rmSync(dataDir, { recursive: true, force: true });
+    throw err;
+  }
+
   const nextBin = path.join(process.cwd(), "node_modules", ".bin", "next");
   server = spawn(nextBin, ["start", "-p", String(PORT)], {
     stdio: ["ignore", "ignore", "pipe"],
-    env: { ...process.env },
+    env: { ...process.env, HAVADIS_DATA_DIR: dataDir },
   });
   server.stderr?.on("data", (chunk: Buffer) => {
     stderrLog += chunk.toString();
@@ -115,6 +132,7 @@ before(async () => {
   } catch (err) {
     server.kill();
     server = null;
+    rmSync(dataDir, { recursive: true, force: true });
     throw err;
   }
 });
@@ -124,6 +142,7 @@ after(async () => {
     server.kill();
     server = null;
   }
+  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
 });
 
 test("GET / returns 200 with no authentication surface anywhere", async () => {
@@ -391,6 +410,11 @@ test("the bar's Updated text is the snapshot's deterministic UTC time in the ser
   const iso = attrValue(tag, "datetime") ?? attrValue(tag, "dateTime");
   assert.ok(iso, "expected a dateTime attribute");
   assert.equal(new Date(iso!).toISOString(), iso, "dateTime must be a canonical ISO string");
+  assert.equal(
+    iso,
+    new Date(partialAt).toISOString(),
+    "Updated is the newest ok or partial cycle; the failed cycle at read time does not move it"
+  );
   assert.equal(text, `Updated ${iso!.slice(11, 16)} UTC`, "text HH:MM must equal the ISO value's HH:MM");
   assert.equal(
     attrValue(tag, "title"),
@@ -478,7 +502,7 @@ function nonTestSourceStamps(): SourceStamp[] {
   return stamps;
 }
 
-test("the front page is still statically prerendered with the 900-second revalidation window", () => {
+test("the production build is fresh and / is not prerendered", () => {
   let buildMtimeMs: number;
   try {
     buildMtimeMs = statSync(path.join(process.cwd(), ".next", "BUILD_ID")).mtimeMs;
@@ -493,7 +517,28 @@ test("the front page is still statically prerendered with the 900-second revalid
 
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
-  assertStaticRoute(manifest, "/", 900);
+  assert.equal(
+    manifest.routes["/"],
+    undefined,
+    '"/" must stay out of the prerender manifest: it reads the database on every request (force-dynamic)'
+  );
+});
+
+test("each source keeps its own last good window", async () => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  assert.ok(
+    body.includes(PAGE_FIXTURE_TITLES.kept),
+    "K failed in the partial cycle, so its four-day-old story stays on the page"
+  );
+  assert.ok(
+    body.includes(PAGE_FIXTURE_TITLES.fresh),
+    "F succeeded in the partial cycle, so its fresh story is on the page"
+  );
+  assert.ok(
+    !body.includes(PAGE_FIXTURE_TITLES.agedOut),
+    "F's window follows F's new fetch, so its older story is gone"
+  );
 });
 
 // Feeds read the shared snapshot (08-CONTEXT D-25) and rely on ISR for the

@@ -1,4 +1,5 @@
-import { getFrontPageData } from "@/lib/snapshot";
+import { getWebDb } from "@/lib/db/openDb";
+import { readFrontPage } from "@/lib/adapters/frontPage";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FrontPageFilter, SectionCount, SectionVisibility } from "@/components/FrontPageFilter";
 import { SectionExpander } from "@/components/SectionExpander";
@@ -6,7 +7,7 @@ import { SectionFilterBar } from "@/components/SectionFilterBar";
 import { SectionMark } from "@/components/SectionMark";
 import { TriageKeys } from "@/components/TriageKeys";
 import { TriageToolbar, type TriageArticle } from "@/components/TriageToolbar";
-import { enrichmentNotice } from "@/lib/enrichment/enrich";
+import { enrichmentNotice } from "@/lib/enrichment/display";
 import { planSectionCap } from "@/lib/planSectionCap";
 import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 
@@ -19,22 +20,20 @@ import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
 const ROW_LIST_CLASSES = "flex flex-col";
 
 /**
- * The public front page. Awaits `getFrontPageData()` once (the shared cached
- * edition from `src/lib/snapshot.ts`, plus KEV and EPSS enrichment merged at
- * render; enrichment never removes an article). The error variant no longer
- * reaches this page: `getSnapshot` throws when no edition exists, so ISR keeps
- * serving the last good HTML and a cold build during a total feed outage fails
- * (failure policy, `snapshot.ts` header item 7; Phase 6 WR-03). The empty-state
- * branch below stays as a typed guard for an edition with no sections: it
- * mounts no filter provider and no bar, and none of any failure's internal
- * diagnostic detail is ever surfaced in the rendered output (threat T-01-10 /
- * T-03-04). The notice beside "Updated" and the CVE chips come from the
- * render-time enrichment merge; the notice is a fixed-vocabulary string about
- * data availability only.
+ * Rendered per request from the SQLite rows the worker writes: `readFrontPage` (the temporary read
+ * adapter in `src/lib/adapters/frontPage.ts`) returns either `waiting`, before any ingest cycle has
+ * succeeded, or the last good edition plus its stored KEV, EPSS and SSVC state. Each source is read
+ * from its own last successful fetch, so failed cycles and the passing of time never thin the page
+ * (PLAT-09). Nothing here reaches the network: the enrichment notice comes from the network-free
+ * `enrichment/display` module and the database is opened read-only by `getWebDb`. The empty-state
+ * branch below stays as a guard for an edition with no sections: it mounts no filter provider and
+ * no bar, and none of any failure's internal diagnostic detail is ever surfaced in the rendered
+ * output (threat T-01-10 / T-03-04). The notice beside "Updated" and the CVE chips come from the
+ * stored enrichment; the notice is a fixed-vocabulary string about data availability only.
  *
- * Sections and within-section order arrive fully resolved from that
- * edition (classification, ranking, dedupe stay upstream pipeline
- * concerns, not this file's). Otherwise this page lays the front page out:
+ * Sections and within-section order arrive fully resolved from the adapter (classification, ranking,
+ * dedupe stay upstream pipeline concerns, not this file's). Otherwise this page lays the front page
+ * out:
  * a sticky strip (side rail from 1024px) of count-bearing section pills
  * (D-08, D-11), then one
  * urgency-ordered section per non-empty group (D-12/D-16), each with its
@@ -49,15 +48,36 @@ const ROW_LIST_CLASSES = "flex flex-col";
  * passed through as children. `TriageKeys` adds j / k / f / r keyboard triage
  * over those server-rendered rows and takes no props.
  *
- * The route MUST stay statically prerendered with the snapshot's 900-second
- * revalidation window: no request-time APIs (cookies, headers, search
- * params) and no route segment config exports here, or in any client
- * component this page mounts.
+ * The route is dynamic (`force-dynamic`): it reads the database on every request and is never
+ * prerendered, because a prerendered page would freeze the first read at build time.
  */
-export default async function Home() {
-  const { result, enrichment } = await getFrontPageData();
+export const dynamic = "force-dynamic";
 
-  if (result.status !== "ok" || result.sections.length === 0) {
+/**
+ * The one read the page makes. The clock is sampled once here, at the render boundary (the
+ * component itself may not call it), and only feeds KEV staleness in the adapter's health part.
+ */
+function loadFrontPage() {
+  return readFrontPage(getWebDb().db, Date.now());
+}
+
+export default async function Home() {
+  const read = await loadFrontPage();
+
+  if (read.kind === "waiting") {
+    return (
+      <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+        <h1 className="sr-only">Latest</h1>
+        <p className="text-stone-600 dark:text-stone-400">
+          Waiting for the first ingestion. The worker is collecting the feeds; this page fills in when the first cycle finishes.
+        </p>
+      </main>
+    );
+  }
+
+  const { result, enrichment } = read;
+
+  if (result.sections.length === 0) {
     return (
       <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <h1 className="sr-only">Latest</h1>
