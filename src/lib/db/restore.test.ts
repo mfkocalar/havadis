@@ -217,15 +217,14 @@ test("the happy path keeps the live database as .pre-restore, installs the backu
     assert.equal(result.restoredFrom, realpathSync(backup));
     assert.equal(result.preRestore, `${dataFile}.pre-restore`);
 
-    assert.equal(count(dataFile, "sources"), SOURCES.length, "the restored database has the backup's rows");
-    assert.equal(count(`${dataFile}.pre-restore`, "sources"), SOURCES.length - 1, "the previous database is kept intact");
+    // File-system state first: reading a database back afterwards may create -wal/-shm beside it.
     assert.equal(statSync(dataFile).mode & 0o777, 0o600);
     assert.equal(sha256(backup), backupSum, "the backup file is unchanged");
     assert.deepEqual(readdirSync(backups), [path.basename(backup)], "no sidecar or temp file is left in the backups directory");
-    const names = readdirSync(dataDir).filter((n) => !n.startsWith("havadis.db."));
-    assert.deepEqual(names, ["havadis.db"]);
-    assert.equal(existsSync(`${dataFile}-wal`), false);
-    assert.equal(existsSync(`${dataFile}-shm`), false);
+    assert.deepEqual(readdirSync(dataDir).sort(), ["havadis.db", "havadis.db.pre-restore"]);
+
+    assert.equal(count(dataFile, "sources"), SOURCES.length, "the restored database has the backup's rows");
+    assert.equal(count(`${dataFile}.pre-restore`, "sources"), SOURCES.length - 1, "the previous database is kept intact");
 
     const restored = openDb(dataFile, "cli", { readonly: true });
     try {
@@ -248,8 +247,8 @@ test("with no live database restore installs the backup and reports no pre-resto
 
     const result = await restoreDatabase({ file: backup, dataFile, backupsDir: backups });
     assert.equal(result.preRestore, null);
-    assert.equal(count(dataFile, "sources"), SOURCES.length);
     assert.deepEqual(readdirSync(dataDir), ["havadis.db"]);
+    assert.equal(count(dataFile, "sources"), SOURCES.length);
   });
 });
 
