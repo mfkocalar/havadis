@@ -8,9 +8,9 @@ import type { SourceTier, SourceType } from "../types.ts";
  * Hermetic config-integrity tests for SOURCES (no network, no fixture
  * server — this reads only the static data module).
  *
- * What this underwrites: `fetchWithValidatedRedirect`'s exact-host-equality
- * check can only be relied on to exclude private and loopback redirect
- * targets while every configured origin is itself a public HTTPS hostname.
+ * What this underwrites: safeFetch's exact-host redirect rule (a redirect is
+ * followed only to the same host, port included) can only be relied on to
+ * exclude private and loopback redirect targets while every configured origin is itself a public HTTPS hostname.
  * That premise is the basis for accepting T-02-05 (DNS rebinding to a
  * same-named host after the exact-host check passes) rather than
  * implementing resolved-IP validation — see 02-01-PLAN.md's <threat_model>

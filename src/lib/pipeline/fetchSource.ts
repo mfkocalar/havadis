@@ -1,9 +1,9 @@
 import Parser from "rss-parser";
 import type { SourceConfig, FrontPageResult } from "../types.ts";
-import { fetchWithValidatedRedirect } from "./fetchWithValidatedRedirect.ts";
 import { readBodyWithCap } from "./boundedFetch.ts";
 import { normalize } from "./normalize.ts";
 import { USER_AGENT } from "../config/crawler.ts";
+import { safeFetch } from "../egress/safeFetch.ts";
 import type { SafeFetch } from "../egress/safeFetch.ts";
 
 // The User-Agent sent on every source fetch (the crawler's public identity and
@@ -14,9 +14,8 @@ const ACCEPT_HEADER =
   "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.1";
 
 /**
- * Matches Next's Data Cache 2MB per-entry item size cap (Vercel documents the
- * same 2 MB item limit). A source may raise its own cap with
- * `maxBodyBytes`, at the cost of an uncached download on every crawl.
+ * The default cap on a feed body: 2 MB. A source may raise its own cap with
+ * `maxBodyBytes`.
  */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -24,8 +23,8 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
  * The per-source time budget (INGEST-03's "~8s per-source timeout"),
  * spanning connect, header arrival, every redirect hop, and the full body
  * read as one continuous window. Armed once at `fetchSource` entry and
- * composed into `fetchWithValidatedRedirect`'s per-hop signal (see that
- * file's own comment on why its own per-hop timer alone is not enough).
+ * composed into safeFetch's per-hop signal (safeFetch's own per-hop timer
+ * covers only the header phase, so it alone would not bound the body read).
  */
 const SOURCE_TIMEOUT_MS = 8_000;
 
@@ -42,7 +41,8 @@ export async function fetchSource(
   source: SourceConfig,
   deps: { fetcher?: SafeFetch } = {}
 ): Promise<FrontPageResult> {
-  const fetcher: SafeFetch = deps.fetcher ?? fetchWithValidatedRedirect;
+  // Every feed request goes through the egress module unless a test injects its own fetcher.
+  const fetcher: SafeFetch = deps.fetcher ?? safeFetch;
   // One controller for the whole source fetch — connect, headers, every
   // redirect hop, and the full body read all share this single signal, so
   // there is no window between fetch() resolving and the body being
@@ -54,7 +54,6 @@ export async function fetchSource(
   const timer = setTimeout(() => controller.abort(timeoutError), SOURCE_TIMEOUT_MS);
   try {
     const res = await fetcher(source.url, {
-      next: { revalidate: 900 },
       headers: {
         "User-Agent": USER_AGENT,
         Accept: ACCEPT_HEADER,
@@ -109,9 +108,9 @@ export async function fetchSource(
 
     let feed: Parser.Output<Record<string, unknown>>;
     try {
-      // Always parse text we fetched ourselves via `fetch` + `next.revalidate`
-      // — never rss-parser's own parseURL(), which uses Node's raw http
-      // client and is invisible to Next.js's Data Cache.
+      // Always parse text we fetched ourselves through safeFetch with parseString —
+      // never rss-parser's own parseURL(), which uses Node's raw http client and
+      // would bypass the egress module.
       feed = await parser.parseString(xmlText);
     } catch (err) {
       return {

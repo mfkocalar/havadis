@@ -1,9 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fetchWithValidatedRedirect } from "./fetchWithValidatedRedirect.ts";
-import { fetchSource } from "./fetchSource.ts";
 import { startHostileServer } from "../../../test/fixtures/hostileRedirectServer.ts";
-import { makeSource } from "../../../test/fixtures/makeArticle.ts";
 
 /**
  * Reject-path, timeout, and follow-path tests for `fetchWithValidatedRedirect`.
@@ -149,102 +147,9 @@ test("aborts a hanging origin at the per-hop timeout rather than hanging forever
   }
 });
 
-test("fetchSource resolves to the error variant on a hanging origin rather than rejecting or hanging the caller", async () => {
-  const server = await startHostileServer();
-  try {
-    const source = makeSource({
-      id: "hostile-hang",
-      name: "Hostile Hang Fixture",
-      tier: "Security Research",
-      url: `${server.baseUrl}/hang`,
-    });
-    const result = await fetchSource(source);
-    assert.equal(
-      result.status,
-      "error",
-      "a never-responding origin must surface as the never-throwing fetcher's error variant"
-    );
-  } finally {
-    await server.close();
-  }
-});
-
-// --- Stalled-body timeout test, against the real hermetic fixture --------
-// This necessarily runs for the full per-source budget (~8s of real wall
-// time) — proving an abort fires requires letting it fire.
-
-test(
-  "fetchSource aborts a headers-then-stalled body within the per-source budget",
-  { timeout: 20_000 },
-  async () => {
-    const server = await startHostileServer();
-    const start = Date.now();
-    try {
-      const source = makeSource({
-        id: "hostile-slow-body",
-        name: "Hostile Slow Body Fixture",
-        tier: "Security Research",
-        url: `${server.baseUrl}/slow-body`,
-      });
-      const result = await fetchSource(source);
-      const elapsedMs = Date.now() - start;
-      assert.equal(
-        result.status,
-        "error",
-        "an origin that sends headers instantly and then stalls the body must surface as the error variant, not hang indefinitely"
-      );
-      assert.ok(
-        elapsedMs >= 7_000 && elapsedMs <= 11_000,
-        `expected the abort to fire within the ~8s per-source budget, took ${elapsedMs}ms`
-      );
-      if (result.status === "error") {
-        assert.match(
-          result.reason,
-          /per-source timeout/,
-          "the reason must name the timeout cause, not just any failure"
-        );
-      }
-    } finally {
-      await server.close();
-    }
-  }
-);
-
-// --- Positive control: a slow-but-finishing body still succeeds ----------
-// Proves the new time budget does not over-fire — a careless fix that
-// aborted every body read would still pass the all-negative suite above.
-
-test("fetchSource succeeds when the origin drips its body but finishes inside the budget", async () => {
-  const server = await startHostileServer();
-  const start = Date.now();
-  try {
-    const source = makeSource({
-      id: "hostile-drip-complete",
-      name: "Hostile Drip-Then-Complete Fixture",
-      tier: "Security Research",
-      url: `${server.baseUrl}/drip-then-complete`,
-    });
-    const result = await fetchSource(source);
-    const elapsedMs = Date.now() - start;
-    assert.equal(
-      result.status,
-      "ok",
-      "a slow-but-finishing body must still succeed rather than being aborted"
-    );
-    if (result.status === "ok") {
-      assert.ok(
-        result.articles.length >= 1,
-        "expected at least one article from the fixture's minimal RSS feed"
-      );
-    }
-    assert.ok(
-      elapsedMs < 3_000,
-      `expected the drip-then-complete fetch to finish well under the budget, took ${elapsedMs}ms`
-    );
-  } finally {
-    await server.close();
-  }
-});
+// The three fetchSource budget cases (hanging origin, stalled body, slow body that finishes) moved
+// to fetchSource.test.ts: fetchSource now defaults to safeFetch, which refuses the 127.0.0.1 fixture
+// unless a loopback fetcher is injected.
 
 // --- Follow-path tests, via a deterministic mocked fetch -------------------
 
