@@ -144,14 +144,14 @@ test("start beats idle at once, the first claim comes after random() * 5000 ms, 
     await settle();
     assert.equal(calls.length, 1, "the first claim happens after random() * 5000 ms");
     assert.equal(e.job().lease_owner, "worker-a");
-    assert.equal(e.events("lease_claimed").length, 1);
+    assert.equal(r.events("lease_claimed").length, 1);
 
     mock.timers.tick(WORKER_TICK_MS);
     await settle();
     mock.timers.tick(WORKER_TICK_MS);
     await settle();
     assert.equal(calls.length, 1, "a tick while a cycle is in flight starts nothing");
-    assert.equal(e.events("lease_claimed").length, 1);
+    assert.equal(r.events("lease_claimed").length, 1);
 
     gate.resolve();
     await w.idle();
@@ -425,8 +425,8 @@ test("crash: a worker that claims and never releases blocks the job until its le
     assert.equal(b.calls.length, 1, "B claims once the clock has passed lease_until");
     const runs = e.rows("SELECT id, status FROM fetch_runs ORDER BY id");
     assert.deepEqual(runs.map((x) => x.status), ["abandoned", "ok"], "A's orphaned running row is abandoned, B's cycle ran");
-    assert.equal(e.events("lease_claimed").length, 2);
-    assert.equal(e.events("lease_claimed")[1].abandoned_runs, 1);
+    assert.equal(r.events("lease_claimed").length, 2);
+    assert.equal(r.events("lease_claimed")[1].abandoned_runs, 1);
 
     await wb.stop();
     await wa.stop();
