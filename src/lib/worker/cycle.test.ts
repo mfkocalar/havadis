@@ -844,3 +844,139 @@ test("failed after good with back-off rows being written: stories, articles, cve
     await h.close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// onStage: the runner's lease-renewal hook (Plan 13)
+// ---------------------------------------------------------------------------
+
+type StageCall = { stage: string; runId: number; articles: number; runStatus: string };
+
+/** Runs one cycle with an onStage recorder that snapshots what the database holds at each stage. */
+async function stagedCycle(
+  h: Harness,
+  sources: readonly SourceConfig[],
+  feeds: Record<string, FeedFetchResult>,
+  onStage: (stage: "started" | "fetched" | "written", runId: number) => Promise<void>,
+) {
+  return runIngestCycle(
+    h.handle.db,
+    {
+      sources,
+      concurrency: 2,
+      random: () => 0.5,
+      fetchFeed: async (source, validators) => {
+        h.calls.push({ id: source.id, validators });
+        return feeds[source.id] ?? failFeed("network_error");
+      },
+      onStage,
+    },
+    T,
+  );
+}
+
+test("onStage: started, fetched and written run in order, and fetched is before the write transaction", async () => {
+  const h = await harness([SRC_A, SRC_B]);
+  try {
+    const calls: StageCall[] = [];
+    const report = await stagedCycle(h, [SRC_A, SRC_B], { "src-a": items(SRC_A, "alpha"), "src-b": items(SRC_B, "bravo") }, async (stage, runId) => {
+      calls.push({
+        stage,
+        runId,
+        articles: Number((h.rows("SELECT count(*) AS n FROM articles")[0] as { n: number }).n),
+        runStatus: String((h.rows(`SELECT status FROM fetch_runs WHERE id = ${runId}`)[0] as { status: string }).status),
+      });
+    });
+    assert.deepEqual(
+      calls.map((c) => [c.stage, c.runId, c.articles, c.runStatus]),
+      [
+        ["started", report.runId, 0, "running"],
+        ["fetched", report.runId, 0, "running"],
+        ["written", report.runId, 2, "ok"],
+      ],
+    );
+  } finally {
+    await h.close();
+  }
+});
+
+test("onStage: a failed cycle awaits fetched before recording and written after it", async () => {
+  const h = await harness([SRC_A]);
+  try {
+    const calls: Array<[string, string]> = [];
+    const report = await stagedCycle(h, [SRC_A], { "src-a": failFeed("timeout") }, async (stage, runId) => {
+      calls.push([stage, String((h.rows(`SELECT status FROM fetch_runs WHERE id = ${runId}`)[0] as { status: string }).status)]);
+    });
+    assert.equal(report.status, "failed");
+    assert.deepEqual(calls, [
+      ["started", "running"],
+      ["fetched", "running"],
+      ["written", "failed"],
+    ]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("onStage: an exception at fetched marks the run failed, writes no story or source row, and rethrows", async () => {
+  const h = await harness([SRC_A, SRC_B]);
+  try {
+    await assert.rejects(
+      stagedCycle(h, [SRC_A, SRC_B], { "src-a": items(SRC_A, "alpha"), "src-b": items(SRC_B, "bravo") }, async (stage) => {
+        if (stage === "fetched") throw new Error("lease lost");
+      }),
+      /lease lost/,
+    );
+    assert.deepEqual(h.rows("SELECT status FROM fetch_runs"), [{ status: "failed" }]);
+    assert.deepEqual(h.rows("SELECT count(*) AS n FROM articles"), [{ n: 0 }]);
+    assert.deepEqual(h.rows("SELECT count(*) AS n FROM source_fetches"), [{ n: 0 }]);
+    assert.deepEqual(h.rows("SELECT count(*) AS n FROM meta WHERE key = 'last_good_run_id'"), [{ n: 0 }]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("onStage: an exception at started marks the run failed and rethrows before any fetch", async () => {
+  const h = await harness([SRC_A]);
+  try {
+    await assert.rejects(
+      stagedCycle(h, [SRC_A], { "src-a": items(SRC_A, "alpha") }, async (stage) => {
+        if (stage === "started") throw new Error("lease lost");
+      }),
+      /lease lost/,
+    );
+    assert.deepEqual(h.rows("SELECT status FROM fetch_runs"), [{ status: "failed" }]);
+    assert.deepEqual(h.calls, [], "no fetch happened");
+  } finally {
+    await h.close();
+  }
+});
+
+test("onStage: an exception on the exception path never overwrites a run that is no longer running", async () => {
+  const h = await harness([SRC_A]);
+  try {
+    // Another actor (a stopping worker) closes the run while the cycle is mid-flight; the failure path must keep that status.
+    await assert.rejects(
+      stagedCycle(h, [SRC_A], { "src-a": items(SRC_A, "alpha") }, async (stage, runId) => {
+        if (stage === "fetched") {
+          h.handle.raw.prepare("UPDATE fetch_runs SET status = 'abandoned', finished_at = ? WHERE id = ?").run(iso(T + 1), runId);
+          throw new Error("lease lost");
+        }
+      }),
+      /lease lost/,
+    );
+    assert.deepEqual(h.rows("SELECT status, finished_at FROM fetch_runs"), [{ status: "abandoned", finished_at: iso(T + 1) }]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("a cycle without onStage behaves as before (existing callers are unaffected)", async () => {
+  const h = await harness([SRC_A]);
+  try {
+    const report = await h.cycle(T, { "src-a": items(SRC_A, "alpha") });
+    assert.equal(report.status, "ok");
+    assert.equal(report.articlesNew, 1);
+  } finally {
+    await h.close();
+  }
+});
