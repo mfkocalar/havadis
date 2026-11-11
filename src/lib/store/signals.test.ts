@@ -24,7 +24,6 @@ import type {
   EnrichmentSnapshot,
   EpssState,
   KevMap,
-  KevState,
   SourceConfig,
   SsvcState,
 } from "../types.ts";
