@@ -1,6 +1,6 @@
 {
   "name": "havadis",
-  "version": "0.1.0",
+  "version": "2.0.0-dev",
   "description": "A public, source-independent daily security newspaper: 51 curated cybersecurity feeds, deduplicated and sorted into urgency-ordered sections.",
   "license": "MIT",
   "private": true,
@@ -9,19 +9,25 @@
     "build": "next build",
     "start": "next start -p 4000",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test"
+    "test": "node --experimental-strip-types --test",
+    "worker": "node --env-file-if-exists=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/worker/main.ts",
+    "havadis": "node --env-file-if-exists=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli/havadis.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
+    "better-sqlite3": "13.0.3",
     "clsx": "2.1.1",
-    "next": "16.4.1",
+    "kysely": "0.29.8",
+    "next": "16.4.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "rss-parser": "3.13.0"
+    "rss-parser": "3.13.0",
+    "undici": "8.12.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "26.6.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
