@@ -225,9 +225,10 @@ export async function persistSsvcPositive(
  * Persists what `enrichCves` returned, keeping last good. EPSS scored or no-row is stored with its
  * check time (an observation when the state or score differs, exactly; a newer EPSS date with the
  * same score only moves the stored date); EPSS unavailable moves only epss_attempt_at. SSVC
- * assessed, not-assessed and skipped are stored (skipped with NULL decision points, so a KEV-listed
- * CVE never reads as a failed lookup, Pitfall 13); SSVC unavailable moves only ssvc_attempt_at. KEV
- * in the snapshot is ignored: kev_state is written by `applyKevToSignals` alone.
+ * skipped is stored (with NULL decision points, so a KEV-listed CVE never reads as a failed lookup,
+ * Pitfall 13); SSVC unavailable moves only ssvc_attempt_at; SSVC assessed and not-assessed are left
+ * to `persistSsvcPositive`, which the lookup callback calls per answer. KEV in the snapshot is
+ * ignored: kev_state is written by `applyKevToSignals` alone.
  */
 export async function persistPostEnrich(
   db: Db,
@@ -257,9 +258,11 @@ export async function persistPostEnrich(
       }
     }
 
+    // assessed and not-assessed were stored by the lookup callback the moment they arrived
+    // (persistSsvcPositive), so a late success is kept and a cached answer never re-stamps its check time.
     if (ssvc.state === "unavailable") {
       await db.updateTable("cve_signals").set({ ssvc_attempt_at: nowIso }).where("cve_id", "=", cveId).execute();
-    } else if (await storeSsvc(db, cveId, ssvc, nowIso, runId)) {
+    } else if (ssvc.state === "skipped" && (await storeSsvc(db, cveId, ssvc, nowIso, runId))) {
       changed++;
     }
   }
@@ -271,7 +274,27 @@ export async function persistPostEnrich(
  * The stage uses it so a CVE whose SSVC is still fresh is not looked up again just because its EPSS
  * is due.
  */
-export async function readStoredSsvc(_db: Db, _cveId: string): Promise<CacheableSsvcState | null> {
+export async function readStoredSsvc(db: Db, cveId: string): Promise<CacheableSsvcState | null> {
+  const r = await db
+    .selectFrom("cve_signals")
+    .where("cve_id", "=", cveId)
+    .select(["ssvc_state", "ssvc_exploitation", "ssvc_automatable", "ssvc_technical_impact"])
+    .executeTakeFirst();
+  if (r === undefined) return null;
+  if (r.ssvc_state === "not-assessed") return { state: "not-assessed" };
+  if (
+    r.ssvc_state === "assessed" &&
+    r.ssvc_exploitation !== null &&
+    r.ssvc_automatable !== null &&
+    r.ssvc_technical_impact !== null
+  ) {
+    return {
+      state: "assessed",
+      exploitation: r.ssvc_exploitation,
+      automatable: r.ssvc_automatable,
+      technicalImpact: r.ssvc_technical_impact,
+    };
+  }
   return null;
 }
 
