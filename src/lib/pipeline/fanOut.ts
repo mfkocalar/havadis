@@ -43,37 +43,51 @@ export async function fanOut(
  * source's own result and wall time, in input order (the ingest cycle needs per-source outcomes,
  * which `fanOut` deliberately flattens away).
  *
+ * `opts.hostOf` names the host a source talks to: two sources with the same key never run at the
+ * same time (one request per host, SAFE-03), and a source waiting on its host never holds up a
+ * source on another host. Without `hostOf` behaviour is unchanged.
+ *
  * A rejection is mapped through `opts.onRejected` rather than propagated, so one failing source
  * never collapses the batch (RESEARCH Pitfall 5, same isolation as `fanOut`). `fanOut` itself is
  * unchanged. `durationMs` is a monotonic measurement, not a wall-clock read the pipeline depends on.
  */
-export function fanOutWithOutcomes<R>(
+export async function fanOutWithOutcomes<R>(
   sources: readonly SourceConfig[],
   fetcher: (source: SourceConfig) => Promise<R>,
-  opts: { concurrency: number; onRejected: (source: SourceConfig) => R }
-): Promise<Array<{ source: SourceConfig; result: R; durationMs: number }>> {
-  return runWithOutcomes(sources, fetcher, opts);
-}
-
-async function runWithOutcomes<R>(
-  sources: readonly SourceConfig[],
-  fetcher: (source: SourceConfig) => Promise<R>,
-  opts: { concurrency: number; onRejected: (source: SourceConfig) => R }
+  opts: { concurrency: number; onRejected: (source: SourceConfig) => R; hostOf?: (source: SourceConfig) => string }
 ): Promise<Array<{ source: SourceConfig; result: R; durationMs: number }>> {
   const out: Array<{ source: SourceConfig; result: R; durationMs: number }> = new Array(sources.length);
   const limit = Math.max(1, Math.floor(opts.concurrency));
-  let next = 0;
+  const pending = sources.map((_, index) => index);
+  const busyHosts = new Set<string>();
+  let waiting: Array<() => void> = [];
 
   async function worker(): Promise<void> {
-    while (next < sources.length) {
-      const index = next++;
+    for (;;) {
+      // The first pending source whose host is idle; when every pending host is busy, sleep until
+      // one finishes. A busy host always has a running worker, so the wake-up always comes.
+      let position = -1;
+      for (;;) {
+        if (pending.length === 0) return;
+        position = pending.findIndex((index) => !opts.hostOf || !busyHosts.has(opts.hostOf(sources[index])));
+        if (position !== -1) break;
+        await new Promise<void>((resolve) => waiting.push(resolve));
+      }
+      const index = pending.splice(position, 1)[0];
       const source = sources[index];
+      const host = opts.hostOf?.(source);
+      if (host !== undefined) busyHosts.add(host);
       const started = performance.now();
       let result: R;
       try {
         result = await fetcher(source);
       } catch {
         result = opts.onRejected(source);
+      } finally {
+        if (host !== undefined) busyHosts.delete(host);
+        const wake = waiting;
+        waiting = [];
+        for (const resolve of wake) resolve();
       }
       out[index] = { source, result, durationMs: Math.max(0, Math.round(performance.now() - started)) };
     }

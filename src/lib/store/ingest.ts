@@ -100,6 +100,52 @@ async function writeSourceFetches(trx: Kysely<Database>, runId: number, perSourc
   }
 }
 
+/** What one cycle decided about a host: back it off one more step, or clear it. */
+export type HostUpdate =
+  | { host: string; kind: "failure"; nextAttemptAtIso: string; outcome: string }
+  | { host: string; kind: "success" };
+
+/**
+ * The stored back-off state before a cycle: `blocked` are the hosts whose next_attempt_at is after
+ * `nowIso` (not to be requested), `failures` the consecutive failure count of every host that has a
+ * row, blocked or not. Timestamps are fixed-width ISO strings, so comparing them as text is exact.
+ */
+export async function selectBackoff(
+  db: Kysely<Database>,
+  nowIso: string,
+): Promise<{ blocked: ReadonlySet<string>; failures: ReadonlyMap<string, number> }> {
+  const rows = await db.selectFrom("host_backoff").select(["host", "failures", "next_attempt_at"]).execute();
+  return {
+    blocked: new Set(rows.filter((r) => r.next_attempt_at !== null && r.next_attempt_at > nowIso).map((r) => r.host)),
+    failures: new Map(rows.map((r) => [r.host, r.failures])),
+  };
+}
+
+/**
+ * Applies a cycle's host decisions inside the cycle transaction: a failure adds one to the host's
+ * count and sets its next attempt, a success deletes the row. Bookkeeping only; reader-visible
+ * state is never touched.
+ */
+async function writeHostUpdates(trx: Kysely<Database>, updates: readonly HostUpdate[]): Promise<void> {
+  for (const u of updates) {
+    if (u.kind === "success") {
+      await trx.deleteFrom("host_backoff").where("host", "=", u.host).execute();
+      continue;
+    }
+    await trx
+      .insertInto("host_backoff")
+      .values({ host: u.host, failures: 1, next_attempt_at: u.nextAttemptAtIso, last_outcome: u.outcome })
+      .onConflict((oc) =>
+        oc.column("host").doUpdateSet((eb) => ({
+          failures: eb("host_backoff.failures", "+", 1),
+          next_attempt_at: u.nextAttemptAtIso,
+          last_outcome: u.outcome,
+        })),
+      )
+      .execute();
+  }
+}
+
 export type ApplyCycleInput = {
   runId: number;
   /** The cycle's now: the instant applySourceWindow windowed with, and the edition time. */
@@ -115,6 +161,8 @@ export type ApplyCycleInput = {
   perSource: readonly PerSourceOutcome[];
   /** Validators of this cycle's ok outcomes, by source id. */
   validators: ReadonlyMap<string, FeedValidators>;
+  /** Back-off decisions of this cycle, written in the same transaction. */
+  hostUpdates?: readonly HostUpdate[];
 };
 
 /**
@@ -246,6 +294,7 @@ export async function applyCyclePlan(
     const v = p.outcome === "ok" ? input.validators.get(p.sourceId) : undefined;
     if (v) await trx.updateTable("sources").set({ etag: v.etag, last_modified: v.lastModified }).where("id", "=", p.sourceId).execute();
   }
+  await writeHostUpdates(trx, input.hostUpdates ?? []);
 
   await trx
     .updateTable("fetch_runs")
@@ -275,15 +324,23 @@ export async function applyCyclePlan(
 }
 
 /**
- * A failed or empty cycle: writes only its own bookkeeping, one source_fetches row per source and
- * the finished run row. It touches no story, article, story_cves, cve_signals, sources or meta row,
- * so the stored edition and every window anchor stay exactly as they were (PLAT-09).
+ * A failed or empty cycle: writes only its own bookkeeping, one source_fetches row per source, the
+ * host back-off rows and the finished run row. It touches no story, article, story_cves,
+ * cve_signals, sources or meta row, so the stored edition and every window anchor stay exactly as
+ * they were (PLAT-09). host_backoff is polling bookkeeping, not reader-visible state.
  */
 export async function recordFailedCycle(
   trx: Kysely<Database>,
-  input: { runId: number; nowIso: string; finishedAtIso?: string; perSource: readonly PerSourceOutcome[] },
+  input: {
+    runId: number;
+    nowIso: string;
+    finishedAtIso?: string;
+    perSource: readonly PerSourceOutcome[];
+    hostUpdates?: readonly HostUpdate[];
+  },
 ): Promise<void> {
   await writeSourceFetches(trx, input.runId, input.perSource);
+  await writeHostUpdates(trx, input.hostUpdates ?? []);
   await trx
     .updateTable("fetch_runs")
     .set({

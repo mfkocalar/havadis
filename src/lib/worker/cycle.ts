@@ -4,6 +4,7 @@ import { applySourceWindow } from "../pipeline/applySourceWindow.ts";
 import { canonicalizeUrl } from "../pipeline/canonicalizeUrl.ts";
 import type { FeedFetchResult, FeedValidators } from "../pipeline/feedResult.ts";
 import { fanOutWithOutcomes } from "../pipeline/fanOut.ts";
+import { EGRESS_CODES } from "../reasonCodes.ts";
 import type { FetchErrorCode } from "../reasonCodes.ts";
 import { readSourceAnchors, selectInWindowArticles } from "../store/articles.ts";
 import {
@@ -12,11 +13,13 @@ import {
   findExistingSightings,
   finishRun,
   recordFailedCycle,
+  selectBackoff,
   sightingKey,
   touchSightings,
 } from "../store/ingest.ts";
-import type { PerSourceOutcome } from "../store/ingest.ts";
+import type { HostUpdate, PerSourceOutcome } from "../store/ingest.ts";
 import type { SourceConfig } from "../types.ts";
+import { backoffDelayMs, hostKey } from "./backoff.ts";
 import { planStories } from "./derive.ts";
 import type { IncomingSighting } from "./derive.ts";
 
@@ -38,6 +41,8 @@ export type CycleDeps = {
   trigger?: string;
   /** Wall clock for finished_at only; defaults to the cycle's now so tests stay deterministic. */
   clock?: () => number;
+  /** Jitter source for the per-host back-off; defaults to Math.random. */
+  random?: () => number;
 };
 
 export type CycleReport = {
@@ -66,7 +71,22 @@ export function classifyRun(
   return "ok";
 }
 
-const REJECTED: FeedFetchResult = { status: "error", code: "network_error", httpStatus: null, retryAfterMs: null };
+/** What the fan-out yields per source: a fetch result, or a source skipped because its host is backing off. */
+type Fetched = FeedFetchResult | { status: "skipped" };
+
+const REJECTED: Fetched = { status: "error", code: "network_error", httpStatus: null, retryAfterMs: null };
+const SKIPPED: Fetched = { status: "skipped" };
+
+const isEgressCode = (code: FetchErrorCode): boolean => (EGRESS_CODES as readonly string[]).includes(code);
+
+/** A host's feed URL as its back-off key; null for a URL that does not parse (it fails as network_error and is never backed off). */
+function hostOrNull(url: string): string | null {
+  try {
+    return hostKey(url);
+  } catch {
+    return null;
+  }
+}
 
 function validIso(value: string): string | null {
   const ms = Date.parse(value);
@@ -82,10 +102,19 @@ export async function runIngestCycle(db: Kysely<Database>, deps: CycleDeps, now:
     const enabled = new Map(stateRows.map((r) => [r.id, { etag: r.etag, lastModified: r.last_modified }]));
     const sources = deps.sources.filter((s) => enabled.has(s.id));
 
-    const fetched = await fanOutWithOutcomes(
+    // A host backing off is not requested at all; every other source is fetched, one request per host at a time.
+    const backoff = await selectBackoff(db, nowIso);
+    const hosts = new Map(sources.map((s) => [s.id, hostOrNull(s.url)]));
+    const isBackedOff = (source: SourceConfig): boolean => {
+      const host = hosts.get(source.id);
+      return host != null && backoff.blocked.has(host);
+    };
+
+    const fetched = await fanOutWithOutcomes<Fetched>(
       sources,
-      (source) => deps.fetchFeed(source, enabled.get(source.id)!),
-      { concurrency: deps.concurrency ?? 8, onRejected: () => REJECTED },
+      (source) => (isBackedOff(source) ? Promise.resolve(SKIPPED) : deps.fetchFeed(source, enabled.get(source.id)!)),
+      // A source without a parseable host gets its own id as key, so it is never serialized behind another.
+      { concurrency: deps.concurrency ?? 8, onRejected: () => REJECTED, hostOf: (source) => hosts.get(source.id) ?? source.id },
     );
 
     const perSource: PerSourceOutcome[] = [];
@@ -113,11 +142,40 @@ export async function runIngestCycle(db: Kysely<Database>, deps: CycleDeps, now:
           durationMs,
           code: null,
         });
+      } else if (result.status === "skipped") {
+        perSource.push({ sourceId: source.id, outcome: "skipped_backoff", httpStatus: null, itemCount: null, newestItemAt: null, durationMs: null, code: null });
       } else if (result.status === "not-modified") {
         successful.add(source.id);
         perSource.push({ sourceId: source.id, outcome: "not_modified", httpStatus: 304, itemCount: null, newestItemAt: null, durationMs, code: null });
       } else {
         perSource.push({ sourceId: source.id, outcome: "failed", httpStatus: result.httpStatus, itemCount: null, newestItemAt: null, durationMs, code: result.code });
+      }
+    }
+
+    // One decision per host. A host that answered anything this cycle is clear (one dead feed path
+    // on a working host must not silence its healthy feeds); a host where every request failed, other
+    // than by an egress denial, backs off one more step. Skipped sources decide nothing.
+    const seen = new Map<string, { answered: boolean; failed: Array<{ code: FetchErrorCode; retryAfterMs: number | null }> }>();
+    for (const { source, result } of fetched) {
+      const host = hosts.get(source.id);
+      if (host == null || result.status === "skipped") continue;
+      const entry = seen.get(host) ?? { answered: false, failed: [] };
+      if (result.status === "error") {
+        if (!isEgressCode(result.code)) entry.failed.push({ code: result.code, retryAfterMs: result.retryAfterMs });
+      } else {
+        entry.answered = true;
+      }
+      seen.set(host, entry);
+    }
+    const random = deps.random ?? Math.random;
+    const hostUpdates: HostUpdate[] = [];
+    for (const [host, entry] of seen) {
+      if (entry.answered) {
+        if (backoff.failures.has(host)) hostUpdates.push({ host, kind: "success" });
+      } else if (entry.failed.length > 0) {
+        const retryAfter = entry.failed.reduce<number | null>((max, f) => (f.retryAfterMs === null ? max : Math.max(max ?? 0, f.retryAfterMs)), null);
+        const delay = backoffDelayMs((backoff.failures.get(host) ?? 0) + 1, random, retryAfter);
+        hostUpdates.push({ host, kind: "failure", nextAttemptAtIso: new Date(now + delay).toISOString(), outcome: entry.failed[0].code });
       }
     }
 
@@ -137,7 +195,7 @@ export async function runIngestCycle(db: Kysely<Database>, deps: CycleDeps, now:
 
     if (status === "failed") {
       await db.transaction().execute((trx) =>
-        recordFailedCycle(trx, { runId, nowIso, finishedAtIso: new Date(clock()).toISOString(), perSource }),
+        recordFailedCycle(trx, { runId, nowIso, finishedAtIso: new Date(clock()).toISOString(), perSource, hostUpdates }),
       );
       return report();
     }
@@ -180,6 +238,7 @@ export async function runIngestCycle(db: Kysely<Database>, deps: CycleDeps, now:
         articlesSeen: unique.size,
         perSource,
         validators,
+        hostUpdates,
       });
       return { ...applied, articlesSeen: unique.size };
     });
