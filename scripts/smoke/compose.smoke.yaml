@@ -1,0 +1,57 @@
+# Smoke-only override for scripts/compose-smoke.sh. Never used by operators and never referenced by compose.yaml.
+# The worker gets no route out except a CONNECT proxy on an internal network, and the proxy can reach only a
+# fixture that impersonates one curated feed host with a throwaway certificate (T-14-54).
+x-sandbox: &sandbox
+  image: havadis:local
+  pull_policy: never
+  entrypoint: []
+  user: "65532:65532"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  init: true
+  restart: "no"
+
+networks:
+  egress-sandbox:
+    internal: true
+
+services:
+  worker:
+    networks:
+      - egress-sandbox
+    environment:
+      HTTPS_PROXY: "http://proxy:3128"
+      HTTP_PROXY: "http://proxy:3128"
+      NO_PROXY: "localhost,127.0.0.1,::1"
+      NODE_EXTRA_CA_CERTS: "/sandbox/cert.pem"
+    volumes:
+      - "${HAVADIS_SMOKE_SANDBOX}:/sandbox:ro"
+    depends_on:
+      proxy:
+        condition: service_started
+      feed:
+        condition: service_started
+
+  proxy:
+    <<: *sandbox
+    command: ["/nodejs/bin/node", "/smoke/sandbox.mjs", "proxy"]
+    volumes:
+      - "./scripts/smoke:/smoke:ro"
+    networks:
+      - egress-sandbox
+
+  feed:
+    <<: *sandbox
+    command: ["/nodejs/bin/node", "/smoke/sandbox.mjs", "feed"]
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    volumes:
+      - "./scripts/smoke:/smoke:ro"
+      - "${HAVADIS_SMOKE_SANDBOX}:/sandbox:ro"
+    networks:
+      egress-sandbox:
+        aliases:
+          - www.bleepingcomputer.com
