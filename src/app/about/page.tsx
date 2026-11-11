@@ -17,12 +17,13 @@ const LINK =
   "rounded-xs underline decoration-stone-400 underline-offset-4 hover:decoration-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:decoration-stone-600 dark:focus-visible:outline-stone-100";
 
 /**
- * Static page for publishers and readers (D-12, PLAT-04): what Havadis is,
- * what HavadisBot fetches, and how to contact or opt out. The crawler's
- * User-Agent contact URL points here. It uses no request-time APIs and no
- * route segment config, so Next prerenders it as a static route. Every value
- * is rendered as a JSX text node or attribute.
+ * Page for publishers and readers (D-12, PLAT-04): what Havadis is,
+ * what HavadisBot fetches, and how to contact or opt out. It renders
+ * dynamically so every response carries its own CSP nonce (src/proxy.ts).
+ * Every value is rendered as a JSX text node or attribute.
  */
+export const dynamic = "force-dynamic";
+
 export default function AboutPage() {
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6 sm:py-12">

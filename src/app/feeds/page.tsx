@@ -28,8 +28,11 @@ const FIELDS: [string, string][] = [
 
 /**
  * Human-readable index of the outbound feeds (the `_havadis.about` link in
- * every JSON Feed points here). Static: it lists config, not live data.
+ * every JSON Feed points here). It renders dynamically so every response
+ * carries its own CSP nonce (src/proxy.ts).
  */
+export const dynamic = "force-dynamic";
+
 export default function FeedsPage() {
   const origin = siteUrl();
   return (
