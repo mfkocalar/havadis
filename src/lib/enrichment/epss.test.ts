@@ -4,6 +4,7 @@ import { USER_AGENT } from "../config/crawler.ts";
 import type { EpssState, KevMap } from "../types.ts";
 import { enrichCves } from "./enrich.ts";
 import { fetchEpss, epssUrl, parseEpssChunk, selectEpssIds, sortedBatches } from "./epss.ts";
+import { makeLoopbackFetch } from "../../../test/fixtures/loopbackFetch.ts";
 import {
   EPSS_FAIL_IDS,
   EPSS_NO_ROW_IDS,
@@ -305,7 +306,7 @@ after(async () => {
   await server.close();
 });
 
-const FAST = { timeoutMs: 300, maxBytes: 256 * 1024 };
+const FAST = { timeoutMs: 300, maxBytes: 256 * 1024, fetcher: makeLoopbackFetch() };
 const fixtureIds = (n: number) => Array.from({ length: n }, (_, i) => `CVE-2024-${String(10000 + i)}`);
 
 function allUnavailable(out: Record<string, EpssState>, input: readonly string[]) {
@@ -405,7 +406,7 @@ test("/slow-body with a 300 ms budget resolves quickly with every ID unavailable
 test("/oversize with a 16 KiB cap resolves with every ID unavailable", async (t) => {
   const input = fixtureIds(5);
   const start = Date.now();
-  const out = await fetchEpss(input, { url: `${server.baseUrl}/oversize`, timeoutMs: 5000, maxBytes: 16_384 });
+  const out = await fetchEpss(input, { url: `${server.baseUrl}/oversize`, timeoutMs: 5000, maxBytes: 16_384, fetcher: FAST.fetcher });
   t.diagnostic(`/oversize elapsed ${Date.now() - start} ms`);
   allUnavailable(out, input);
 });
@@ -428,7 +429,7 @@ test("a refused connection leaves every ID unavailable", async () => {
 test("every failure route resolves with a state per ID and never no-row", async () => {
   const input = fixtureIds(8);
   for (const route of ["/hang", "/slow-body", "/oversize", "/status-500", "/malformed", "/html", "/epss-inconsistent"]) {
-    const out = await fetchEpss(input, { url: `${server.baseUrl}${route}`, timeoutMs: 300, maxBytes: 16_384 });
+    const out = await fetchEpss(input, { url: `${server.baseUrl}${route}`, timeoutMs: 300, maxBytes: 16_384, fetcher: FAST.fetcher });
     assert.deepStrictEqual(Object.keys(out).sort(), input, route);
     for (const c of input) assert.notEqual(out[c].state, "no-row", `${route} ${c}`);
   }

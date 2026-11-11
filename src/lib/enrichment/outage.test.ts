@@ -13,6 +13,7 @@ import {
   startEnrichmentServer,
   type EnrichmentServer,
 } from "../../../test/fixtures/enrichmentServer.ts";
+import { makeLoopbackFetch } from "../../../test/fixtures/loopbackFetch.ts";
 import { makeArticle } from "../../../test/fixtures/makeArticle.ts";
 import { CVE_ID_SHAPE, planCveChips } from "../cveChips.ts";
 import type { ClassifiedArticle, EnrichmentSnapshot, KevMap, KevRead } from "../types.ts";
@@ -42,7 +43,7 @@ after(async () => {
 });
 
 /** Tight budgets so a withheld or dripping answer cannot stall the suite. */
-const FAST = { timeoutMs: 300, minEntries: 5 };
+const FAST = { timeoutMs: 300, minEntries: 5, fetcher: makeLoopbackFetch() };
 
 function isKevRejection(err: unknown): boolean {
   return err instanceof Error && /^kev rejected:/.test(err.message);
@@ -71,6 +72,7 @@ describe("produceKev: every failure mode rejects and never resolves to a map", (
           timeoutMs: 5_000,
           maxRawBytes: 65_536,
           minEntries: 5,
+          fetcher: FAST.fetcher,
         }),
         isKevRejection,
         route
@@ -113,6 +115,7 @@ describe("produceKev: every failure mode rejects and never resolves to a map", (
       url: `${server.baseUrl}/kev-collapse`,
       timeoutMs: 300,
       minEntries: 3,
+      fetcher: FAST.fetcher,
     });
     assert.equal(Object.keys(collapse.entries).length, 3);
     const big = await produceKev(NOW, { url: `${server.baseUrl}/kev-big`, ...FAST });
@@ -290,9 +293,9 @@ describe("enrichCves across KEV, EPSS and SSVC degradation", () => {
   ): Promise<EnrichmentSnapshot> {
     const url = `${ssvc.route === null ? closedBase + "/ssvc-ok" : server.baseUrl + ssvc.route}`;
     return enrichCves(ids, { kev: kev.read, cardCves }, NOW, {
-      epss: { url: `${server.baseUrl}${epss.route}`, timeoutMs: 300 },
+      epss: { url: `${server.baseUrl}${epss.route}`, timeoutMs: 300, fetcher: FAST.fetcher },
       ssvc: {
-        lookup: (id) => produceSsvc(id, { url, timeoutMs: 300, maxBytes: 64 * 1024 }),
+        lookup: (id) => produceSsvc(id, { url, timeoutMs: 300, maxBytes: 64 * 1024, fetcher: FAST.fetcher }),
         maxLookups: cap ?? undefined,
         totalBudgetMs: ssvc.budgetMs,
       },

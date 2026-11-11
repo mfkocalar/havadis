@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import http from "node:http";
 import { USER_AGENT } from "../config/crawler.ts";
 import type { CacheableSsvcState, EpssState, KevState } from "../types.ts";
+import { makeLoopbackFetch } from "../../../test/fixtures/loopbackFetch.ts";
 import {
   CISA_ADP_ORG_ID,
   SSVC_CONCURRENCY,
@@ -655,7 +656,7 @@ after(async () => {
   await server.close();
 });
 
-const FAST = { timeoutMs: 1_000, maxBytes: 64 * 1024 };
+const FAST = { timeoutMs: 1_000, maxBytes: 64 * 1024, fetcher: makeLoopbackFetch() };
 const at = (mode: string) => ({ url: `${server.baseUrl}/ssvc-${mode}`, ...FAST });
 const ssvcRequests = () => server.requests.filter((r) => r.startsWith("/ssvc-"));
 
@@ -837,7 +838,7 @@ test("a hanging source with a per-lookup timeout leaves every looked-up ID unava
       {
         epss: noEpssNetwork,
         ssvc: {
-          lookup: (id) => produceSsvc(id, { url: `${own.baseUrl}/ssvc-hang`, timeoutMs: 300, maxBytes: 64 * 1024 }),
+          lookup: (id) => produceSsvc(id, { url: `${own.baseUrl}/ssvc-hang`, timeoutMs: 300, maxBytes: 64 * 1024, fetcher: FAST.fetcher }),
           concurrency: 5,
         },
       }
@@ -854,7 +855,7 @@ test("fetchSsvc stops at totalBudgetMs even when every lookup would run for 5 s"
     const ids = idsFrom(47400, 40);
     const t0 = performance.now();
     const out = await fetchSsvc(ids, {
-      lookup: (id) => produceSsvc(id, { url: `${own.baseUrl}/ssvc-hang`, timeoutMs: 5_000, maxBytes: 64 * 1024 }),
+      lookup: (id) => produceSsvc(id, { url: `${own.baseUrl}/ssvc-hang`, timeoutMs: 5_000, maxBytes: 64 * 1024, fetcher: FAST.fetcher }),
       totalBudgetMs: 500,
     });
     const elapsed = performance.now() - t0;
@@ -917,8 +918,8 @@ test("a failed lookup stores no cache entry, so the next regeneration retries it
 test("/ssvc-drip and /ssvc-oversize give unavailable for every ID", async () => {
   const ids = idsFrom(47700, 3);
   for (const [mode, opts] of [
-    ["drip", { timeoutMs: 300, maxBytes: 64 * 1024 }],
-    ["oversize", { timeoutMs: 2_000, maxBytes: 64 * 1024 }],
+    ["drip", { timeoutMs: 300, maxBytes: 64 * 1024, fetcher: FAST.fetcher }],
+    ["oversize", { timeoutMs: 2_000, maxBytes: 64 * 1024, fetcher: FAST.fetcher }],
   ] as const) {
     const out = await fetchSsvc(ids, { lookup: (id) => produceSsvc(id, { url: `${server.baseUrl}/ssvc-${mode}`, ...opts }) });
     for (const id of ids) assert.deepStrictEqual(out[id], { state: "unavailable" }, `${mode} ${id}`);
