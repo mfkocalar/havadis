@@ -32,6 +32,9 @@ import type { IncomingSighting } from "./derive.ts";
  * BEGIN IMMEDIATE transaction that writes the cycle (T-14-03).
  */
 
+/** The points at which a cycle reports progress so the runner can renew its lease (Plan 13). */
+export type CycleStage = "started" | "fetched" | "written";
+
 export type CycleDeps = {
   /** The worker's source list; only those with an enabled sources row are fetched. */
   sources: readonly SourceConfig[];
@@ -43,6 +46,12 @@ export type CycleDeps = {
   clock?: () => number;
   /** Jitter source for the per-host back-off; defaults to Math.random. */
   random?: () => number;
+  /**
+   * Awaited after beginRun (`started`), after the fan-out and before the write transaction (`fetched`,
+   * in the good and the failed branch alike) and after that transaction (`written`). An exception
+   * marks the run failed and rethrows, so a lost lease aborts the cycle before it writes anything.
+   */
+  onStage?: (stage: CycleStage, runId: number) => Promise<void>;
 };
 
 export type CycleReport = {
@@ -98,6 +107,7 @@ export async function runIngestCycle(db: Kysely<Database>, deps: CycleDeps, now:
   const clock = deps.clock ?? (() => now);
   const runId = await beginRun(db, nowIso, deps.trigger ?? "scheduled");
   try {
+    await deps.onStage?.("started", runId);
     const stateRows = await db.selectFrom("sources").where("enabled", "=", 1).select(["id", "etag", "last_modified"]).execute();
     const enabled = new Map(stateRows.map((r) => [r.id, { etag: r.etag, lastModified: r.last_modified }]));
     const sources = deps.sources.filter((s) => enabled.has(s.id));
@@ -193,10 +203,14 @@ export async function runIngestCycle(db: Kysely<Database>, deps: CycleDeps, now:
       ...extra,
     });
 
+    // Every fetch is done and nothing is written yet: the last point at which a lost lease can stop the cycle.
+    await deps.onStage?.("fetched", runId);
+
     if (status === "failed") {
       await db.transaction().execute((trx) =>
         recordFailedCycle(trx, { runId, nowIso, finishedAtIso: new Date(clock()).toISOString(), perSource, hostUpdates }),
       );
+      await deps.onStage?.("written", runId);
       return report();
     }
 
@@ -243,6 +257,7 @@ export async function runIngestCycle(db: Kysely<Database>, deps: CycleDeps, now:
       return { ...applied, articlesSeen: unique.size };
     });
 
+    await deps.onStage?.("written", runId);
     return report(counts);
   } catch (err) {
     await finishRun(db, runId, new Date(clock()).toISOString(), "failed");

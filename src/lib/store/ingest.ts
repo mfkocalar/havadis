@@ -353,12 +353,15 @@ export async function recordFailedCycle(
     .execute();
 }
 
-/** Closes a run row on the exception path. */
+/**
+ * Closes a run row on the exception path, only while it is still 'running': a run a stopping worker
+ * already abandoned, or one that committed before a later stage threw, keeps its status.
+ */
 export async function finishRun(
   db: Kysely<Database>,
   runId: number,
   nowIso: string,
   status: Exclude<FetchRunStatus, "running">,
 ): Promise<void> {
-  await db.updateTable("fetch_runs").set({ status, finished_at: nowIso }).where("id", "=", runId).execute();
+  await db.updateTable("fetch_runs").set({ status, finished_at: nowIso }).where("id", "=", runId).where("status", "=", "running").execute();
 }
