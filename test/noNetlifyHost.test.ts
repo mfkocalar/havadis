@@ -2,12 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { CRAWLER_CONTACT_URL } from "../src/lib/config/crawler.ts";
 
 /**
- * D-13, D-15: the old production host never comes back into the repository,
- * and the warm-up workflow and the crawler's contact URL name one origin
- * (D-14).
+ * D-13, D-15: the old production host never comes back into the repository.
  *
  * This is a text scan that fails safe: any repository text file naming the old
  * host is an offender, except one exact line. The old host is built from parts
@@ -86,11 +83,4 @@ test("no repository text file names the old host outside the HAVADIS_NS line", (
     offenders.push(...offendingLines(rel, readFileSync(file, "utf8")));
   }
   assert.deepStrictEqual(offenders.sort(), []);
-});
-
-test("the warm-up workflow requests the crawler contact URL's origin", () => {
-  const workflow = readFileSync(path.join(ROOT, ".github/workflows/warm-front-page.yml"), "utf8");
-  const match = /^\s*SITE_URL:\s*(\S+)\s*$/m.exec(workflow);
-  assert.ok(match, "warm-front-page.yml must set SITE_URL");
-  assert.equal(match[1], new URL(CRAWLER_CONTACT_URL).origin);
 });

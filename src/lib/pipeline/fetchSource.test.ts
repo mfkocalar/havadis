@@ -119,7 +119,8 @@ test("a Retry-After date in the past is zero, never negative", async () => {
 });
 
 test("a missing or garbage Retry-After gives null", async () => {
-  for (const headers of [{}, { "retry-after": "soon" }, { "retry-after": "-5" }, { "retry-after": "1.5" }]) {
+  const variants: Array<Record<string, string>> = [{}, { "retry-after": "soon" }, { "retry-after": "-5" }, { "retry-after": "1.5" }];
+  for (const headers of variants) {
     const { fetcher } = recording(() => new Response(null, { status: 429, headers }));
     const result = await fetchFeed(SOURCE, { fetcher });
     assert.equal(result.status === "error" ? result.retryAfterMs : "not an error", null, JSON.stringify(headers));
@@ -146,7 +147,9 @@ function codeOf(result: Awaited<ReturnType<typeof fetchFeed>>): string {
 
 test("an HTML content-type is content_type", async () => {
   const { fetcher } = recording(() => new Response("<html>challenge</html>", { status: 200, headers: { "content-type": "text/html" } }));
-  assert.equal(codeOf(await fetchFeed(SOURCE, { fetcher })), "content_type");
+  // SOURCES[0] may opt in to html content types; a plain fixture source never does.
+  const plain = makeSource({ url: "https://fixture.test/plain.xml" });
+  assert.equal(codeOf(await fetchFeed(plain, { fetcher })), "content_type");
 });
 
 test("malformed XML is parse_error", async () => {
