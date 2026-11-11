@@ -31,6 +31,19 @@ export type MigrateOptions = {
 
 export type MigrateResult = { applied: number[]; backupPath: string | null };
 
+export type MigrationRefusal = "checksum_mismatch" | "schema_ahead" | "backup_failed";
+
+/** The runner refuses, before writing anything, rather than touch a database it cannot trust. */
+export class MigrationRefused extends Error {
+  readonly code: MigrationRefusal;
+
+  constructor(code: MigrationRefusal, message: string) {
+    super(message);
+    this.name = "MigrationRefused";
+    this.code = code;
+  }
+}
+
 const MIGRATION_FILE = /^(\d{4})_([a-z0-9_]+)\.sql$/;
 
 const TIMESTAMP_GLOB =
@@ -64,10 +77,65 @@ export async function runMigrations(handle: DbHandle, opts: MigrateOptions): Pro
   const { raw, db } = handle;
 
   const tableCount = (raw.prepare("SELECT count(*) AS n FROM sqlite_master").get() as { n: number }).n;
-  // auto_vacuum only takes effect before the first table exists, and never inside a transaction.
-  if (tableCount === 0) raw.pragma("auto_vacuum = INCREMENTAL");
+  const hasLedger = raw.prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get() !== undefined;
+  const recorded = hasLedger
+    ? (raw.prepare("SELECT version, name, checksum FROM schema_migrations ORDER BY version").all() as { version: number; name: string; checksum: string }[])
+    : [];
 
-  const hasLedger = raw.prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
+  const migrations = [...opts.migrations].sort((a, b) => a.version - b.version);
+  const latest = migrations.length > 0 ? migrations[migrations.length - 1]!.version : 0;
+  const fromVersion = recorded.length > 0 ? recorded[recorded.length - 1]!.version : 0;
+
+  // 1. Refuse a database this image cannot vouch for, before any write.
+  if (fromVersion > latest) {
+    throw new MigrationRefused(
+      "schema_ahead",
+      `database schema v${fromVersion} is newer than this image (v${latest}); use an image at least as new as the database`,
+    );
+  }
+  const byVersion = new Map(migrations.map((m) => [m.version, m]));
+  for (const row of recorded) {
+    const file = byVersion.get(row.version);
+    if (!file) {
+      throw new MigrationRefused(
+        "checksum_mismatch",
+        `migration ${String(row.version).padStart(4, "0")}_${row.name}.sql was applied to this database but is missing from this image`,
+      );
+    }
+    if (file.checksum !== row.checksum) {
+      throw new MigrationRefused(
+        "checksum_mismatch",
+        `migration ${file.file} differs from the version applied to this database (checksum mismatch); migration files must never change once shipped`,
+      );
+    }
+  }
+
+  // 2. Nothing pending: no backup, no write.
+  const recordedVersions = new Set(recorded.map((r) => r.version));
+  const pending = migrations.filter((m) => !recordedVersions.has(m.version));
+  if (pending.length === 0) return { applied: [], backupPath: null };
+
+  // 3. Back up first, through the seam. An empty database (version 0) has nothing to back up.
+  const toVersion = pending[pending.length - 1]!.version;
+  let backupPath: string | null;
+  try {
+    backupPath = await opts.backup({ fromVersion, toVersion });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new MigrationRefused("backup_failed", `backup before migrating v${fromVersion} to v${toVersion} failed: ${reason}`);
+  }
+  if (backupPath === null && fromVersion > 0) {
+    throw new MigrationRefused("backup_failed", `backup before migrating v${fromVersion} to v${toVersion} returned no file`);
+  }
+
+  // 4. Apply.
+  if (tableCount === 0) {
+    // auto_vacuum only takes effect before the first table exists, and never inside a transaction.
+    // openDb has already switched the journal to WAL, which initialises the file header, so the
+    // setting needs a VACUUM (free on an empty database) to be recorded.
+    raw.pragma("auto_vacuum = INCREMENTAL");
+    raw.exec("VACUUM");
+  }
   if (!hasLedger) {
     raw.exec(
       `CREATE TABLE schema_migrations (
@@ -78,11 +146,6 @@ export async function runMigrations(handle: DbHandle, opts: MigrateOptions): Pro
        ) STRICT`,
     );
   }
-
-  const appliedVersions = new Set(
-    (raw.prepare("SELECT version FROM schema_migrations").all() as { version: number }[]).map((r) => r.version),
-  );
-  const pending = opts.migrations.filter((m) => !appliedVersions.has(m.version));
 
   const applied: number[] = [];
   for (const migration of pending) {
@@ -100,5 +163,5 @@ export async function runMigrations(handle: DbHandle, opts: MigrateOptions): Pro
     });
     applied.push(migration.version);
   }
-  return { applied, backupPath: null };
+  return { applied, backupPath };
 }
