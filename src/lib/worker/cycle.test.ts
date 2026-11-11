@@ -645,7 +645,7 @@ test("derive uses the same windows: a fresh A item joins B's story from B's per-
     assert.equal(partial.status, "partial");
     assert.equal(partial.storiesCreated, 0);
     assert.equal(h.rows("SELECT id FROM stories").length, storiesBefore);
-    assert.equal(h.rows("SELECT story_id FROM articles WHERE canonical_url = 'https://a.test/zd'")[0]!.story_id, bStory);
+    assert.equal(h.rows("SELECT story_id FROM articles WHERE canonical_url = 'a.test/zd'")[0]!.story_id, bStory);
   } finally {
     await h.close();
   }

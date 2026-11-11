@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import { SOURCES } from "../config/sources.ts";
 import type { Article, SectionedFrontPageResult } from "../types.ts";
+import { articleId } from "./articleId.ts";
 import { classify } from "./classify.ts";
 import { dedupe } from "./dedupe.ts";
 import { extractCves } from "./extractCves.ts";
@@ -9,16 +9,6 @@ import { fetchSource } from "./fetchSource.ts";
 import { groupBySection } from "./groupBySection.ts";
 import { withSourceWindow } from "./applySourceWindow.ts";
 import { scoreImportance } from "./importance.ts";
-
-/**
- * A short, stable key for a story's client-side read/flag state. Hashing keeps
- * the feed-supplied URL itself out of client component props (T-01-07) and
- * out of the reader's localStorage. Dedupe already guarantees one card per
- * URL, so the key is unique on the page.
- */
-function articleId(url: string): string {
-  return createHash("sha256").update(url).digest("base64url").slice(0, 12);
-}
 
 /**
  * Pure, synchronous seam composing the post-fetch pipeline stages:

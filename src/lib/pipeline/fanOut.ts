@@ -37,3 +37,48 @@ export async function fanOut(
   }
   return articles;
 }
+
+/**
+ * Fans `sources` out to `fetcher` with at most `opts.concurrency` calls in flight, and keeps every
+ * source's own result and wall time, in input order (the ingest cycle needs per-source outcomes,
+ * which `fanOut` deliberately flattens away).
+ *
+ * A rejection is mapped through `opts.onRejected` rather than propagated, so one failing source
+ * never collapses the batch (RESEARCH Pitfall 5, same isolation as `fanOut`). `fanOut` itself is
+ * unchanged. `durationMs` is a monotonic measurement, not a wall-clock read the pipeline depends on.
+ */
+export function fanOutWithOutcomes<R>(
+  sources: readonly SourceConfig[],
+  fetcher: (source: SourceConfig) => Promise<R>,
+  opts: { concurrency: number; onRejected: (source: SourceConfig) => R }
+): Promise<Array<{ source: SourceConfig; result: R; durationMs: number }>> {
+  return runWithOutcomes(sources, fetcher, opts);
+}
+
+async function runWithOutcomes<R>(
+  sources: readonly SourceConfig[],
+  fetcher: (source: SourceConfig) => Promise<R>,
+  opts: { concurrency: number; onRejected: (source: SourceConfig) => R }
+): Promise<Array<{ source: SourceConfig; result: R; durationMs: number }>> {
+  const out: Array<{ source: SourceConfig; result: R; durationMs: number }> = new Array(sources.length);
+  const limit = Math.max(1, Math.floor(opts.concurrency));
+  let next = 0;
+
+  async function worker(): Promise<void> {
+    while (next < sources.length) {
+      const index = next++;
+      const source = sources[index];
+      const started = performance.now();
+      let result: R;
+      try {
+        result = await fetcher(source);
+      } catch {
+        result = opts.onRejected(source);
+      }
+      out[index] = { source, result, durationMs: Math.max(0, Math.round(performance.now() - started)) };
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, sources.length) }, () => worker()));
+  return out;
+}
