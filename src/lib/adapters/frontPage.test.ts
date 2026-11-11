@@ -8,6 +8,7 @@ import type { DbHandle } from "../db/openDb.ts";
 import { loadMigrations, runMigrations } from "../db/migrator.ts";
 import { seedBuiltins } from "../db/seed.ts";
 import { dbFile } from "../db/paths.ts";
+import { inReadSnapshot } from "../db/readSnapshot.ts";
 import { applySourceWindow } from "../pipeline/applySourceWindow.ts";
 import { articleId } from "../pipeline/articleId.ts";
 import { composeFrontPage } from "../pipeline/getFrontPage.ts";
@@ -394,5 +395,29 @@ test("one snapshot (W2): a cycle that commits between the marker read and the st
     await web?.close();
     await h.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("inReadSnapshot: returns the callback's value, and a throw rolls back, rethrows the same error and leaves the handle usable", async () => {
+  const h = await harness([SRC_A]);
+  try {
+    const value = await inReadSnapshot(h.handle.db, async (snap) => {
+      assert.equal(h.handle.raw.inTransaction, true, "a read transaction is open inside the callback");
+      return (await snap.selectFrom("sources").select("id").execute()).length;
+    });
+    assert.equal(value, 1);
+    assert.equal(h.handle.raw.inTransaction, false, "committed on return");
+
+    const boom = new Error("boom");
+    await assert.rejects(
+      inReadSnapshot(h.handle.db, async () => {
+        throw boom;
+      }),
+      (err) => err === boom,
+    );
+    assert.equal(h.handle.raw.inTransaction, false, "rolled back on a throw");
+    assert.equal((await h.handle.db.selectFrom("sources").select("id").execute()).length, 1, "the handle still works");
+  } finally {
+    await h.close();
   }
 });

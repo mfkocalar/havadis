@@ -1,4 +1,5 @@
 import type { Kysely, Selectable } from "kysely";
+import { inReadSnapshot } from "../db/readSnapshot.ts";
 import type { Database, CveSignalsTable } from "../db/schema.ts";
 import { kevHealth, uniqueCves } from "../enrichment/display.ts";
 import { pickLead } from "../pipeline/dedupe.ts";
@@ -271,19 +272,26 @@ async function composeEdition(
  * The front page as stored: `waiting` until a cycle has succeeded (never an empty `ready` that would
  * read as a quiet news day), then the last-good edition with its enrichment. `now` only feeds KEV
  * staleness; the adapter never samples the clock itself.
+ *
+ * Every read runs inside one `inReadSnapshot` call (one WAL read snapshot, W2): the marker, the
+ * per-source anchors, the sightings, the story fields and the enrichment rows are the same edition
+ * even when a cycle commits while this runs. The page and the feeds both go through here, so both
+ * get one consistent edition.
  */
 export async function readFrontPage(
   db: Kysely<Database>,
   now: number,
   deps: ReadFrontPageDeps = {},
 ): Promise<FrontPageRead> {
-  const lastGood = await readLastGood(db);
-  if (lastGood === null) return { kind: "waiting" };
-  await deps.betweenReads?.();
+  return inReadSnapshot(db, async (snap) => {
+    const lastGood = await readLastGood(snap);
+    if (lastGood === null) return { kind: "waiting" } as const;
+    await deps.betweenReads?.();
 
-  const anchors = await readSourceAnchors(db);
-  const stored = await selectInWindowArticles(db, anchors);
-  const result = await composeEdition(db, stored, lastGood.editionAt);
-  const enrichment = await readEnrichment(db, uniqueCves(result.articles), now);
-  return { kind: "ready", result, enrichment };
+    const anchors = await readSourceAnchors(snap);
+    const stored = await selectInWindowArticles(snap, anchors);
+    const result = await composeEdition(snap, stored, lastGood.editionAt);
+    const enrichment = await readEnrichment(snap, uniqueCves(result.articles), now);
+    return { kind: "ready", result, enrichment } as const;
+  });
 }
