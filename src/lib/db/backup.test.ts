@@ -144,3 +144,13 @@ test("assertBackupDirWritable accepts a writable directory and leaves no probe f
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("an existing backup of the same name is never overwritten", async () => {
+  await withFixture(async ({ backups, handle }) => {
+    const first = await backupDatabase(handle, backups, NOW, "manual");
+    const before = statSync(first).mtimeMs;
+    await assert.rejects(backupDatabase(handle, backups, NOW, "manual"), /already exists/);
+    assert.equal(statSync(first).mtimeMs, before);
+    assert.deepEqual(readdirSync(backups), [path.basename(first)]);
+  });
+});
