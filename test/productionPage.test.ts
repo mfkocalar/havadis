@@ -15,6 +15,7 @@ import {
   type SourceStamp,
 } from "./fixtures/staticRouteGate.ts";
 import { PAGE_FIXTURE_TITLES, seedPageFixtureDb } from "./fixtures/pageFixture.ts";
+import { generateKey } from "../src/lib/secrets/key.ts";
 
 /**
  * Drives a real `next start` production server and asserts the public
@@ -31,6 +32,9 @@ import { PAGE_FIXTURE_TITLES, seedPageFixtureDb } from "./fixtures/pageFixture.t
 
 const PORT = 3100;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+/** The second server of the startup-refusal test; nothing may ever answer here. */
+const REFUSED_PORT = 3102;
+const REFUSAL_TIMEOUT_MS = 20_000;
 const READY_TIMEOUT_MS = 30_000;
 const READY_POLL_INTERVAL_MS = 500;
 
@@ -38,6 +42,7 @@ let server: ChildProcess | null = null;
 let stderrLog = "";
 let dataDir = "";
 let partialAt = 0;
+let operatorKey = "";
 
 /**
  * Detects "at least one article anchor rendered" tolerant of attribute
@@ -92,6 +97,16 @@ function sectionChunks(body: string): SectionChunk[] {
   }));
 }
 
+const NEXT_BIN = path.join(process.cwd(), "node_modules", ".bin", "next");
+
+/** The parent environment with the key variables cleared, then `overrides` applied: a developer's own key never leaks in. */
+function serverEnv(overrides: Record<string, string>): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env.HAVADIS_SECRET_KEY;
+  delete env.HAVADIS_SECRET_KEY_FILE;
+  return { ...env, ...overrides };
+}
+
 async function pollUntilReady(): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -118,10 +133,12 @@ before(async () => {
     throw err;
   }
 
-  const nextBin = path.join(process.cwd(), "node_modules", ".bin", "next");
-  server = spawn(nextBin, ["start", "-p", String(PORT)], {
+  operatorKey = generateKey();
+  server = spawn(NEXT_BIN, ["start", "-p", String(PORT)], {
     stdio: ["ignore", "ignore", "pipe"],
-    env: { ...process.env, HAVADIS_DATA_DIR: dataDir },
+    // SITE_URL makes the absolute URLs in metadata name this test server, the same origin a deployed
+    // instance would configure, so the third-party origin gate below judges the real markup.
+    env: serverEnv({ HAVADIS_DATA_DIR: dataDir, HAVADIS_SECRET_KEY: operatorKey, SITE_URL: BASE_URL }),
   });
   server.stderr?.on("data", (chunk: Buffer) => {
     stderrLog += chunk.toString();
@@ -300,16 +317,23 @@ test("every article card shows exactly one source-type label after the tier pill
   t.diagnostic(`checked ${cards.length} cards`);
 });
 
-test("two consecutive requests return byte-identical HTML", async () => {
-  // Necessary, not sufficient: two independently-uncached renders taken
-  // within the same second could also happen to match. The sufficient
-  // proof of the 900s stale-while-revalidate window is the human-observed
-  // x-vercel-cache backstop truth on a deployed preview (this plan's own
-  // must_haves), not this assertion — this only catches a gross regression
-  // cheaply and automatically.
+/** The document with the response's own nonce replaced by a constant, in script attributes and in the flight payload alike. */
+function withoutNonce(html: string, nonce: string): string {
+  assert.ok(html.includes(nonce), "the response's own nonce must appear in its body");
+  return html.split(nonce).join("NONCE");
+}
+
+test("two consecutive requests return the same HTML except for their nonces, and the nonces differ", async () => {
+  // Each response carries its own CSP nonce (PLAT-14), so byte equality is gone by design. What stays
+  // true is that nothing else varies between two reads of the same snapshot.
   const [res1, res2] = await Promise.all([fetch(BASE_URL), fetch(BASE_URL)]);
   const [body1, body2] = await Promise.all([res1.text(), res2.text()]);
-  assert.equal(body1, body2);
+  const nonce1 = nonceOfPolicy(res1.headers.get("content-security-policy"));
+  const nonce2 = nonceOfPolicy(res2.headers.get("content-security-policy"));
+  assert.ok(nonce1 && nonce2, "both responses carry a nonce");
+  assert.notEqual(nonce1, nonce2, "two requests must never share a nonce");
+  assert.equal(withoutNonce(body1, nonce1), withoutNonce(body2, nonce2));
+  assert.ok(!body1.includes(nonce2) && !body2.includes(nonce1), "a response never carries another response's nonce");
 });
 
 // Count invariants (RESEARCH Pitfall 9/12): one count per section, reused on
@@ -573,15 +597,11 @@ test("GET /about returns 200 with no cookie, names HavadisBot, shows the exact U
   }
 });
 
-test("/about is prerendered as a static route", () => {
+test("/about and /feeds render dynamically so every response can carry its own nonce", () => {
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-    routes: Record<string, { initialRevalidateSeconds?: number | false; compute?: string }>;
-  };
-  const route = manifest.routes["/about"];
-  assert.ok(route, 'expected "/about" in the prerender manifest');
-  assert.equal(route.initialRevalidateSeconds, false);
-  assert.equal(route.compute, "static");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
+  assert.equal(manifest.routes["/about"], undefined, '"/about" must stay out of the prerender manifest');
+  assert.equal(manifest.routes["/feeds"], undefined, '"/feeds" must stay out of the prerender manifest');
 });
 
 // ENR-03 / ENR-04 / ENR-05, Phase 7. These four tests read whatever the live
@@ -763,4 +783,210 @@ test("at most one enrichment notice, inside the filter bar before main, from the
   assert.equal(attrValue(spans[0], "title"), text, "the full text is also the title");
   assert.doesNotMatch(text, FALSE_ASSURANCE);
   t.diagnostic(`notice: ${text}`);
+});
+
+// PLAT-14, T-14-29, T-14-30, T-14-52: the browser contacts only the instance.
+
+/** The nonce named in a Content-Security-Policy header value, or null. */
+function nonceOfPolicy(csp: string | null): string | null {
+  const m = csp?.match(/'nonce-([^']+)'/);
+  return m ? m[1] : null;
+}
+
+/** The script opening tags of a document: bodies are payload, not markup, so only the tags are read. */
+function scriptTags(html: string): string[] {
+  return openingTags(html, "script");
+}
+
+test("GET / carries a nonce CSP whose nonce is on every script tag, and Referrer-Policy no-referrer", async () => {
+  const res = await fetch(BASE_URL);
+  const body = await res.text();
+  const csp = res.headers.get("content-security-policy");
+  assert.ok(csp, "expected a Content-Security-Policy header");
+  for (const directive of ["default-src 'self'", "connect-src 'self'", "object-src 'none'", "frame-ancestors 'none'"]) {
+    assert.ok(csp.includes(directive), `expected ${directive} in the policy`);
+  }
+  assert.ok(!csp.includes("upgrade-insecure-requests"));
+  assert.ok(!csp.includes("unsafe-eval"), "a production build never needs unsafe-eval");
+  const nonce = nonceOfPolicy(csp);
+  assert.ok(nonce, "expected a nonce in the policy");
+  const tags = scriptTags(body);
+  assert.ok(tags.length > 0, "expected script tags in the page");
+  for (const tag of tags) {
+    assert.equal(attrValue(tag, "nonce"), nonce, `every script tag must carry this response's nonce: ${tag}`);
+  }
+  assert.equal(res.headers.get("referrer-policy"), "no-referrer");
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+});
+
+test("the CSP, nonce and Referrer-Policy are on /about and /feeds too", async () => {
+  for (const route of ["/about", "/feeds"]) {
+    const res = await fetch(`${BASE_URL}${route}`);
+    const body = await res.text();
+    const nonce = nonceOfPolicy(res.headers.get("content-security-policy"));
+    assert.ok(nonce, `${route}: expected a nonce in the policy`);
+    assert.equal(res.headers.get("referrer-policy"), "no-referrer", route);
+    for (const tag of scriptTags(body)) assert.equal(attrValue(tag, "nonce"), nonce, `${route}: ${tag}`);
+  }
+});
+
+test("under concurrent requests each response gets its own nonce and no nonce is shared", async () => {
+  const responses = await Promise.all(
+    Array.from({ length: 12 }, async (_, i) => {
+      const res = await fetch(i % 2 === 0 ? BASE_URL : `${BASE_URL}/about`);
+      return { nonce: nonceOfPolicy(res.headers.get("content-security-policy")), body: await res.text() };
+    }),
+  );
+  assert.equal(new Set(responses.map((r) => r.nonce)).size, responses.length, "no nonce may be shared");
+  for (const { nonce, body } of responses) {
+    assert.ok(nonce);
+    for (const tag of scriptTags(body)) assert.equal(attrValue(tag, "nonce"), nonce);
+  }
+});
+
+test("the served pages contain no style attribute", async () => {
+  for (const route of ["/", "/about", "/feeds"]) {
+    const body = await (await fetch(`${BASE_URL}${route}`)).text();
+    // Script bodies are the flight payload, where feed text could quote anything; markup is what a style-src policy governs.
+    const markup = body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+    assert.doesNotMatch(markup, /\sstyle\s*=/i, `${route}: a style attribute is blocked by style-src without unsafe-inline`);
+  }
+});
+
+const ORIGIN_GATED_TAGS = ["script", "link", "img", "iframe", "source", "form"];
+const ORIGIN_GATED_ATTRIBUTES = ["src", "href", "srcset", "action"];
+
+/**
+ * A reference stays on the instance when it is a rooted path (not "//host" and not "/\\host", which browsers
+ * read as a host) or an absolute URL whose origin, port included, is exactly `origin`.
+ */
+function isInstanceReference(value: string, origin: string): boolean {
+  if (value.startsWith("/")) return !value.startsWith("//") && !value.startsWith("/\\");
+  try {
+    return new URL(value).origin === origin;
+  } catch {
+    return false;
+  }
+}
+
+/** Every src, href, srcset and action of the gated tags that leaves the instance, as "<tag> attr=value". */
+function thirdPartyReferences(html: string, origin: string): string[] {
+  const markup = html.replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g, "<script$1></script>");
+  const found: string[] = [];
+  for (const tagName of ORIGIN_GATED_TAGS) {
+    for (const tag of openingTags(markup, tagName)) {
+      for (const attribute of ORIGIN_GATED_ATTRIBUTES) {
+        const value = attrValue(tag, attribute);
+        if (value === null) continue;
+        const references =
+          attribute === "srcset"
+            ? value.split(",").map((candidate) => candidate.trim().split(/\s+/)[0] ?? "")
+            : [value];
+        for (const reference of references) {
+          if (!isInstanceReference(reference, origin)) found.push(`<${tagName}> ${attribute}=${reference}`);
+        }
+      }
+    }
+  }
+  return found;
+}
+
+test("the third-party origin matcher accepts the instance and rejects every other origin, other ports included", () => {
+  const origin = "http://127.0.0.1:3100";
+  const good = [
+    '<script src="/_next/static/chunks/a.js" nonce="x" async=""></script>',
+    '<link rel="stylesheet" href="/_next/static/chunks/a.css"/>',
+    `<link rel="alternate" href="${origin}/feed.xml"/>`,
+    '<img src="/a.png" srcset="/a.png 1x, /b.png 2x"/>',
+    '<form action="/search"></form>',
+    '<a href="https://publisher.example/story">navigation, not checked</a>',
+  ];
+  for (const html of good) assert.deepEqual(thirdPartyReferences(html, origin), [], html);
+  const bad = [
+    '<script src="http://127.0.0.1:3101/x.js"></script>',
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow"/>',
+    '<img src="//cdn.example/x.png"/>',
+    '<img src="/a.png" srcset="/a.png 1x, https://cdn.example/b.png 2x"/>',
+    '<iframe src="https://evil.example/"></iframe>',
+    '<source src="http://localhost:3100/x"/>',
+    '<form action="https://evil.example/post"></form>',
+    `<link href="${origin}@evil.example/x"/>`,
+    '<script src="relative/path.js"></script>',
+    '<img src="/\\evil.example/x.png"/>',
+  ];
+  for (const html of bad) assert.equal(thirdPartyReferences(html, origin).length, 1, html);
+});
+
+test("/, /about and /feeds reference no origin other than the instance itself", async (t) => {
+  for (const route of ["/", "/about", "/feeds"]) {
+    const body = await (await fetch(`${BASE_URL}${route}`)).text();
+    assert.deepEqual(thirdPartyReferences(body, BASE_URL), [], `${route}: a reader's browser would contact a third party`);
+    t.diagnostic(`${route}: ${body.length} bytes checked`);
+  }
+});
+
+test("next start without HAVADIS_SECRET_KEY exits non-zero with a fixed message and never answers", async () => {
+  let output = "";
+  const refused = spawn(NEXT_BIN, ["start", "-p", String(REFUSED_PORT)], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: serverEnv({ HAVADIS_DATA_DIR: dataDir }),
+  });
+  refused.stdout?.on("data", (chunk: Buffer) => void (output += chunk.toString()));
+  refused.stderr?.on("data", (chunk: Buffer) => void (output += chunk.toString()));
+  try {
+    const code = await new Promise<number | null>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`the server kept running without a key for ${REFUSAL_TIMEOUT_MS}ms:\n${output}`)),
+        REFUSAL_TIMEOUT_MS,
+      );
+      refused.once("exit", (exitCode) => {
+        clearTimeout(timer);
+        resolve(exitCode);
+      });
+    });
+    assert.ok(code !== null && code !== 0, `expected a non-zero exit, got ${code}`);
+    assert.ok(output.includes("HAVADIS_SECRET_KEY"), `expected the message to name HAVADIS_SECRET_KEY:\n${output}`);
+    assert.ok(output.includes("key_missing"), "expected the fixed reason code in the log line");
+    assert.ok(!output.includes(operatorKey), "the operator key must never reach the output");
+    await assert.rejects(
+      fetch(`http://127.0.0.1:${REFUSED_PORT}`, { signal: AbortSignal.timeout(2_000) }),
+      "nothing may answer on the refused server's port",
+    );
+  } finally {
+    refused.kill();
+  }
+});
+
+/** Every `url(...)` target and `@import` string in a stylesheet. */
+function cssReferences(css: string): string[] {
+  const urls = [...css.matchAll(/url\(\s*(["']?)(.*?)\1\s*\)/g)].map((m) => m[2]);
+  const imports = [...css.matchAll(/@import\s+(["'])(.*?)\1/g)].map((m) => m[2]);
+  return [...urls, ...imports];
+}
+
+/** A stylesheet reference that reaches a host: any scheme but data:, or a protocol-relative "//host". */
+function reachesAHost(reference: string): boolean {
+  const ref = reference.trim();
+  return ref.startsWith("//") || (/^[a-z][a-z0-9+.-]*:/i.test(ref) && !/^data:/i.test(ref));
+}
+
+test("the built stylesheets reference no host: no url() or @import with a scheme or a // host", () => {
+  assert.equal(reachesAHost("https://fonts.gstatic.com/s/barlow.woff2"), true);
+  assert.equal(reachesAHost("//fonts.gstatic.com/s/barlow.woff2"), true);
+  assert.equal(reachesAHost("../media/Barlow_400-s.p.woff2"), false);
+  assert.equal(reachesAHost("data:image/svg+xml;base64,AAAA"), false);
+  assert.deepEqual(cssReferences('a{background:url( "x.png" )}@import "y.css";b{src:url(../m/z.woff2)}'), ["x.png", "../m/z.woff2", "y.css"]);
+
+  // Next 16 with Turbopack writes its CSS under .next/static/chunks, and next/font/local emits relative url(../media/*.woff2).
+  const files = readdirSync(path.join(process.cwd(), ".next", "static"), { recursive: true })
+    .map((entry) => path.join(process.cwd(), ".next", "static", String(entry)))
+    .filter((file) => file.endsWith(".css"));
+  assert.ok(files.length > 0, "expected built stylesheets under .next/static");
+  const offenders: string[] = [];
+  for (const file of files) {
+    for (const reference of cssReferences(readFileSync(file, "utf8"))) {
+      if (reachesAHost(reference)) offenders.push(`${path.basename(file)}: ${reference}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
 });
