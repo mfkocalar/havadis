@@ -1,11 +1,11 @@
-import { test, mock } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SOURCES } from "../config/sources.ts";
 import { fetchSource } from "./fetchSource.ts";
 
 /**
  * Hermetic tests for the per-source body-size cap. No network: the response
- * is served by a mocked global fetch.
+ * is served by a fetcher injected through fetchSource's deps parameter.
  */
 
 // A valid one-item feed padded past the shared 2MB cap with an XML comment.
@@ -16,14 +16,9 @@ const BIG_RSS =
   `<!-- ${"x".repeat(3 * 1024 * 1024)} --></channel></rss>`;
 
 async function fetchBig(maxBodyBytes?: number) {
-  const fetchMock = mock.method(globalThis, "fetch", async () =>
-    new Response(BIG_RSS, { status: 200, headers: { "content-type": "application/rss+xml" } })
-  );
-  try {
-    return await fetchSource({ ...SOURCES[0], url: "https://fixture.test/big.xml", maxBodyBytes });
-  } finally {
-    fetchMock.mock.restore();
-  }
+  const fetcher = async () =>
+    new Response(BIG_RSS, { status: 200, headers: { "content-type": "application/rss+xml" } });
+  return fetchSource({ ...SOURCES[0], url: "https://fixture.test/big.xml", maxBodyBytes }, { fetcher });
 }
 
 test("a body over the shared 2MB cap is rejected by default", async () => {

@@ -4,6 +4,7 @@ import { fetchWithValidatedRedirect } from "./fetchWithValidatedRedirect.ts";
 import { readBodyWithCap } from "./boundedFetch.ts";
 import { normalize } from "./normalize.ts";
 import { USER_AGENT } from "../config/crawler.ts";
+import type { SafeFetch } from "../egress/safeFetch.ts";
 
 // The User-Agent sent on every source fetch (the crawler's public identity and
 // contact URL) lives in config/crawler.ts so the host and contact channel are
@@ -37,7 +38,11 @@ const parser = new Parser();
  * be a feed, oversized body, parse failure) returns the error variant so the
  * caller can always render the page's full layout (CONTEXT.md D-03).
  */
-export async function fetchSource(source: SourceConfig): Promise<FrontPageResult> {
+export async function fetchSource(
+  source: SourceConfig,
+  deps: { fetcher?: SafeFetch } = {}
+): Promise<FrontPageResult> {
+  const fetcher: SafeFetch = deps.fetcher ?? fetchWithValidatedRedirect;
   // One controller for the whole source fetch — connect, headers, every
   // redirect hop, and the full body read all share this single signal, so
   // there is no window between fetch() resolving and the body being
@@ -48,7 +53,7 @@ export async function fetchSource(source: SourceConfig): Promise<FrontPageResult
   );
   const timer = setTimeout(() => controller.abort(timeoutError), SOURCE_TIMEOUT_MS);
   try {
-    const res = await fetchWithValidatedRedirect(source.url, {
+    const res = await fetcher(source.url, {
       next: { revalidate: 900 },
       headers: {
         "User-Agent": USER_AGENT,

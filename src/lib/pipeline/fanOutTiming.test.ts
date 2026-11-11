@@ -1,6 +1,8 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fanOut } from "./fanOut.ts";
+import { fetchSource } from "./fetchSource.ts";
+import { makeLoopbackFetch } from "../../../test/fixtures/loopbackFetch.ts";
 import { startHostileServer } from "../../../test/fixtures/hostileRedirectServer.ts";
 import { makeSource } from "../../../test/fixtures/makeArticle.ts";
 import type { Article, SourceConfig } from "../types.ts";
@@ -21,6 +23,10 @@ import type { Article, SourceConfig } from "../types.ts";
  * same-origin requests and turning a correct parallel fan-out into a false
  * timing failure.
  */
+
+// Feed requests to the 127.0.0.1 fixture go through a loopback-allowing fetcher, injected per call;
+// the default fetcher is never used here (Pitfall 16).
+const fetchLoopback = (source: SourceConfig) => fetchSource(source, { fetcher: makeLoopbackFetch() });
 
 const serverA = await startHostileServer();
 const serverB = await startHostileServer();
@@ -43,7 +49,7 @@ test("concurrency: three 900ms-delayed sources on three distinct origins resolve
   ];
 
   const start = Date.now();
-  const articles = await fanOut(sources);
+  const articles = await fanOut(sources, fetchLoopback);
   const elapsed = Date.now() - start;
   // Deliberately surfaced for the SUMMARY's measured-timing record.
   console.log(`[fanOutTiming] concurrency elapsed: ${elapsed}ms`);
@@ -87,7 +93,7 @@ function runStallIsolation() {
         fixtureSource("stalled", serverC.baseUrl, "/hang"),
       ];
       const start = Date.now();
-      const articles = await fanOut(sources);
+      const articles = await fanOut(sources, fetchLoopback);
       const elapsed = Date.now() - start;
       return { articles, elapsed };
     })();

@@ -2,7 +2,9 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fanOut } from "./fanOut.ts";
+import { fetchSource } from "./fetchSource.ts";
 import { startHostileServer } from "../../../test/fixtures/hostileRedirectServer.ts";
+import { makeLoopbackFetch } from "../../../test/fixtures/loopbackFetch.ts";
 import { makeArticle, makeSource } from "../../../test/fixtures/makeArticle.ts";
 import type { FrontPageResult, SourceConfig } from "../types.ts";
 
@@ -18,6 +20,10 @@ import type { FrontPageResult, SourceConfig } from "../types.ts";
  * the full 8s budget and belongs in fanOutTiming.test.ts) and fully
  * hermetic: no reference to any of the 13 real feed hostnames.
  */
+
+// Feed requests to the 127.0.0.1 fixture go through a loopback-allowing fetcher, injected per call;
+// the default fetcher is never used here (Pitfall 16).
+const fetchLoopback = (source: SourceConfig) => fetchSource(source, { fetcher: makeLoopbackFetch() });
 
 const server = await startHostileServer();
 after(() => server.close());
@@ -41,7 +47,7 @@ test("mixed health: two healthy sources among four broken ones yield exactly the
     fixtureSource("dead-endpoint", "http://127.0.0.1:1/feed"),
   ];
 
-  const articles = await fanOut(sources);
+  const articles = await fanOut(sources, fetchLoopback);
 
   assert.deepEqual(
     articles.map((a) => a.title).sort(),
@@ -60,7 +66,7 @@ test("D-07: one healthy source among five broken ones yields exactly one article
     fixtureSource("dead-endpoint-2", "http://127.0.0.1:1/feed"),
   ];
 
-  const articles = await fanOut(sources);
+  const articles = await fanOut(sources, fetchLoopback);
 
   assert.deepEqual(
     articles.map((a) => a.title),
@@ -77,7 +83,7 @@ test("D-06: every source broken yields an empty array, and fanOut still resolves
     fixtureSource("dead-endpoint", "http://127.0.0.1:1/feed"),
   ];
 
-  const articles = await fanOut(sources);
+  const articles = await fanOut(sources, fetchLoopback);
 
   assert.deepEqual(articles, [], "zero of zero healthy sources must yield an empty array, not a rejection");
 });
@@ -168,7 +174,7 @@ test("injected error variant: a returned {status:'error'} value is swallowed ide
 test("D-05: returned Article objects carry no failure, status, count, or diagnostic field", async () => {
   const sources: SourceConfig[] = [fixtureSource("healthy-only", "/delayed-feed?tag=Shape")];
 
-  const articles = await fanOut(sources);
+  const articles = await fanOut(sources, fetchLoopback);
 
   assert.equal(articles.length, 1, "expected exactly one article from the single healthy fixture source");
   assert.deepEqual(
