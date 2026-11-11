@@ -9,7 +9,6 @@ import { SOURCE_TYPE_LABEL } from "../src/lib/config/sourceTypes.ts";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
 import { FEED_VARIANTS, feedPath } from "../src/lib/feeds/buildFeed.ts";
 import {
-  assertStaticRoute,
   findStaleSources,
   type PrerenderManifest,
   type SourceStamp,
@@ -136,9 +135,9 @@ before(async () => {
   operatorKey = generateKey();
   server = spawn(NEXT_BIN, ["start", "-p", String(PORT)], {
     stdio: ["ignore", "ignore", "pipe"],
-    // SITE_URL makes the absolute URLs in metadata name this test server, the same origin a deployed
-    // instance would configure, so the third-party origin gate below judges the real markup.
-    env: serverEnv({ HAVADIS_DATA_DIR: dataDir, HAVADIS_SECRET_KEY: operatorKey, SITE_URL: BASE_URL }),
+    // HAVADIS_BASE_URL makes the absolute URLs in metadata name this test server, the same origin a
+    // deployed instance would configure, so the third-party origin gate below judges the real markup.
+    env: serverEnv({ HAVADIS_DATA_DIR: dataDir, HAVADIS_SECRET_KEY: operatorKey, HAVADIS_BASE_URL: BASE_URL }),
   });
   server.stderr?.on("data", (chunk: Buffer) => {
     stderrLog += chunk.toString();
@@ -565,11 +564,10 @@ test("each source keeps its own last good window", async () => {
   );
 });
 
-// Feeds read the shared snapshot (08-CONTEXT D-25) and rely on ISR for the
-// rethrow policy: only an ISR route keeps its last good body when a
-// regeneration throws. A feed that turned dynamic would read the snapshot on
-// every poll and fail per request instead.
-test("every feed route is statically prerendered with the 900-second revalidation window", () => {
+// Feeds are served from the database through the same read adapter as the page (PLAT-09, Plan 14-12):
+// every feed route reads per request, so none may be prerendered (a prerendered feed would freeze its
+// first read at build time), and every feed holds each source's last good items like the page does.
+test("no feed route is prerendered: every feed reads the database per request", () => {
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
   const routes = FEED_VARIANTS.flatMap((variant) => [
@@ -578,7 +576,36 @@ test("every feed route is statically prerendered with the 900-second revalidatio
   ]);
   assert.ok(routes.includes("/feed.xml") && routes.includes("/feed.json"));
   assert.equal(new Set(routes).size, FEED_VARIANTS.length * 2);
-  for (const route of routes) assertStaticRoute(manifest, route, 900);
+  for (const route of routes) {
+    assert.equal(manifest.routes[route], undefined, `"${route}" must stay out of the prerender manifest`);
+  }
+});
+
+test("feeds list each source's last good items, carry no CORS header and 404 an unknown name", async () => {
+  const xml = await fetch(`${BASE_URL}/feed.xml`);
+  assert.equal(xml.status, 200);
+  assert.equal(xml.headers.get("access-control-allow-origin"), null, "the instance is private: no CORS header");
+  assert.equal(xml.headers.get("x-content-type-options"), "nosniff");
+  const xmlBody = await xml.text();
+  assert.ok(xmlBody.includes(PAGE_FIXTURE_TITLES.kept), "K failed in the partial cycle, so its four-day-old story stays in the feed");
+  assert.ok(xmlBody.includes(PAGE_FIXTURE_TITLES.fresh), "F succeeded in the partial cycle, so its fresh story is in the feed");
+  assert.ok(!xmlBody.includes(PAGE_FIXTURE_TITLES.agedOut), "F's window follows F's new fetch, so its older story is gone");
+  assert.ok(xmlBody.includes(`${BASE_URL}/feed.xml`), "absolute feed URLs come from HAVADIS_BASE_URL");
+
+  const json = await fetch(`${BASE_URL}/feed.json`);
+  assert.equal(json.status, 200);
+  assert.equal(json.headers.get("access-control-allow-origin"), null);
+  assert.ok((await json.text()).includes(PAGE_FIXTURE_TITLES.kept));
+
+  const scoped = await fetch(`${BASE_URL}/feed/${FEED_VARIANTS[1]!.slug}.json`);
+  assert.equal(scoped.status, 200, "a scoped feed is served from the database too");
+  await scoped.arrayBuffer();
+
+  for (const bad of ["/feed/all.xml", "/feed/nope.xml", "/feed/high.txt", "/feed/..%2Fx.json"]) {
+    const res = await fetch(`${BASE_URL}${bad}`);
+    assert.equal(res.status, 404, `${bad} must be a 404`);
+    await res.arrayBuffer();
+  }
 });
 
 test("GET /about returns 200 with no cookie, names HavadisBot, shows the exact User-Agent and the contact channel", async () => {

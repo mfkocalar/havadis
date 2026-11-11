@@ -5,8 +5,8 @@ import type { ClassifiedArticle, Section, SectionedFrontPageResult } from "../ty
 
 /**
  * Outbound feeds for other services and agents: RSS 2.0 for feed readers and
- * JSON Feed 1.1 for programmatic consumers, built from the same cached
- * edition the page renders, read by `feedResponse` through `getSnapshot`
+ * JSON Feed 1.1 for programmatic consumers, built from the same stored
+ * edition the page renders, read by `feedResponse` through `readFrontPage`
  * (08-CONTEXT D-25).
  *
  * Every feed carries Havadis's own enrichment (section, importance and its
