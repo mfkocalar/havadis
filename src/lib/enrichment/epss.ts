@@ -1,3 +1,4 @@
+import { withBudgetLine } from "../budgetLine.ts";
 import { CVE_ID_SHAPE } from "../cveChips.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
 import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
@@ -13,7 +14,10 @@ import {
 
 /**
  * EPSS lookups from FIRST (ENR-02, ENR-03). Plain TypeScript, no React import,
- * never reads the clock and never throws.
+ * never reads the wall clock (elapsed time and CPU only through
+ * `withBudgetLine`), never throws, and logs one budget line per call. Its rcW
+ * (batch fetches issued) is an upper bound, because `fetch` cache hits are not
+ * observable.
  *
  * The endpoint is marked BETA. Its `cve` value is capped at 2000 characters and
  * an over-length request comes back as an empty OK answer (`status: "OK"`,
@@ -150,43 +154,55 @@ export async function fetchEpss(
   ids: readonly string[],
   deps: EpssDeps = {}
 ): Promise<Record<string, EpssState>> {
-  const out: Record<string, EpssState> = {};
-  const markUnavailable = (list: readonly string[]) => {
-    for (const id of list) out[id] = { state: "unavailable" };
-  };
-  let valid: string[] = [];
-  try {
-    const { kept, overflow } = selectEpssIds(ids, deps.maxIds ?? EPSS_MAX_IDS);
-    valid = [...kept, ...overflow];
-    const base = deps.url ?? EPSS_URL;
-    const batches = sortedBatches(kept, deps.batchSize ?? EPSS_BATCH_SIZE);
-    const settled = await Promise.allSettled(
-      batches.map(async (batch): Promise<EpssChunk> => {
-        const res = await boundedFetchJson(
-          epssUrl(batch, base),
-          {
-            maxBytes: deps.maxBytes ?? EPSS_MAX_BYTES,
-            timeoutMs: deps.timeoutMs ?? EPSS_TIMEOUT_MS,
-            revalidate: EPSS_REVALIDATE_SECONDS,
-          },
-          { fetcher: deps.fetcher }
-        );
-        return res.ok ? parseEpssChunk(res.json, batch) : { ok: false };
-      })
-    );
-    settled.forEach((outcome, i) => {
-      const chunk = outcome.status === "fulfilled" ? outcome.value : null;
-      if (chunk !== null && chunk.ok) {
-        for (const id of batches[i]) out[id] = chunk.states[id] ?? { state: "unavailable" };
-      } else {
-        markUnavailable(batches[i]);
-      }
-    });
-    markUnavailable(overflow);
-    return out;
-  } catch {
-    const all: Record<string, EpssState> = {};
-    for (const id of valid) all[id] = { state: "unavailable" };
-    return all;
-  }
+  // Closure counters for the budget line; the body below never rejects.
+  let requested = 0;
+  let issued = 0;
+  let failed = 0;
+  let okBytes = 0;
+  return withBudgetLine("epss", async () => {
+    const out: Record<string, EpssState> = {};
+    const markUnavailable = (list: readonly string[]) => {
+      for (const id of list) out[id] = { state: "unavailable" };
+    };
+    let valid: string[] = [];
+    try {
+      const { kept, overflow } = selectEpssIds(ids, deps.maxIds ?? EPSS_MAX_IDS);
+      valid = [...kept, ...overflow];
+      const base = deps.url ?? EPSS_URL;
+      const batches = sortedBatches(kept, deps.batchSize ?? EPSS_BATCH_SIZE);
+      requested = kept.length;
+      issued = batches.length;
+      const settled = await Promise.allSettled(
+        batches.map(async (batch): Promise<EpssChunk> => {
+          const res = await boundedFetchJson(
+            epssUrl(batch, base),
+            {
+              maxBytes: deps.maxBytes ?? EPSS_MAX_BYTES,
+              timeoutMs: deps.timeoutMs ?? EPSS_TIMEOUT_MS,
+              revalidate: EPSS_REVALIDATE_SECONDS,
+            },
+            { fetcher: deps.fetcher }
+          );
+          if (res.ok) okBytes += Buffer.byteLength(JSON.stringify(res.json), "utf-8");
+          return res.ok ? parseEpssChunk(res.json, batch) : { ok: false };
+        })
+      );
+      settled.forEach((outcome, i) => {
+        const chunk = outcome.status === "fulfilled" ? outcome.value : null;
+        if (chunk !== null && chunk.ok) {
+          for (const id of batches[i]) out[id] = chunk.states[id] ?? { state: "unavailable" };
+        } else {
+          failed += 1;
+          markUnavailable(batches[i]);
+        }
+      });
+      markUnavailable(overflow);
+      return out;
+    } catch {
+      failed = Math.max(failed, 1);
+      const all: Record<string, EpssState> = {};
+      for (const id of valid) all[id] = { state: "unavailable" };
+      return all;
+    }
+  }, () => ({ n: requested, bytes: okBytes, rcW: issued, ok: failed === 0 ? 1 : 0 }));
 }
