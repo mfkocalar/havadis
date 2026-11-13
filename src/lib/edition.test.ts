@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeArticle } from "../../test/fixtures/makeArticle.ts";
 import { EDITION_CACHE_KEY, produceEdition } from "./edition.ts";
+import { parseBudgetLine } from "./budgetLine.ts";
 import { SECTION_DISPLAY_ORDER } from "./config/sections.ts";
 import { composeFrontPage } from "./pipeline/getFrontPage.ts";
 import type { Article, SectionedFrontPageResult } from "./types.ts";
@@ -222,4 +223,57 @@ test("schema pin: a shape change must ship with a new snapshot key (Pitfall 5)",
       assert.deepStrictEqual(keys(article), pinned.article);
     }
   }
+});
+
+/**
+ * One budget line per produceEdition call (PLAT-04, D-03): console.info is
+ * mocked, so the line is read from the mock's calls.
+ */
+function budgetLinesOf(info: { mock: { calls: Array<{ arguments: unknown[] }> } }) {
+  return info.mock.calls.map((c) => parseBudgetLine(String(c.arguments[0])));
+}
+
+test("an ok load logs exactly one edition budget line with the edition's own counts", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const composed = composeFrontPage(
+    [
+      makeArticle({ publishedAt: new Date(NOW - HOUR).toISOString() }),
+      makeArticle({ publishedAt: new Date(NOW - 2 * HOUR).toISOString() }),
+    ],
+    NOW
+  );
+  const edition = await produceEdition(NOW, async () => composed);
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  const line = lines[0];
+  assert.ok(line, "the logged line parses");
+  assert.equal(line.p, "edition");
+  assert.equal(line.ok, 1);
+  assert.equal(line.n, edition.articles.length);
+  assert.equal(line.bytes, Buffer.byteLength(JSON.stringify(edition), "utf-8"));
+  assert.equal(line.rcW, 1);
+});
+
+test("an errored load logs one budget line with ok 0 and rcW 0 and still rejects", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const load = async (): Promise<SectionedFrontPageResult> => ({ status: "error", reason: "boom" });
+  await assert.rejects(produceEdition(NOW, load), /edition rejected: boom/);
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0]?.p, "edition");
+  assert.equal(lines[0]?.ok, 0);
+  assert.equal(lines[0]?.rcW, 0);
+});
+
+test("a zero-article load logs one budget line with ok 0 and rcW 0 and still rejects", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const load = async (now: number): Promise<SectionedFrontPageResult> => composeFrontPage([], now);
+  await assert.rejects(produceEdition(NOW, load), /edition rejected: zero articles/);
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0]?.ok, 0);
+  assert.equal(lines[0]?.rcW, 0);
 });
