@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { USER_AGENT } from "../config/crawler.ts";
+import { parseBudgetLine } from "../budgetLine.ts";
 import { KEV_CACHE_KEY, parseKev, produceKev } from "./kev.ts";
 
 /**
@@ -243,4 +244,60 @@ test("produceKev rejects (so the cache keeps the last map) on every failure", as
     }),
     /kev rejected: connect refused/
   );
+});
+
+/**
+ * produceKev logs exactly one budget line per call (PLAT-04, D-03). console.info
+ * is mocked and its calls are parsed back.
+ */
+function budgetLinesOf(info: { mock: { calls: Array<{ arguments: unknown[] }> } }) {
+  return info.mock.calls.map((c) => parseBudgetLine(String(c.arguments[0])));
+}
+
+test("produceKev logs one kev budget line on a valid feed with the map's own counts", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const map = await produceKev(NOW, {
+    minEntries: 3,
+    fetcher: async () => new Response(JSON.stringify(feedOf(validEntries(4))), { status: 200 }),
+  });
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  const line = lines[0];
+  assert.ok(line, "the logged line parses");
+  assert.equal(line.p, "kev");
+  assert.equal(line.ok, 1);
+  assert.equal(line.n, Object.keys(map.entries).length);
+  assert.equal(line.bytes, Buffer.byteLength(JSON.stringify(map), "utf-8"));
+  assert.equal(line.rcW, 1);
+});
+
+test("produceKev on an HTTP 500 still rejects and logs one line with ok 0 and rcW 0", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  await assert.rejects(
+    produceKev(NOW, {
+      minEntries: 3,
+      fetcher: async () => new Response("nope", { status: 500 }),
+    }),
+    /kev rejected: status 500/
+  );
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0]?.p, "kev");
+  assert.equal(lines[0]?.ok, 0);
+  assert.equal(lines[0]?.rcW, 0);
+});
+
+test("the kev line carries no CVE ID and no URL", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  await produceKev(NOW, {
+    minEntries: 3,
+    url: "http://127.0.0.1:9/kev.json",
+    fetcher: async () => new Response(JSON.stringify(feedOf(validEntries(4))), { status: 200 }),
+  });
+  assert.equal(info.mock.calls.length, 1);
+  const text = String(info.mock.calls[0].arguments[0]);
+  assert.ok(!text.includes("CVE-"));
+  assert.ok(!text.includes("http"));
 });

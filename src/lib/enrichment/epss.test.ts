@@ -1,6 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { USER_AGENT } from "../config/crawler.ts";
+import { parseBudgetLine } from "../budgetLine.ts";
 import type { EpssState, KevMap } from "../types.ts";
 import { enrichCves } from "./enrich.ts";
 import { fetchEpss, epssUrl, parseEpssChunk, selectEpssIds, sortedBatches } from "./epss.ts";
@@ -451,4 +452,84 @@ test("enrichCves against /hang resolves with EPSS unavailable and the KEV states
   assert.equal(snap.byCve["CVE-2024-10000"].kev.state, "listed");
   assert.equal(snap.byCve["CVE-2024-10001"].kev.state, "not-listed");
   for (const c of input) assert.deepStrictEqual(snap.byCve[c].epss, { state: "unavailable" });
+});
+
+/**
+ * fetchEpss logs exactly one budget line per call and still never throws
+ * (PLAT-04, D-03). console.info is mocked and its calls are parsed back.
+ */
+function budgetLinesOf(info: { mock: { calls: Array<{ arguments: unknown[] }> } }) {
+  return info.mock.calls.map((c) => parseBudgetLine(String(c.arguments[0])));
+}
+
+test("fetchEpss([]) logs one epss line with n 0, bytes 0 and rcW 0 and resolves to {}", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher } = okFetcher();
+  assert.deepStrictEqual(await fetchEpss([], { url: BASE, fetcher }), {});
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  const line = lines[0];
+  assert.ok(line, "the logged line parses");
+  assert.equal(line.p, "epss");
+  assert.equal(line.ok, 1);
+  assert.equal(line.n, 0);
+  assert.equal(line.bytes, 0);
+  assert.equal(line.rcW, 0);
+});
+
+test("fetchEpss on 120 valid IDs logs n 120 and rcW 3", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher } = okFetcher();
+  await fetchEpss(ids(120), { url: BASE, fetcher });
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0]?.n, 120);
+  assert.equal(lines[0]?.rcW, 3);
+  assert.equal(lines[0]?.ok, 1);
+  assert.ok((lines[0]?.bytes ?? 0) > 0, "the fetched body size is counted");
+});
+
+test("fetchEpss on 501 IDs logs n 500 and rcW 10 (the overflow is never requested)", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher } = okFetcher();
+  await fetchEpss(ids(501), { url: BASE, fetcher });
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0]?.n, 500);
+  assert.equal(lines[0]?.rcW, 10);
+  assert.equal(lines[0]?.ok, 1);
+});
+
+test("fetchEpss with one failing batch still resolves and logs ok 0", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const good = okFetcher().fetcher;
+  let n = 0;
+  const fetcher = async (url: string, init?: Recorded["init"]): Promise<Response> =>
+    ++n === 2 ? new Response("down", { status: 503 }) : good(url, init);
+  const out = await fetchEpss(ids(120), { url: BASE, fetcher });
+  assert.equal(Object.keys(out).length, 120);
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0]?.ok, 0);
+  assert.equal(lines[0]?.rcW, 3);
+});
+
+test("fetchEpss with a throwing fetcher resolves and logs one line without the error text", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const fetcher = async (): Promise<Response> => {
+    throw new Error("connect refused https://epss.test/api CVE-2024-10000");
+  };
+  const out = await fetchEpss(ids(3), { url: BASE, fetcher });
+  assert.equal(Object.keys(out).length, 3);
+
+  assert.equal(info.mock.calls.length, 1);
+  const text = String(info.mock.calls[0].arguments[0]);
+  assert.equal(parseBudgetLine(text)?.ok, 0);
+  assert.ok(!text.includes("CVE-"));
+  assert.ok(!text.includes("http"));
+  assert.ok(!text.includes("refused"));
 });
