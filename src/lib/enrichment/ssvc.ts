@@ -198,6 +198,14 @@ export async function produceSsvc(
   return parsed;
 }
 
+// RED stub: delegates without logging; the measured producer lands in GREEN.
+export async function produceSsvcMeasured(
+  id: string,
+  deps: SsvcFetchDeps = {}
+): Promise<CacheableSsvcState> {
+  return produceSsvc(id, deps);
+}
+
 /** What `selectSsvcIds` decided for one edition's CVEs. */
 export type SsvcSelection = { lookups: string[]; skipped: string[]; overflow: string[] };
 
