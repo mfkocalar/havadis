@@ -1,3 +1,4 @@
+import { withBudgetLine } from "../budgetLine.ts";
 import { CVE_ID_SHAPE, planCveChips } from "../cveChips.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
 import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
@@ -19,7 +20,8 @@ import {
 
 /**
  * CISA SSVC lookups from the CVE Program record (ENR-06, ENR-07). Plain
- * TypeScript, no React import, never reads the clock.
+ * TypeScript, no React import, never reads the wall clock (`produceSsvcMeasured`
+ * measures elapsed time and CPU only through `withBudgetLine`).
  *
  * The dangerous part of this file is the meaning of absence. Only a record that
  * passes every rule in `parseSsvcRecord` becomes `assessed`; a record with no
@@ -198,12 +200,22 @@ export async function produceSsvc(
   return parsed;
 }
 
-// RED stub: delegates without logging; the measured producer lands in GREEN.
+/**
+ * `produceSsvc` plus exactly one budget line per call (PLAT-04, D-03, D-04):
+ * `p` ssvc, numbers and the state enum only, never the ID or an error message.
+ * It runs only when `unstable_cache` calls the producer (a miss or a stale
+ * refresh), so a cache hit logs nothing. A rejection is rethrown unchanged.
+ */
 export async function produceSsvcMeasured(
   id: string,
   deps: SsvcFetchDeps = {}
 ): Promise<CacheableSsvcState> {
-  return produceSsvc(id, deps);
+  return withBudgetLine("ssvc", () => produceSsvc(id, deps), (state) => ({
+    n: 1,
+    bytes: Buffer.byteLength(JSON.stringify(state), "utf-8"),
+    rcW: 1,
+    st: state.state,
+  }));
 }
 
 /** What `selectSsvcIds` decided for one edition's CVEs. */
