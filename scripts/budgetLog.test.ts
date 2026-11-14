@@ -1,8 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { parseBudgetLine } from "../src/lib/budgetLine.ts";
 import {
+  acquireLock,
+  dedupeKey,
+  keysFromText,
+  outPathProblem,
+  readRows,
+  takeNew,
+  validateWindow,
+  type BudgetRow,
+  type RequestRow,
   parseRequestRecord,
   parseRuntimeRecord,
   parseSummaryRecord,
@@ -123,4 +135,103 @@ test("rowsFromCliOutput keeps only the budget row fields from a runtime record",
   assert.deepEqual(Object.keys(parsed), ["k", "ts", "rid", "path", "dep", "line"]);
   assert.ok(!lines[0].includes("Mozilla"));
   assert.ok(!lines[0].includes("198.51.100.9"));
+});
+
+// ---- Plan 21-03 Task 1: capture loop helpers (no CLI is ever spawned here) ----
+
+function budgetRow(ts: string, rid: string, ms = 10): BudgetRow {
+  return {
+    k: "budget",
+    ts,
+    rid,
+    path: "/",
+    dep: "dpl_x",
+    line: { p: "edition", ok: 1, ms, cpuMs: 5, n: 3, bytes: 100, rcW: 1, rcR: 0, kvCmd: 0 },
+  };
+}
+
+function requestRow(ts: string, rid: string): RequestRow {
+  return { k: "req", ts, rid, path: "/feed.json", route: "/feed.json", status: 200, cache: "HIT", dep: "dpl_x" };
+}
+
+test("dedupeKey is equal for two copies of one record and differs when only requestId differs", () => {
+  const a = budgetRow("2026-11-14T10:00:00.000Z", "r1");
+  const copy = JSON.parse(JSON.stringify(a)) as BudgetRow;
+  assert.equal(dedupeKey(a), dedupeKey(copy));
+  assert.match(dedupeKey(a), /^[0-9a-f]{40}$/);
+  assert.notEqual(dedupeKey(a), dedupeKey(budgetRow("2026-11-14T10:00:00.000Z", "r2")));
+  assert.notEqual(dedupeKey(requestRow("2026-11-14T10:00:00.000Z", "r1")), dedupeKey(a));
+});
+
+test("takeNew keeps each record once across overlapping polls and after a reload from the file", () => {
+  const first = [budgetRow("2026-11-14T10:00:00.000Z", "r1"), requestRow("2026-11-14T10:00:01.000Z", "r1")];
+  const second = [first[1], budgetRow("2026-11-14T10:10:00.000Z", "r2"), first[0]];
+  const seen = new Set<string>();
+  assert.equal(takeNew(first, seen).length, 2);
+  const added = takeNew(second, seen);
+  assert.equal(added.length, 1);
+  assert.equal((added[0] as BudgetRow).rid, "r2");
+  const file = [...first, ...added].map((r) => JSON.stringify(r)).join("\n") + "\n";
+  const reloaded = keysFromText(file);
+  assert.equal(takeNew([...first, ...added], reloaded).length, 0);
+});
+
+test("takeNew collapses duplicates inside one batch", () => {
+  const row = budgetRow("2026-11-14T10:00:00.000Z", "r1");
+  assert.equal(takeNew([row, row], new Set()).length, 1);
+});
+
+test("readRows skips blank, truncated and invalid lines and counts them", () => {
+  const good = JSON.stringify(budgetRow("2026-11-14T10:00:00.000Z", "r1"));
+  const poll = JSON.stringify({
+    k: "poll",
+    at: "2026-11-14T10:00:00.000Z",
+    from: "2026-11-14T09:35:00.000Z",
+    to: "2026-11-14T10:00:00.000Z",
+    ok: true,
+    runtime: 1,
+    requests: 0,
+    cli: "65.16.0",
+  });
+  const gap = JSON.stringify({ k: "gap", from: "2026-11-14T10:00:00.000Z", to: "2026-11-14T10:05:00.000Z", reason: "cli-exit" });
+  const invalid = JSON.stringify({ k: "budget", ts: "x", rid: "r", path: "/", dep: "d", line: { p: "nope" } });
+  const truncated = good.slice(0, good.length - 7);
+  const text = [good, "", poll, gap, invalid, '{"k":"other"}', truncated].join("\n");
+  const { rows, skipped } = readRows(text);
+  assert.deepEqual(rows.map((r) => r.k), ["budget", "poll", "gap"]);
+  assert.equal(skipped, 3);
+  assert.deepEqual(readRows(""), { rows: [], skipped: 0 });
+});
+
+test("validateWindow accepts 50 and rejects 51, and enforces window >= interval + 5", () => {
+  assert.equal(validateWindow(10, 25), null);
+  assert.equal(validateWindow(10, 50), null);
+  assert.notEqual(validateWindow(10, 51), null);
+  assert.notEqual(validateWindow(10, 14), null);
+  assert.equal(validateWindow(10, 15), null);
+  assert.notEqual(validateWindow(0, 25), null);
+  assert.notEqual(validateWindow(10, Number.NaN), null);
+});
+
+test("outPathProblem rejects an in-repo path that git does not ignore", () => {
+  const root = "/repo";
+  assert.equal(outPathProblem("/elsewhere/out.jsonl", root, () => false), null);
+  assert.equal(outPathProblem("/repo/.planning/x/out.jsonl", root, () => true), null);
+  assert.notEqual(outPathProblem("/repo/scripts/out.jsonl", root, () => false), null);
+});
+
+test("acquireLock fails while a live PID holds the lock and takes over a dead one", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "budget-lock-"));
+  const lock = path.join(dir, "out.jsonl.lock");
+  assert.equal(acquireLock(lock, process.pid), true);
+  assert.equal(readFileSync(lock, "utf8").trim(), String(process.pid));
+  assert.equal(acquireLock(lock, process.pid + 1), false, "live holder keeps the lock");
+
+  const child = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"], {
+    encoding: "utf8",
+  });
+  const deadPid = Number(child.stdout);
+  writeFileSync(lock, `${deadPid}\n`);
+  assert.equal(acquireLock(lock, process.pid), true, "dead holder is taken over");
+  assert.equal(readFileSync(lock, "utf8").trim(), String(process.pid));
 });
