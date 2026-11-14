@@ -330,3 +330,316 @@ export function releaseLock(lockPath: string, pid: number): void {
     // nothing to release
   }
 }
+
+// ---- Recompute (Plan 21-03 Task 2) ----
+
+const DAY_MIN = 1440;
+const MS_PER_MIN = 60_000;
+
+/** Runtime Cache write units of one line: each write counts once per 8 KiB of its payload (model A1). */
+export function writeUnits(line: BudgetLine): number {
+  return line.rcW === 0 ? 0 : line.rcW * Math.max(1, Math.ceil(line.bytes / line.rcW / 8192));
+}
+
+/**
+ * Exact tripwire status in BigInt arithmetic. `total` is the amount measured
+ * over `coveredMin` minutes; the projection is total * 1440 * 30 / coveredMin.
+ * OVER-100 only when that is strictly above the allotment, OVER-60 only when
+ * strictly above 60% of it, so exactly 60% stays OK (D-09).
+ */
+export function meterStatus(
+  total: number,
+  coveredMin: number,
+  allotPerMonth: number,
+): "OK" | "OVER-60" | "OVER-100" {
+  const used = BigInt(Math.round(total)) * BigInt(DAY_MIN) * BigInt(30) * BigInt(MS_PER_MIN);
+  const covered = BigInt(Math.round(coveredMin * MS_PER_MIN));
+  const allot = BigInt(Math.round(allotPerMonth));
+  if (used > covered * allot) return "OVER-100";
+  if (used * BigInt(100) > covered * allot * BigInt(60)) return "OVER-60";
+  return "OK";
+}
+
+function windowOf(row: PollRow): [number, number] | null {
+  const from = Date.parse(row.from);
+  const to = Date.parse(row.to);
+  return Number.isNaN(from) || Number.isNaN(to) || to < from ? null : [from, to];
+}
+
+/** The period the recompute judges: first successful window start, at least one full day long. */
+export function defaultPeriod(rows: Row[]): { from: string; to: string } | undefined {
+  let first = Number.POSITIVE_INFINITY;
+  let last = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    if (row.k !== "poll" || !row.ok) continue;
+    const w = windowOf(row);
+    if (w === null) continue;
+    first = Math.min(first, w[0]);
+    last = Math.max(last, w[1]);
+  }
+  if (first === Number.POSITIVE_INFINITY) return undefined;
+  return {
+    from: new Date(first).toISOString(),
+    to: new Date(Math.max(last, first + DAY_MIN * MS_PER_MIN)).toISOString(),
+  };
+}
+
+/**
+ * Minutes covered by the union of the windows of successful polls, clipped to
+ * the period (default: first window start to last window end). Windows that
+ * exactly touch merge; any hole, even 1 ms, is not covered.
+ */
+export function coverage(
+  rows: Row[],
+  period?: { from: string; to: string },
+): { coveredMin: number; periodMin: number } {
+  const windows: Array<[number, number]> = [];
+  for (const row of rows) {
+    if (row.k !== "poll" || !row.ok) continue;
+    const w = windowOf(row);
+    if (w !== null) windows.push(w);
+  }
+  windows.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  let from = period === undefined ? (windows[0]?.[0] ?? 0) : Date.parse(period.from);
+  let to =
+    period === undefined ? Math.max(...windows.map((w) => w[1]), from) : Date.parse(period.to);
+  if (Number.isNaN(from) || Number.isNaN(to) || to < from) {
+    from = 0;
+    to = 0;
+  }
+  let covered = 0;
+  let curStart = 0;
+  let curEnd = Number.NEGATIVE_INFINITY;
+  const flush = () => {
+    if (curEnd > curStart) covered += curEnd - curStart;
+  };
+  for (const [s, e] of windows) {
+    const cs = Math.max(s, from);
+    const ce = Math.min(e, to);
+    if (ce <= cs) continue;
+    if (cs <= curEnd) curEnd = Math.max(curEnd, ce);
+    else {
+      flush();
+      curStart = cs;
+      curEnd = ce;
+    }
+  }
+  flush();
+  return { coveredMin: covered / MS_PER_MIN, periodMin: (to - from) / MS_PER_MIN };
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 === 1 ? sorted[mid] : Math.ceil((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+function medianBytes(rows: Row[], producer: BudgetLine["p"]): number {
+  return median(
+    rows.flatMap((r) => (r.k === "budget" && r.line.p === producer && r.line.ok === 1 ? [r.line.bytes] : [])),
+  );
+}
+
+const FEED_PATH = /^\/feed(\.xml|\.json|\/)/;
+
+/**
+ * Modelled Runtime Cache read units (labelled modelled, never measured): each
+ * render line adds the edition and KEV payload units plus one per SSVC lookup
+ * and EPSS batch (rcR - 2); each feed request answered STALE or MISS adds one
+ * edition read. `known` is false when no edition size was observed.
+ */
+export function readUnits(rows: Row[]): { units: number; known: boolean } {
+  const edBytes = medianBytes(rows, "edition");
+  if (edBytes === 0) return { units: 0, known: false };
+  const edUnits = Math.ceil(edBytes / 8192);
+  const kevUnits = Math.ceil(medianBytes(rows, "kev") / 8192);
+  let units = 0;
+  for (const row of rows) {
+    if (row.k === "budget" && row.line.p === "render") {
+      units += edUnits + kevUnits + Math.max(0, row.line.rcR - 2);
+    } else if (row.k === "req" && FEED_PATH.test(row.path) && /^(stale|miss)$/i.test(row.cache)) {
+      units += edUnits;
+    }
+  }
+  return { units, known: true };
+}
+
+export interface Allotments {
+  rcWrites: number;
+  rcReads: number;
+  kv: number;
+  cpuS: number;
+}
+
+export interface RenderOptions {
+  period?: { from: string; to: string };
+  allot: Allotments;
+}
+
+function sortKey(row: Row): [string, string, string] {
+  const ts = row.k === "poll" ? row.at : row.k === "gap" ? row.from : row.ts;
+  const key = row.k === "budget" || row.k === "req" ? dedupeKey(row) : JSON.stringify(row);
+  return [ts, row.k, key];
+}
+
+function sorted(rows: Row[]): Row[] {
+  const keyed = rows.map((row) => ({ row, key: sortKey(row) }));
+  keyed.sort((a, b) => {
+    for (let i = 0; i < 3; i += 1) {
+      if (a.key[i] < b.key[i]) return -1;
+      if (a.key[i] > b.key[i]) return 1;
+    }
+    return 0;
+  });
+  return takeNew(
+    keyed.map((x) => x.row),
+    new Set<string>(),
+  );
+}
+
+function grouped(n: number): string {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+const PRODUCER_ORDER: readonly BudgetLine["p"][] = ["edition", "kev", "ssvc", "epss", "render"];
+
+/**
+ * The markdown budget report for a capture's rows: coverage line, per-producer
+ * table, meters table, write split. It does not gate on coverage (the
+ * recompute does, before calling this) and never depends on input order.
+ */
+export function renderTable(input: Row[], opts: RenderOptions): string {
+  const rows = sorted(input);
+  const period = opts.period ?? defaultPeriod(rows);
+  const { coveredMin, periodMin } = coverage(rows, period);
+  const perDay = (total: number): number => (coveredMin > 0 ? (total * DAY_MIN) / coveredMin : 0);
+  const month = (total: number): number => Math.round(perDay(total) * 30);
+  const pct = periodMin > 0 ? (coveredMin / periodMin) * 100 : 0;
+  const out: string[] = [];
+  out.push(`coverage: ${Math.round(coveredMin)}/${Math.round(periodMin)} min (${pct.toFixed(1)}%)`);
+  out.push("");
+
+  const lines = rows.filter((r): r is BudgetRow => r.k === "budget");
+  const stats = PRODUCER_ORDER.map((p) => {
+    const mine = lines.filter((r) => r.line.p === p);
+    return {
+      p,
+      lines: mine.length,
+      ok: mine.filter((r) => r.line.ok === 1).length,
+      fail: mine.filter((r) => r.line.ok === 0).length,
+      rcW: mine.reduce((a, r) => a + r.line.rcW, 0),
+      units: mine.reduce((a, r) => a + writeUnits(r.line), 0),
+      bytes: medianBytes(rows, p),
+      cpuMs: mine.reduce((a, r) => a + r.line.cpuMs, 0),
+    };
+  });
+  out.push("| producer | lines/day | ok/fail | write ops/day | write units/day | median bytes | cpu s/day |");
+  out.push("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
+  for (const s of stats) {
+    const cpu = `${(perDay(s.cpuMs) / 1000).toFixed(1)}${s.p === "ssvc" ? " (overlapping, not summed)" : ""}`;
+    out.push(
+      `| ${s.p} | ${perDay(s.lines).toFixed(1)} | ${s.ok}/${s.fail} | ${perDay(s.rcW).toFixed(1)} | ${perDay(s.units).toFixed(1)} | ${s.bytes} | ${cpu} |`,
+    );
+  }
+  out.push("");
+
+  const meterRow = (
+    name: string,
+    measured: string,
+    projected: string,
+    allot: number,
+    shownPct: string,
+    status: string,
+    basis: string,
+    unit = "",
+  ): string =>
+    `| ${name} | ${measured} | ${projected} | ${grouped(allot)}${unit} | ${grouped((allot * 60) / 100)}${unit} | ${shownPct} | ${status} | ${basis} |`;
+  const share = (total: number, allot: number): string =>
+    `${((month(total) / allot) * 100).toFixed(1)}%`;
+
+  out.push("| meter | measured per day | projected 30-day month | allotment | 60% tripwire per month | % of allotment | status | basis |");
+  out.push("| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |");
+  const writes = stats.reduce((a, s) => a + s.units, 0);
+  out.push(
+    meterRow(
+      "Runtime Cache writes (units)",
+      perDay(writes).toFixed(1),
+      grouped(month(writes)),
+      opts.allot.rcWrites,
+      share(writes, opts.allot.rcWrites),
+      meterStatus(writes, coveredMin, opts.allot.rcWrites),
+      "measured-log; units modelled (8 KB, A1)",
+    ),
+  );
+  const reads = readUnits(rows);
+  out.push(
+    reads.known
+      ? meterRow(
+          "Runtime Cache reads (units)",
+          perDay(reads.units).toFixed(1),
+          grouped(month(reads.units)),
+          opts.allot.rcReads,
+          share(reads.units, opts.allot.rcReads),
+          meterStatus(reads.units, coveredMin, opts.allot.rcReads),
+          "modelled",
+        )
+      : meterRow(
+          "Runtime Cache reads (units)",
+          "n/a (no edition size observed)",
+          "n/a",
+          opts.allot.rcReads,
+          "n/a",
+          "UNKNOWN",
+          "modelled",
+        ),
+  );
+  const kv = lines.reduce((a, r) => a + r.line.kvCmd, 0);
+  out.push(
+    kv === 0
+      ? meterRow(
+          "Upstash commands",
+          "not measured in product (kvCmd 0 by design)",
+          "n/a",
+          opts.allot.kv,
+          "n/a",
+          "NOT-MEASURED",
+          "none in product",
+        )
+      : meterRow(
+          "Upstash commands",
+          perDay(kv).toFixed(1),
+          grouped(month(kv)),
+          opts.allot.kv,
+          share(kv, opts.allot.kv),
+          meterStatus(kv, coveredMin, opts.allot.kv),
+          "measured-log",
+        ),
+  );
+  const compose = stats.find((s) => s.p === "edition")?.cpuMs ?? 0;
+  out.push(
+    meterRow(
+      "Active CPU, compose (edition, s)",
+      (perDay(compose) / 1000).toFixed(1),
+      grouped(month(compose) / 1000),
+      opts.allot.cpuS,
+      `${((month(compose) / 1000 / opts.allot.cpuS) * 100).toFixed(1)}%`,
+      meterStatus(compose, coveredMin, opts.allot.cpuS * 1000),
+      "measured-log (upper bound)",
+      " s",
+    ),
+  );
+  const kevCpu = stats.find((s) => s.p === "kev")?.cpuMs ?? 0;
+  out.push("");
+  out.push(
+    `kev cpu: ${(perDay(kevCpu) / 1000).toFixed(1)} s/day (own line, upper bound, not added to the compose row)`,
+  );
+  out.push("");
+
+  out.push("write split by producer (units):");
+  for (const s of stats.filter((x) => x.p !== "render")) {
+    const share100 = writes > 0 ? ((s.units / writes) * 100).toFixed(1) : "0.0";
+    out.push(`- ${s.p}: ${share100}%`);
+  }
+  return out.join("\n");
+}

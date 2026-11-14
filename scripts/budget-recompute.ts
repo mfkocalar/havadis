@@ -1,67 +1,86 @@
 /**
- * Budget recompute (PLAT-04): turns a capture JSONL into a markdown table, one
- * row per producer. This plan prints the per-producer table only.
+ * Budget recompute (PLAT-04, D-02): turns a capture JSONL into the markdown
+ * budget report (coverage, per-producer table, meters with exact 60% tripwire
+ * status, write split). It refuses to print per-day numbers when the capture
+ * covers too little of the period.
  *
  * Usage:
- *     node --experimental-strip-types scripts/budget-recompute.ts --in <path>
+ *     node --experimental-strip-types scripts/budget-recompute.ts --in <path> \
+ *         [--min-coverage 0.9] [--from <iso>] [--to <iso>] \
+ *         [--allot-rc-writes 200000] [--allot-rc-reads 1000000] \
+ *         [--allot-kv 500000] [--allot-cpu-s 14400]
  *
- * Prints `producer | lines | ok | fail | write units`, where one line's write
- * units are rcW === 0 ? 0 : rcW * Math.max(1, Math.ceil(bytes / rcW / 8192)),
- * i.e. each Runtime Cache write counts once per 8 KiB of its payload. The last
- * line printed is `RECOMPUTE_OK`.
+ * The period defaults to the first successful poll window start, at least 24 h
+ * long, so a young capture is judged against a full day. Coverage is the union
+ * of the windows of successful polls inside the period. Below --min-coverage
+ * (default 0.9), including an empty file, it prints the coverage line and
+ * INSUFFICIENT_COVERAGE and exits 3. Otherwise the last line is RECOMPUTE_OK.
+ * The input order never changes the output.
  *
- * Exit codes: 0 on success; 2 on bad arguments or an unreadable file.
+ * Exit codes: 0 report printed; 2 bad arguments or an unreadable file; 3
+ * insufficient coverage.
  */
 import { readFileSync } from "node:fs";
-import type { BudgetProducer } from "../src/lib/budgetLine.ts";
-import type { BudgetRow } from "./budgetLog.ts";
+import { coverage, defaultPeriod, readRows, renderTable } from "./budgetLog.ts";
 
-const PRODUCERS: readonly BudgetProducer[] = ["edition", "kev", "ssvc", "epss", "render"];
+function usageError(message?: string): never {
+  console.error(
+    message ??
+      "usage: budget-recompute.ts --in <path> [--min-coverage <0..1>] [--from <iso>] [--to <iso>] [--allot-rc-writes <n>] [--allot-rc-reads <n>] [--allot-kv <n>] [--allot-cpu-s <n>]",
+  );
+  process.exit(2);
+}
 
-function writeUnits(rcW: number, bytes: number): number {
-  return rcW === 0 ? 0 : rcW * Math.max(1, Math.ceil(bytes / rcW / 8192));
+function flagValue(name: string): string | undefined {
+  const i = process.argv.indexOf(name);
+  if (i === -1) return undefined;
+  const value = process.argv[i + 1];
+  if (value === undefined || value.startsWith("--")) usageError();
+  return value;
+}
+
+function numberFlag(name: string, fallback: number): number {
+  const raw = flagValue(name);
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) usageError(`${name} must be a non-negative number`);
+  return n;
 }
 
 function main(): void {
-  const i = process.argv.indexOf("--in");
-  const file = i === -1 ? undefined : process.argv[i + 1];
-  if (file === undefined) {
-    console.error("usage: budget-recompute.ts --in <path>");
-    process.exit(2);
-  }
+  const file = flagValue("--in");
+  if (file === undefined) usageError();
   let source: string;
   try {
     source = readFileSync(file, "utf8");
   } catch {
-    console.error("cannot read the input file");
-    process.exit(2);
+    usageError("cannot read the input file");
+  }
+  const minCoverage = numberFlag("--min-coverage", 0.9);
+  if (minCoverage > 1) usageError("--min-coverage must be between 0 and 1");
+  const allot = {
+    rcWrites: numberFlag("--allot-rc-writes", 200_000),
+    rcReads: numberFlag("--allot-rc-reads", 1_000_000),
+    kv: numberFlag("--allot-kv", 500_000),
+    cpuS: numberFlag("--allot-cpu-s", 14_400),
+  };
+  const from = flagValue("--from");
+  const to = flagValue("--to");
+  if ((from === undefined) !== (to === undefined)) usageError("--from and --to go together");
+  if (from !== undefined && to !== undefined) {
+    if (Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) usageError("--from and --to must be ISO times");
   }
 
-  const totals = new Map<BudgetProducer, { lines: number; ok: number; fail: number; units: number }>(
-    PRODUCERS.map((p) => [p, { lines: 0, ok: 0, fail: 0, units: 0 }]),
-  );
-  for (const raw of source.split("\n")) {
-    if (raw.trim() === "") continue;
-    let row: BudgetRow;
-    try {
-      row = JSON.parse(raw) as BudgetRow;
-    } catch {
-      continue;
-    }
-    if (row.k !== "budget") continue;
-    const total = totals.get(row.line.p);
-    if (total === undefined) continue;
-    total.lines += 1;
-    if (row.line.ok === 1) total.ok += 1;
-    else total.fail += 1;
-    total.units += writeUnits(row.line.rcW, row.line.bytes);
+  const { rows } = readRows(source);
+  const period = from !== undefined && to !== undefined ? { from, to } : defaultPeriod(rows);
+  const { coveredMin, periodMin } = coverage(rows, period);
+  const ratio = periodMin > 0 ? coveredMin / periodMin : 0;
+  if (coveredMin <= 0 || ratio < minCoverage) {
+    console.log(`coverage: ${Math.round(coveredMin)}/${Math.round(periodMin)} min (${(ratio * 100).toFixed(1)}%)`);
+    console.log("INSUFFICIENT_COVERAGE");
+    process.exit(3);
   }
-
-  console.log("| producer | lines | ok | fail | write units |");
-  console.log("| --- | ---: | ---: | ---: | ---: |");
-  for (const [producer, t] of totals) {
-    console.log(`| ${producer} | ${t.lines} | ${t.ok} | ${t.fail} | ${t.units} |`);
-  }
+  console.log(renderTable(rows, { period, allot }));
   console.log("RECOMPUTE_OK");
 }
 
