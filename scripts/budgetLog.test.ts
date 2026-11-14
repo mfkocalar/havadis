@@ -4,17 +4,24 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { parseBudgetLine } from "../src/lib/budgetLine.ts";
+import { parseBudgetLine, type BudgetLine } from "../src/lib/budgetLine.ts";
 import {
   acquireLock,
+  coverage,
   dedupeKey,
+  meterStatus,
+  readUnits,
+  renderTable,
+  writeUnits,
   keysFromText,
   outPathProblem,
   readRows,
   takeNew,
   validateWindow,
   type BudgetRow,
+  type PollRow,
   type RequestRow,
+  type Row,
   parseRequestRecord,
   parseRuntimeRecord,
   parseSummaryRecord,
@@ -234,4 +241,142 @@ test("acquireLock fails while a live PID holds the lock and takes over a dead on
   writeFileSync(lock, `${deadPid}\n`);
   assert.equal(acquireLock(lock, process.pid), true, "dead holder is taken over");
   assert.equal(readFileSync(lock, "utf8").trim(), String(process.pid));
+});
+
+// ---- Plan 21-03 Task 2: recompute helpers ----
+
+const T0 = Date.parse("2026-11-14T00:00:00.000Z");
+const iso = (ms: number) => new Date(ms).toISOString();
+const MIN = 60_000;
+
+function line(p: BudgetLine["p"], over: Partial<BudgetLine> = {}): BudgetLine {
+  const base: BudgetLine = { p, ok: 1, ms: 100, cpuMs: 50, n: 1, bytes: 1000, rcW: 1, rcR: 0, kvCmd: 0 };
+  if (p === "ssvc") base.st = "assessed";
+  return { ...base, ...over };
+}
+
+function brow(p: BudgetLine["p"], atMin: number, rid: string, over: Partial<BudgetLine> = {}): BudgetRow {
+  return { k: "budget", ts: iso(T0 + atMin * MIN), rid, path: "/", dep: "d", line: line(p, over) };
+}
+
+function pollRow(fromMs: number, toMs: number, ok = true): PollRow {
+  return { k: "poll", at: iso(toMs), from: iso(fromMs), to: iso(toMs), ok, runtime: 0, requests: 0, cli: "65.16.0" };
+}
+
+test("writeUnits follows rcW * max(1, ceil(bytes / rcW / 8192)) and is 0 for rcW 0", () => {
+  assert.equal(writeUnits(line("edition", { bytes: 8192, rcW: 1 })), 1);
+  assert.equal(writeUnits(line("edition", { bytes: 8193, rcW: 1 })), 2);
+  assert.equal(writeUnits(line("edition", { bytes: 205367, rcW: 1 })), 26);
+  assert.equal(writeUnits(line("edition", { bytes: 205367, rcW: 0 })), 0);
+  assert.equal(writeUnits(line("edition", { bytes: 0, rcW: 1 })), 1);
+  assert.equal(writeUnits(line("epss", { bytes: 12000, rcW: 3 })), 3);
+});
+
+test("meterStatus is exact: 60% is OK, one unit more is OVER-60, strictly above 100% is OVER-100", () => {
+  assert.equal(meterStatus(4000, 1440, 200000), "OK");
+  assert.equal(meterStatus(4001, 1440, 200000), "OVER-60");
+  assert.equal(meterStatus(6666, 1440, 200000), "OVER-60");
+  assert.equal(meterStatus(6667, 1440, 200000), "OVER-100");
+  assert.equal(meterStatus(0, 1440, 200000), "OK");
+  // half a day covered: the same totals double
+  assert.equal(meterStatus(2000, 720, 200000), "OK");
+  assert.equal(meterStatus(2001, 720, 200000), "OVER-60");
+});
+
+test("coverage merges touching windows, counts a 1 ms hole as a gap and ignores failed polls", () => {
+  const a = pollRow(T0, T0 + 25 * MIN);
+  const b = pollRow(T0 + 25 * MIN, T0 + 50 * MIN);
+  const period = { from: iso(T0), to: iso(T0 + 50 * MIN) };
+  assert.deepEqual(coverage([a, b], period), { coveredMin: 50, periodMin: 50 });
+  const holed = pollRow(T0 + 25 * MIN + 1, T0 + 50 * MIN);
+  const c = coverage([a, holed], period);
+  assert.ok(c.coveredMin < 50 && c.coveredMin > 49.99);
+  const failed = pollRow(T0 + 25 * MIN, T0 + 50 * MIN, false);
+  assert.equal(coverage([a, failed], period).coveredMin, 25);
+  assert.deepEqual(coverage([], period), { coveredMin: 0, periodMin: 50 });
+  assert.deepEqual(coverage([a]), { coveredMin: 25, periodMin: 25 });
+  const clipped = coverage([a, b], { from: iso(T0 + 10 * MIN), to: iso(T0 + 40 * MIN) });
+  assert.deepEqual(clipped, { coveredMin: 30, periodMin: 30 });
+});
+
+test("readUnits models one render as edition + kev + (rcR - 2) and feed STALE/MISS as an edition read", () => {
+  const rows: Row[] = [
+    brow("edition", 0, "e1", { bytes: 205367 }),
+    brow("kev", 0, "k1", { bytes: 135000 }),
+    brow("render", 1, "r1", { rcR: 19, bytes: 0, rcW: 0 }),
+    { k: "req", ts: iso(T0), rid: "q1", path: "/feed.json", route: "/feed.json", status: 200, cache: "STALE", dep: "d" },
+    { k: "req", ts: iso(T0), rid: "q2", path: "/feed.xml", route: "/feed.xml", status: 200, cache: "miss", dep: "d" },
+    { k: "req", ts: iso(T0), rid: "q3", path: "/feed.json", route: "/feed.json", status: 200, cache: "HIT", dep: "d" },
+    { k: "req", ts: iso(T0), rid: "q4", path: "/", route: "/", status: 200, cache: "MISS", dep: "d" },
+  ];
+  assert.deepEqual(readUnits(rows), { units: 60 + 26 + 26, known: true });
+  assert.deepEqual(readUnits([brow("render", 1, "r1", { rcR: 19, rcW: 0 })]), { units: 0, known: false });
+});
+
+function fullDay(extra: Row[]): Row[] {
+  return [pollRow(T0, T0 + 1440 * MIN), ...extra];
+}
+
+test("renderTable gives a byte-identical string for shuffled rows", () => {
+  const rows = fullDay([
+    brow("edition", 0, "e1", { bytes: 205367, cpuMs: 300 }),
+    brow("edition", 15, "e2", { bytes: 205367, cpuMs: 310 }),
+    brow("kev", 0, "k1", { bytes: 135000 }),
+    brow("ssvc", 5, "s1"),
+    brow("epss", 5, "p1", { rcW: 3, bytes: 12000 }),
+    brow("render", 5, "r1", { rcR: 19, rcW: 0, bytes: 0 }),
+  ]);
+  const opts = { allot: { rcWrites: 200000, rcReads: 1000000, kv: 500000, cpuS: 14400 } };
+  const first = renderTable(rows, opts);
+  const shuffled = [...rows].reverse();
+  shuffled.push(shuffled.shift() as Row);
+  assert.equal(renderTable(shuffled, opts), first);
+  assert.equal(renderTable(rows, opts), first);
+  assert.match(first, /^coverage: 1440\/1440 min \(100\.0%\)/);
+});
+
+test("the Upstash row is NOT-MEASURED while every kvCmd is 0 and never reads OK", () => {
+  const rows = fullDay([brow("edition", 0, "e1"), brow("kev", 0, "k1")]);
+  const opts = { allot: { rcWrites: 200000, rcReads: 1000000, kv: 500000, cpuS: 14400 } };
+  const upstash = renderTable(rows, opts).split("\n").find((l) => l.includes("Upstash commands"));
+  assert.ok(upstash);
+  assert.ok(upstash.includes("not measured in product (kvCmd 0 by design)"));
+  assert.ok(upstash.includes("NOT-MEASURED"));
+  assert.ok(upstash.includes("none in product"));
+  assert.ok(!upstash.includes("| OK |"));
+  const withKv = fullDay([brow("edition", 0, "e1", { kvCmd: 4 })]);
+  const measured = renderTable(withKv, opts).split("\n").find((l) => l.includes("Upstash commands"));
+  assert.ok(measured && !measured.includes("not measured in product") && !measured.includes("NOT-MEASURED"));
+});
+
+const RECOMPUTE = new URL("./budget-recompute.ts", import.meta.url).pathname;
+
+function recompute(content: string, extra: string[] = []) {
+  const dir = mkdtempSync(path.join(tmpdir(), "budget-recompute-"));
+  const file = path.join(dir, "in.jsonl");
+  writeFileSync(file, content);
+  return spawnSync(process.execPath, ["--experimental-strip-types", RECOMPUTE, "--in", file, ...extra], {
+    encoding: "utf8",
+  });
+}
+
+test("recompute prints INSUFFICIENT_COVERAGE and exits 3 for an empty file and for budget rows without a poll", () => {
+  const empty = recompute("");
+  assert.equal(empty.status, 3);
+  assert.match(empty.stdout, /INSUFFICIENT_COVERAGE/);
+  const noPoll = recompute(`${JSON.stringify(brow("edition", 0, "e1"))}\n`);
+  assert.equal(noPoll.status, 3);
+  assert.match(noPoll.stdout, /INSUFFICIENT_COVERAGE/);
+  assert.ok(!noPoll.stdout.includes("RECOMPUTE_OK"));
+});
+
+test("recompute with enough coverage ends in RECOMPUTE_OK and below --min-coverage exits 3", () => {
+  const rows = [pollRow(T0, T0 + 120 * MIN), brow("edition", 0, "e1")].map((r) => JSON.stringify(r)).join("\n");
+  const thin = recompute(`${rows}\n`);
+  assert.equal(thin.status, 3, "two hours of a 24 h period is below 90%");
+  const forced = recompute(`${rows}\n`, ["--min-coverage", "0"]);
+  assert.equal(forced.status, 0);
+  assert.equal(forced.stdout.trim().split("\n").pop(), "RECOMPUTE_OK");
+  const bad = spawnSync(process.execPath, ["--experimental-strip-types", RECOMPUTE], { encoding: "utf8" });
+  assert.equal(bad.status, 2);
 });
