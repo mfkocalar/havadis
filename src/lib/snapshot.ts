@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
+import { renderReadOps, withBudgetLine } from "./budgetLine.ts";
 import { EDITION_CACHE_KEY, produceEdition, type OkEdition } from "./edition.ts";
-import { CVE_ID_SHAPE } from "./cveChips.ts";
 import {
   KEV_REVALIDATE_SECONDS,
   SSVC_CACHE_KEY,
@@ -8,7 +8,7 @@ import {
 } from "./enrichment/config.ts";
 import { enrichCves, uniqueCves } from "./enrichment/enrich.ts";
 import { KEV_CACHE_KEY, produceKev } from "./enrichment/kev.ts";
-import { produceSsvc } from "./enrichment/ssvc.ts";
+import { produceSsvcMeasured } from "./enrichment/ssvc.ts";
 import type { CacheableSsvcState, EnrichmentSnapshot, KevRead } from "./types.ts";
 
 /**
@@ -84,8 +84,10 @@ import type { CacheableSsvcState, EnrichmentSnapshot, KevRead } from "./types.ts
  *    in Plan 07.2-01. It is called at render from `enrichCves`, never from
  *    inside another cached callback. Only `assessed` and `not-assessed` are ever
  *    stored (the producer throws on everything else). Every call of the
- *    producer, a miss or a stale refresh, logs one fixed line and a cache hit
- *    logs nothing, so the re-fetch count can be read from production logs.
+ *    producer, a miss or a stale refresh, logs exactly one budget line with p
+ *    ssvc (numbers and the state enum only, never a CVE ID) and a cache hit
+ *    logs nothing, so the re-fetch count is the number of p=ssvc lines in the
+ *    production logs (src/lib/budgetLine.ts).
  */
 
 /** The shared cache window, and so the route's ISR window, in seconds. */
@@ -184,23 +186,15 @@ export function cachedLookup<A extends string[], T>(
 }
 
 /**
- * `produceSsvc` plus one fixed log line per call. It runs only when
- * `unstable_cache` calls the producer (a miss or a stale refresh), so a cache
- * hit logs nothing and Plan 07.2-05 can count re-fetches. The line carries a
- * fixed prefix, a CVE_ID_SHAPE-validated ID and a state word, never an error
- * message or any upstream text.
+ * `produceSsvc` with its budget line, through `produceSsvcMeasured`. It runs
+ * only when `unstable_cache` calls the producer (a miss or a stale refresh), so
+ * every call logs exactly one budget line with p ssvc, holding numbers and the
+ * state enum only and no CVE ID, and a cache hit logs nothing. It stays a LOCAL
+ * function: the compiled arrow text below is part of the cache key, so moving
+ * it to another file would change the key.
  */
 async function produceSsvcLogged(id: string): Promise<CacheableSsvcState> {
-  try {
-    const state = await produceSsvc(id);
-    console.info(`ssvc: fetched ${id} ${state.state}`);
-    return state;
-  } catch (err) {
-    console.info(
-      CVE_ID_SHAPE.test(id) ? `ssvc: fetch failed ${id}` : "ssvc: fetch failed (invalid id)"
-    );
-    throw err;
-  }
+  return produceSsvcMeasured(id);
 }
 
 // The callback's source text is part of the cache key: never edit this arrow
@@ -221,16 +215,25 @@ export type FrontPageData = {
  * The one read the page makes: the cached edition and the KEV map are read in
  * parallel (never one inside the other), then joined at render. The clock is
  * sampled once here, at the render boundary, because the page component may
- * not read it. Enrichment never removes an article.
+ * not read it. Enrichment never removes an article. One render line (p render)
+ * carries the modelled read operations for the PLAT-04 reads meter; it is not a
+ * producer line.
  */
 export async function getFrontPageData(): Promise<FrontPageData> {
-  const [result, kev] = await Promise.all([getSnapshot(), getKev()]);
-  const now = Date.now();
-  const enrichment = await enrichCves(
-    uniqueCves(result.articles),
-    { kev, cardCves: result.articles.map((a) => a.cves) },
-    now,
-    { ssvc: { lookup: readSsvc } }
-  );
-  return { result, enrichment };
+  return withBudgetLine("render", async () => {
+    const [result, kev] = await Promise.all([getSnapshot(), getKev()]);
+    const now = Date.now();
+    const enrichment = await enrichCves(
+      uniqueCves(result.articles),
+      { kev, cardCves: result.articles.map((a) => a.cves) },
+      now,
+      { ssvc: { lookup: readSsvc } }
+    );
+    return { result, enrichment };
+  }, (data) => ({
+    n: data.enrichment.health.epss.requested,
+    bytes: 0,
+    rcW: 0,
+    rcR: renderReadOps(data.enrichment.health),
+  }));
 }

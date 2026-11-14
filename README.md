@@ -3,7 +3,7 @@
 <a href="https://havadis-news.vercel.app"><img src="docs/images/banner.png" alt="Havadis: the day's security news, triaged like a hazard manifest" width="100%"></a>
 
 **A public, source-independent daily security newspaper for security practitioners.**<br>
-51 curated feeds, deduplicated, scored and sorted into seven urgency-ordered sections. No accounts, no database, no tracking.
+51 curated feeds, deduplicated, scored and sorted into seven urgency-ordered sections. No accounts, no database, no tracking cookies; aggregate page views are counted with cookieless Vercel Web Analytics.
 
 [![Live site](https://img.shields.io/badge/live-havadis--news.vercel.app-f97316?style=flat-square)](https://havadis-news.vercel.app)
 [![CI](https://img.shields.io/github/actions/workflow/status/mfkocalar/havadis/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/mfkocalar/havadis/actions/workflows/ci.yml)

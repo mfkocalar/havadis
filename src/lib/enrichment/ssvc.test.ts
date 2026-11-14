@@ -31,8 +31,10 @@ import {
   isDneBody,
   parseSsvcRecord,
   produceSsvc,
+  produceSsvcMeasured,
   selectSsvcIds,
 } from "./ssvc.ts";
+import { parseBudgetLine, type BudgetLine } from "../budgetLine.ts";
 
 /**
  * Hermetic tests for the SSVC reader (ENR-06, ENR-07, D-10): injected fetchers
@@ -643,6 +645,81 @@ test("produceSsvc: sends the crawler User-Agent and Accept application/json, and
   await produceSsvc(ID, { fetcher });
   assert.deepStrictEqual(calls[0].init.headers, { "User-Agent": USER_AGENT, Accept: "application/json" });
   assert.equal(Object.hasOwn(calls[0].init, "next"), false);
+});
+
+/**
+ * produceSsvcMeasured logs exactly one budget line per call (PLAT-04, D-03,
+ * D-04). console.info is mocked and its calls are parsed back.
+ */
+function budgetLinesOf(info: { mock: { calls: Array<{ arguments: unknown[] }> } }): BudgetLine[] {
+  return info.mock.calls.map((c) => {
+    const line = parseBudgetLine(String(c.arguments[0]));
+    assert.ok(line, `not a budget line: ${String(c.arguments[0])}`);
+    return line;
+  });
+}
+
+test("produceSsvcMeasured: an assessed record logs one ssvc line with st assessed", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher } = fakeFetcher(() => json(activeRecord()));
+  const state = await produceSsvcMeasured(ID, { fetcher });
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].p, "ssvc");
+  assert.equal(lines[0].ok, 1);
+  assert.equal(lines[0].n, 1);
+  assert.equal(lines[0].rcW, 1);
+  assert.equal(lines[0].st, "assessed");
+  assert.equal(lines[0].bytes, Buffer.byteLength(JSON.stringify(state), "utf-8"));
+});
+
+test("produceSsvcMeasured: the exact CVE_RECORD_DNE 404 logs st not-assessed", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher } = fakeFetcher(() => json({ error: "CVE_RECORD_DNE" }, 404));
+  assert.deepStrictEqual(await produceSsvcMeasured(ID, { fetcher }), { state: "not-assessed" });
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].st, "not-assessed");
+  assert.equal(lines[0].ok, 1);
+});
+
+test("produceSsvcMeasured: a failing ID rejects like produceSsvc and logs ok 0, rcW 0, st failed", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher } = fakeFetcher(() => new Response("upstream text", { status: 503 }));
+  await assert.rejects(produceSsvcMeasured(ID, { fetcher }), /^Error: ssvc: lookup failed$/);
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].p, "ssvc");
+  assert.equal(lines[0].ok, 0);
+  assert.equal(lines[0].rcW, 0);
+  assert.equal(lines[0].st, "failed");
+});
+
+test("produceSsvcMeasured: an invalid id rejects and the line holds neither the id nor a CVE ID", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher, calls } = fakeFetcher(() => json(activeRecord()));
+  await assert.rejects(produceSsvcMeasured("not-a-cve", { fetcher }), /ssvc: invalid id/);
+  assert.equal(calls.length, 0);
+
+  assert.equal(info.mock.calls.length, 1);
+  const text = String(info.mock.calls[0].arguments[0]);
+  assert.ok(text.startsWith("budget {"));
+  assert.ok(!text.includes("not-a-cve"));
+  assert.ok(!text.includes("CVE-"));
+});
+
+test("produceSsvcMeasured: twelve concurrent calls log exactly twelve ssvc lines", async (t) => {
+  const info = t.mock.method(console, "info", () => {});
+  const { fetcher } = fakeFetcher(() => json({ error: "CVE_RECORD_DNE" }, 404));
+  const ids = Array.from({ length: 12 }, (_, i) => `CVE-2024-${String(51000 + i)}`);
+  await Promise.all(ids.map((id) => produceSsvcMeasured(id, { fetcher })));
+
+  const lines = budgetLinesOf(info);
+  assert.equal(lines.length, 12);
+  for (const line of lines) assert.equal(line.p, "ssvc");
 });
 
 // Real sockets: the fixture server answers /ssvc-MODE/ID.

@@ -1,3 +1,4 @@
+import { withBudgetLine } from "../budgetLine.ts";
 import { CVE_ID_SHAPE } from "../cveChips.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
 import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
@@ -135,8 +136,10 @@ export function parseKev(
  * Fetches and validates the KEV feed for the shared cache (ENR-01). Policy:
  * EVERY rejection throws, so `cachedSnapshot` keeps the previous map (stale
  * beats empty, ENR-03) instead of overwriting it with a returned value. It
- * never logs, never puts upstream text in a message (reasons name the
- * failure only) and never reads the clock.
+ * never puts upstream text in a message (reasons name the failure only) and
+ * never reads the wall clock. It logs exactly one budget line per call through
+ * `withBudgetLine` (numbers and enums only; a rejected feed logs ok 0 and rcW
+ * 0), and elapsed time and CPU are measured only there.
  *
  * It passes no `revalidate`: it runs inside a cached callback, where Next
  * forces every fetch uncached, so the 1.78 MB raw body never reaches the Data
@@ -153,14 +156,20 @@ export async function produceKev(
     maxSlimBytes?: number;
   } = {}
 ): Promise<KevMap> {
-  const result = await boundedFetchJson(
-    deps.url ?? KEV_URL,
-    {
-      maxBytes: deps.maxRawBytes ?? KEV_MAX_RAW_BYTES,
-      timeoutMs: deps.timeoutMs ?? KEV_TIMEOUT_MS,
-    },
-    { fetcher: deps.fetcher }
-  );
-  if (!result.ok) return reject(result.reason);
-  return parseKev(result.json, now, deps);
+  return withBudgetLine("kev", async () => {
+    const result = await boundedFetchJson(
+      deps.url ?? KEV_URL,
+      {
+        maxBytes: deps.maxRawBytes ?? KEV_MAX_RAW_BYTES,
+        timeoutMs: deps.timeoutMs ?? KEV_TIMEOUT_MS,
+      },
+      { fetcher: deps.fetcher }
+    );
+    if (!result.ok) return reject(result.reason);
+    return parseKev(result.json, now, deps);
+  }, (map) => ({
+    n: Object.keys(map.entries).length,
+    bytes: Buffer.byteLength(JSON.stringify(map), "utf-8"),
+    rcW: 1,
+  }));
 }

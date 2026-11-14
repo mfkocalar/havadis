@@ -1,3 +1,4 @@
+import { withBudgetLine } from "./budgetLine.ts";
 import { getFrontPage } from "./pipeline/getFrontPage.ts";
 import type { SectionedFrontPageResult } from "./types.ts";
 
@@ -33,18 +34,26 @@ export type OkEdition = Extract<SectionedFrontPageResult, { status: "ok" }>;
  * maximum age (D-07): the last good edition is served until a non-empty
  * refresh succeeds, and its Updated time shows its age.
  *
- * Never reads the clock; `now` is the caller's (D-12).
+ * Never reads the wall clock: `now` is the caller's (D-12). Elapsed time and
+ * CPU are measured only inside `withBudgetLine`, and every call logs exactly
+ * one budget line (a rejected edition logs ok 0 and rcW 0).
  */
 export async function produceEdition(
   now: number,
   load: (now: number) => Promise<SectionedFrontPageResult> = getFrontPage
 ): Promise<OkEdition> {
-  const loaded = await load(now);
-  if (loaded.status !== "ok") {
-    throw new Error(`edition rejected: ${loaded.reason}`);
-  }
-  if (loaded.articles.length === 0) {
-    throw new Error("edition rejected: zero articles");
-  }
-  return loaded;
+  return withBudgetLine("edition", async () => {
+    const loaded = await load(now);
+    if (loaded.status !== "ok") {
+      throw new Error(`edition rejected: ${loaded.reason}`);
+    }
+    if (loaded.articles.length === 0) {
+      throw new Error("edition rejected: zero articles");
+    }
+    return loaded;
+  }, (edition) => ({
+    n: edition.articles.length,
+    bytes: Buffer.byteLength(JSON.stringify(edition), "utf-8"),
+    rcW: 1,
+  }));
 }
