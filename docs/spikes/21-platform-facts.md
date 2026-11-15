@@ -76,6 +76,87 @@ Implications:
 - The relative `Location` is resolved against the current URL by the wrapper, so no wrapper change is needed for EPSS.
 - ETag and Last-Modified are both present on the final file, so a conditional GET to the dated URL is possible (S3 measures it).
 
+## S1: nested unstable_cache
+
+- Date (UTC): 2026-11-15, local build 14:01 to 14:09, preview 14:02 to 14:09
+- Vantage: local build (`next build` then `next start -p 4100` in the spike worktree, laptop, Node v26.3.1) and preview (Vercel, Node v24.22.3)
+- Next version: 16.4.1 (both; the worktree runs `npm ci` from the lockfile, `npx next --version` prints v16.4.1, and the preview build log says "Detected Next.js version: 16.4.1")
+- Spike commit: fffd251 (spike/21-platform-facts, `src/app/spike/s1/page.tsx`)
+- Deployment ID: dpl_2xexgZwb35NrMwCRTaXEbRS16JJn (`https://havadis-news-19uzmg8o1-mfkocalars-projects.vercel.app`, READY, target preview; the same deployment serves S3)
+
+S1 tests the nested-cache mechanism (an outer cachedSnapshot calling an inner cachedLookup on a spike page), not the edition path. The edition callback makes no nested cache call today: src/lib/snapshot.ts getFrontPageData (line 233 at planning time) passes readSsvc at render, outside the edition callback.
+
+Set-up: the page is static with `revalidate = 120`. `outer` is a `cachedSnapshot("spike-s1-outer-v1", ..., { revalidate: 120 })` whose callback awaits `inner("nested")` twice. `inner` is a `cachedLookup("spike-s1-inner-v1", ..., { revalidate: 120 })` that logs `spike s1 inner-run <x>`. The page body then calls `inner("control")` directly (a non-nested control) and `inner("nested")` once more directly (a write probe: if a nested call wrote an entry, this call hits it and logs nothing). The callback also returns a per-process sequence number, so the HTML shows whether two calls were separate runs.
+
+Counts per outer run (one outer run per page generation, found from the `spike s1 outer-run` line):
+
+| Vantage | Generations observed | inner-run lines per outer run | Source of the count |
+| --- | --- | --- | --- |
+| local build | 4 (the build, then 3 regenerations at 14:04:11, 14:06:21 and 14:08:32, requests spaced 130 s over 3 windows) | 2 nested + 1 control = 3, every generation | `next build` output and `next start` log: 4 `outer-run`, 8 `inner-run nested`, 4 `inner-run control` |
+| preview | 4 (the build at 14:02:29, then regenerations at 14:05:01, 14:07:12 and 14:09:25, requests spaced 130 s over 3 windows) | 2 nested + 1 control = 3, every generation | build log (1 generation) and `vercel logs runtime --environment preview --deployment <id> --since 25m --json --query "spike s1"` (3 generations: 3 `outer-run`, 6 `inner-run nested`, 3 `inner-run control`) |
+
+A hit would show 0 or 1 nested inner-runs per outer run once the first one is stored; both vantages show 2. The two nested calls of one outer run were separate runs milliseconds apart in every generation (sequence numbers n and n+1, timestamps 0 to 7 ms apart), so the second nested call never hit the first one's result.
+
+Did a bypassed nested call write an entry? Yes, as F1 predicts. The direct probe call after the outer run logged no third `inner-run nested` in any generation, so it was served from an entry that a nested call had stored. Locally the probe returned the second nested call's value in all three generations the HTML showed. On the preview it returned the first nested call's value in the two regenerations the HTML showed (14:05 and 14:07) and the second one's in the build generation, so the order in which the two nested writes land is not guaranteed. The control (a direct call) is an ordinary non-nested call and ran once per generation, as its entry is a window old at each regeneration.
+
+Verdict (D-12): **bypass**. Local and preview agree, so there is no mismatch to resolve. The design never relies on nested caching (snapshot.ts item 9).
+
+Implications:
+
+- A `cachedLookup` called inside a `cachedSnapshot` callback runs its producer on every outer run and still writes, so it costs a Runtime Cache write and the producer's work and saves nothing.
+- A KV call placed inside the edition callback (S2) is not a nested `unstable_cache` call and is not affected by this result.
+
+## S3: no-store conditional GET
+
+- Date (UTC): 2026-11-15, local run 14:02:47, preview runs 14:02:49 and 14:07:13
+- Vantage: preview (Vercel egress, Node v24.22.3) and local build (laptop, Node v26.3.1). The CVE Program rows at the end are laptop probes
+- Next version: 16.4.1
+- Spike commit: fffd251 (`src/app/spike/s3/route.ts`, force-dynamic, GET only, no request input)
+- Deployment ID: dpl_2xexgZwb35NrMwCRTaXEbRS16JJn
+- Targets (fixed constants): the EPSS dated file `epss_scores-2026-11-15.csv.gz`, `KEV_URL`, and `https://cveawg.mitre.org/api/cve/CVE-2026-114713` (one ID from the live edition, re-checked against `CVE_ID_SHAPE` before use)
+
+Method: validators come from unconditional requests outside any cache (HEAD for EPSS, GET for KEV and the CVE record, bodies cancelled). Then, inside a `cachedSnapshot("spike-s3-v1", ..., { revalidate: 60 })` callback, five raw `fetch(url, { cache: "no-store", headers })` calls run, and the same EPSS If-None-Match call runs through the unchanged `fetchWithValidatedRedirect`. The first preview call ran the callback (its `ranAt` equals its own time).
+
+| Case | Preview: status, body bytes | Local build: status, body bytes | Headers on the response (preview) |
+| --- | --- | --- | --- |
+| EPSS If-None-Match | 304, 0 | 304, 0 | etag and last-modified back, no cache-control |
+| EPSS If-Modified-Since | 304, 0 | 304, 0 | etag and last-modified back, no cache-control |
+| KEV If-Modified-Since | 304, 0 | 304, 0 | etag and last-modified back, `max-age=3374` |
+| KEV If-None-Match | 200, 1,854,379 | 200, 1,854,379 | etag and last-modified back, `max-age=3374` |
+| CVE If-None-Match (weak ETag) | 200, 3,988 | 200, 3,988 | etag back, no last-modified, `no-store` |
+| EPSS If-None-Match through `fetchWithValidatedRedirect` | threw `Redirect (304) with no Location header` | threw the same message | none |
+
+Notes on the table:
+
+- Locally the EPSS 304 carried an etag but no last-modified; on the preview it carried both. The 304 is the same, the extra header depends on the edge that answered.
+- KEV: the unconditional GET reported `content-length` 203,665 (the compressed transfer), while the decoded 200 body was 1,854,379 bytes.
+- A second preview call at 14:07:13 returned the stored result (`ranAt` still 14:02:49) although `revalidate` is 60, so `unstable_cache` served a stale entry; whether its background refresh ran was not observed and no further call was made.
+
+CVE Program API, laptop probes on 2026-11-15 (vantage: laptop; not repeated on the preview). RESEARCH F8 predicted a 304 on If-None-Match with the weak ETag, and the spike's raw `fetch` got 200, so the cause was isolated:
+
+| Request (same URL, same weak ETag) | Status |
+| --- | --- |
+| curl, plain, HTTP/1.1 or HTTP/2, with or without compression | 304 |
+| curl with `Pragma: no-cache` only | 304 |
+| curl with `Cache-Control: max-age=0` | 304 |
+| curl with `Cache-Control: no-cache` | 200 |
+| Node fetch with `If-None-Match` (default, or `cache: "no-store"`) | 200 |
+| Node fetch with `cache: "no-store"`, `If-None-Match` and an explicit `cache-control: max-age=0` | 304 |
+
+A local echo server showed that Node's fetch sent `pragma` and `cache-control` headers on a request carrying `If-None-Match`; the values were not printed, and the fetch spec sets `no-cache` for such a request, which matches the 200. So the CVE Program API ignores If-None-Match when the request carries `Cache-Control: no-cache`, and a Node fetch adds that header by itself. This is a laptop finding, not yet a preview one.
+
+Verdict: observable with raw fetch (EPSS both validators, KEV If-Modified-Since only); not through fetchWithValidatedRedirect, which throws on a 304. The CVE Program record is observable only when the request does not carry `Cache-Control: no-cache`.
+
+Phase 23 implications (text only; no wrapper change was merged, D-07):
+
+1. `fetchWithValidatedRedirect` must return a 304 before its 3xx branch (`if (res.status === 304) return res;`), and a test must show that a 304 returns without following.
+2. `boundedFetchJson` must treat 304 as not-an-error; it currently reports `status 304` as a failure.
+3. A 304 has no body, so a source with no stored last-good items must fall back to an unconditional fetch (PITFALLS C2).
+4. KEV honours If-Modified-Since only. If-None-Match returns the full 1.85 MB body, so store and send Last-Modified for KEV, not the ETag.
+5. The EPSS dated file honours both validators with a 304, so either can be stored.
+6. For the CVE Program API, a conditional request must carry an explicit `cache-control: max-age=0` (or equivalent), because the default Node fetch adds `Cache-Control: no-cache` and the API then returns 200. Re-measure this on a preview in Phase 23.
+7. `unstable_cache` served a stale entry on the second preview call, so a conditional refresh run inside a cached callback should not be assumed to have completed before the response is sent.
+
 ## Spike's own writes
 
 Every spike deployment and regeneration is counted here so Plans 21-06 and 21-07 can subtract them from the dashboard reading (D-05). Each deployment's build runs the product's own build-time producers, which write Runtime Cache entries and print `budget {` lines in the build log.
@@ -83,5 +164,13 @@ Every spike deployment and regeneration is counted here so Plans 21-06 and 21-07
 | Deployment | Label | Created (UTC) | Routes prerendered at build | Build-time producer lines (from the build log) | Upstash writes |
 | --- | --- | --- | --- | --- | --- |
 | dpl_C64KnfaffJ3mQ6xtuHek3TD1fxZ3 | s4 | 2026-11-15 13:57 | 26 static pages generated (the build log's own count: `/`, `/about`, `/feeds`, `/feed.xml`, `/feed.json`, the `/feed/[name]` paths and `/_not-found`); `/spike/s4` is dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1, each reporting `rcW` 1 (render `rcR` 4) and `kvCmd` 0 | none |
+| dpl_2xexgZwb35NrMwCRTaXEbRS16JJn | s1 and s3 (one deployment serves both labels) | 2026-11-15 14:02 | 27 static pages generated (the build log's own count; adds `/spike/s1`); `/spike/s3` and `/spike/s4` are dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1 (same counts as the s4 build), plus the s1 build generation: 1 outer-run, 2 inner-run nested, 1 inner-run control | none |
 
 Request-time writes by `/spike/s4`: none to any cache. The route is force-dynamic and fetches the EPSS file at most twice per call (one cancelled header read for the hop trace, one streamed read through the wrapper), plus one wrapper call for the cyentia start URL whose body is cancelled. It was called twice on the preview for the measurement, once more by the task's own verify command, and once on the local build, so the full file was streamed four times in total (one over the plan's limit of three, caused by the verify call; noted as a deviation in the SUMMARY).
+
+Request-time writes on dpl_2xexgZwb35NrMwCRTaXEbRS16JJn:
+
+- `/spike/s1` regenerated 3 times in the runtime logs (14:05:01, 14:07:12, 14:09:25), after 1 generation at build. Each generation runs 1 outer callback, 2 bypassed nested inner callbacks and 1 control inner callback, so by the product's own cache model (F1, confirmed by the write probe) each generation stores up to 4 `unstable_cache` entries plus the page's own ISR write. That is up to 16 Runtime Cache entries for the 4 generations and 4 ISR page writes; these are modelled from the logged callback counts, not read from the dashboard.
+- `/spike/s3` was called twice (14:02:49 and 14:07:13). The first ran its callback (1 `spike-s3-v1` entry written, 5 conditional upstream requests plus 1 wrapper request, 3 unconditional validator requests); the second returned the stored result.
+- Upstream etiquette: the three validator requests per fresh run, the KEV If-None-Match 200 (1.85 MB) once per fresh run, and one extra CVE record request per fresh run. One local run and one fresh preview run were made, plus about 19 laptop requests to the CVE record while choosing the ID and isolating the Cache-Control cause (above the plan's one-record-per-run limit; the CVE Program API's own limit is 25,000 requests per minute).
+- Total spike deployments by this plan: 2 (approved up to 3 at the Task 1 gate: s4, s1, s3).
