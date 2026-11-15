@@ -157,6 +157,74 @@ Phase 23 implications (text only; no wrapper change was merged, D-07):
 6. For the CVE Program API, a conditional request must carry an explicit `cache-control: max-age=0` (or equivalent), because the default Node fetch adds `Cache-Control: no-cache` and the API then returns 200. Re-measure this on a preview in Phase 23.
 7. `unstable_cache` served a stale entry on the second preview call, so a conditional refresh run inside a cached callback should not be assumed to have completed before the response is sent.
 
+## S2: KV inside the edition callback
+
+- Date (UTC): 2026-11-15, local build finished 14:24, preview build 14:25, readings 14:26 to 14:44
+- Vantage: preview (Vercel, project function region iad1) for every verdict; local build (laptop, no KV env set, so the KV call fails softly) for the manifest check
+- Next version: 16.4.1 (preview build log "Detected Next.js version: 16.4.1"; the worktree's lockfile build prints the same)
+- Spike commit: 785e2c3 (spike/21-platform-facts). `src/lib/spikeKv.ts` (client and `produceS2`), the KV call inside `produceEdition` in `src/lib/edition.ts`, and the static route handler `src/app/spike/s2/route.ts`. `src/lib/snapshot.ts` and its cached arrow are unchanged
+- Deployment ID (ok mode): dpl_Dg56rHQMmtQUyvcJxpGrNiJjiC4w (`https://havadis-news-p6suen16m-mfkocalars-projects.vercel.app`, READY, preview, Vercel Authentication on; the unauthenticated probe answered 302 to https://vercel.com/ at 14:25:33Z, before the first route request at 14:26:35Z)
+- Modes: this entry holds ok mode. The three injected failures (badtoken, badhost, blackhole) are added below by the same plan as one per-mode table
+
+Set-up: the client is built per STACK.md (`retry: false`, `signal: () => AbortSignal.timeout(1500)`, `automaticDeserialization: false`, `enableTelemetry: false`, @upstash/redis 1.41.0 exact, installed only in the spike worktree) from the Marketplace env vars read at runtime (names only, no `vercel env pull`). `produceS2(label)` runs `INCR spike:<VERCEL_ENV>:<label>:regen` then `SET spike:<VERCEL_ENV>:<label>:ts`, and its whole body, client construction included, sits in try/catch, so it never throws. Inside `produceEdition` it runs after the loaded edition passes both checks and before the edition is returned, labelled `edition`, and logs `spike s2 edition kv=<ok|failed> class=<class> mode=<mode> n=<counter> ms=<ms>`. `/` is measured directly. `/spike/s2` is a force-static route handler (`revalidate = 120`) on a `cachedSnapshot("spike-s2-v1")` callback with label `s2`, a 120 s companion on the same seam.
+
+(a) Build route table and (c) local manifest. The preview build log and the local build print the same rows:
+
+| Route | Revalidate | Expire |
+| --- | --- | --- |
+| `/` | 15m | 1y |
+| `/spike/s2` | 2m | 1y |
+
+Local `.next/prerender-manifest.json`: `/` compute static, `initialRevalidateSeconds` 900; `/spike/s2` compute static, 120. `assertStaticRoute` from `test/fixtures/staticRouteGate.ts` passed on both (`/` with 900, `/spike/s2` with 120). The local build (no KV env, exit 0) logged `spike s2 edition kv=failed class=other mode=ok n=0 ms=0` ten times, so a missing store leaves `/` static and the build green.
+
+(e) Build time on the preview. The deployment is READY. The build log shows the edition callback ran 5 times (the same 5 edition budget lines the earlier previews showed; why the callback repeats at build was not investigated, and the local build ran it 10 times) and each ran its KV call: `kv=ok class=none mode=ok` with n=1, 2, 3, 4, 5 and ms=177, 52, 6, 7, 9. So a live KV call inside the edition callback runs at build time and does not stop the build or make `/` dynamic. The build's `/spike/s2` generation ran once (body n=1, ms 206).
+
+(b) ISR on `/` (900 s), headers through `vercel curl`:
+
+| UTC | x-nextjs-prerender | x-vercel-cache | age |
+| --- | --- | --- | --- |
+| 14:26:35 | 1 | PRERENDER | 0 |
+| 14:31:10 | 1 | HIT | 274 |
+| 14:42:06 (reading 2, 15 min 31 s after reading 1) | 1 | STALE | 931 |
+| 14:43:13 (reading 3) | 1 | HIT | 62 (reset) |
+
+The first request returned PRERENDER (the build's own HTML), where RESEARCH predicted HIT; the CDN had no copy yet. The STALE reading triggered one regeneration: `vercel logs runtime --environment preview --deployment dpl_Dg56rHQMmtQUyvcJxpGrNiJjiC4w --since 25m --json --query "spike s2 edition"` shows exactly one line, `2026-11-15T14:42:11.947Z info spike s2 edition kv=ok class=none mode=ok n=6 ms=24`, one higher than the build's last value (5). The HTML size changed between readings 2 and 3 (332,959 to 332,963 bytes), which shows the page really was regenerated.
+
+(b) and (d) ISR on `/spike/s2` (120 s companion), readings spaced about 130 s:
+
+| UTC | x-vercel-cache | age | body n |
+| --- | --- | --- | --- |
+| 14:26:37 | PRERENDER | 0 | 1 |
+| 14:28:57 | STALE | 140 | 1 |
+| 14:31:08 | STALE | 130 | 2 |
+| 14:33:21 | STALE | 132 | 3 |
+| 14:36:07 | STALE | 165 | 4 |
+| 14:36:34 | HIT | 26 (reset) | 5 |
+| 14:44:05 (the task's verify call) | served the n=5 entry, which triggered one more regeneration (n=6, not observed) | | 5 |
+
+The counter rose by one per window and the body is `application/json` with `"kv":"ok"` unescaped, as the greps need. With 130 s spacing against a 120 s window every reading after the first lands past the window, so each is STALE and starts a regeneration; the HIT with a reset age appears when a reading follows within the window (26 s). The route handler sends no `x-nextjs-prerender` header; `/` does. The Upstash console was not read: the counters are the page body's n values.
+
+Verdict, ok mode: **static preserved**. A live KV call inside the edition callback runs at build time and on ISR regeneration, `/` stays static with its 900 s window, and the KV call ran once per regeneration of `/`. This matches RESEARCH F3: inside `unstable_cache` the SDK's `cache: "no-store"` fetch is inert and does not turn the route dynamic.
+
+Notes for Phase 23 from ok mode:
+
+- The edition callback ran 5 times in one preview build, so a KV call inside it costs 5 round trips per build. The product's `budget {` lines report `kvCmd` 0 for these runs: the spike's KV calls are outside the product's own counter, so they are counted in "Spike's own writes" below.
+- The warm KV call took 6 to 56 ms from iad1; the cold first call 177 to 206 ms.
+
+## Marketplace env scoping
+
+Vantage: dashboard through `vercel env ls` on 2026-11-15 (names, types and environments only; values show as Hidden and were never read).
+
+| Variable | Type | Environments |
+| --- | --- | --- |
+| KV_REST_API_URL | Secret | Preview, Production |
+| KV_REST_API_TOKEN | Secret | Preview, Production |
+| KV_REST_API_READ_ONLY_TOKEN | Secret | Preview, Production |
+| KV_URL | Secret | Preview, Production |
+| REDIS_URL | Secret | Preview, Production |
+
+Answer to the Production-only question (D-06): the Marketplace integration injected the variables into Preview as well as Production (created 2 days before the check, all five alike). A preview can therefore reach the store: the ok-mode preview above wrote `spike:preview:` keys and read the counter back (INCR returned 1 to 6). The user reported in Plan 21-02 that one resource (`upstash-kv-aqua-horizon`) is connected to both environments, so this is the production-intended store, not a separate one. Restricting the variables to Production is a setting the user can change later; this plan did not change it. Until then every preview deployment can read and write the same store, which is why all spike keys sit under `spike:<VERCEL_ENV>:` and the Plan 21-06 cleanup deletes `spike:*`.
+
 ## Spike's own writes
 
 Every spike deployment and regeneration is counted here so Plans 21-06 and 21-07 can subtract them from the dashboard reading (D-05). Each deployment's build runs the product's own build-time producers, which write Runtime Cache entries and print `budget {` lines in the build log.
@@ -165,6 +233,7 @@ Every spike deployment and regeneration is counted here so Plans 21-06 and 21-07
 | --- | --- | --- | --- | --- | --- |
 | dpl_C64KnfaffJ3mQ6xtuHek3TD1fxZ3 | s4 | 2026-11-15 13:57 | 26 static pages generated (the build log's own count: `/`, `/about`, `/feeds`, `/feed.xml`, `/feed.json`, the `/feed/[name]` paths and `/_not-found`); `/spike/s4` is dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1, each reporting `rcW` 1 (render `rcR` 4) and `kvCmd` 0 | none |
 | dpl_2xexgZwb35NrMwCRTaXEbRS16JJn | s1 and s3 (one deployment serves both labels) | 2026-11-15 14:02 | 27 static pages generated (the build log's own count; adds `/spike/s1`); `/spike/s3` and `/spike/s4` are dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1 (same counts as the s4 build), plus the s1 build generation: 1 outer-run, 2 inner-run nested, 1 inner-run control | none |
+| dpl_Dg56rHQMmtQUyvcJxpGrNiJjiC4w | s2-ok | 2026-11-15 14:25 | 28 static pages generated (the build log's own count; adds `/spike/s2`); `/spike/s3` and `/spike/s4` are dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1 (9 budget lines, same counts as the earlier previews; the product's `kvCmd` still reads 0), plus 5 edition-callback KV calls and 1 `/spike/s2` KV generation | 12 commands at build (6 regenerations of 2 commands: INCR and SET) |
 
 Request-time writes by `/spike/s4`: none to any cache. The route is force-dynamic and fetches the EPSS file at most twice per call (one cancelled header read for the hop trace, one streamed read through the wrapper), plus one wrapper call for the cyentia start URL whose body is cancelled. It was called twice on the preview for the measurement, once more by the task's own verify command, and once on the local build, so the full file was streamed four times in total (one over the plan's limit of three, caused by the verify call; noted as a deviation in the SUMMARY).
 
@@ -174,3 +243,10 @@ Request-time writes on dpl_2xexgZwb35NrMwCRTaXEbRS16JJn:
 - `/spike/s3` was called twice (14:02:49 and 14:07:13). The first ran its callback (1 `spike-s3-v1` entry written, 5 conditional upstream requests plus 1 wrapper request, 3 unconditional validator requests); the second returned the stored result.
 - Upstream etiquette: the three validator requests per fresh run, the KEV If-None-Match 200 (1.85 MB) once per fresh run, and one extra CVE record request per fresh run. One local run and one fresh preview run were made, plus about 19 laptop requests to the CVE record while choosing the ID and isolating the Cache-Control cause (above the plan's one-record-per-run limit; the CVE Program API's own limit is 25,000 requests per minute).
 - Total spike deployments by this plan: 2 (approved up to 3 at the Task 1 gate: s4, s1, s3).
+
+Request-time writes on dpl_Dg56rHQMmtQUyvcJxpGrNiJjiC4w (s2-ok, Plan 21-05):
+
+- `/` regenerated once at runtime (14:42:11Z, one `spike s2 edition kv=ok n=6` line): 26 write units by the plan's model (not read from the dashboard) and 2 KV commands under `spike:preview:edition:`.
+- `/spike/s2` regenerated 4 times in the readings (n=2 to 5, 14:28:59 to 14:36:08) and once more after the verify call at 14:44:05 (n=6, not observed): 5 regenerations, 10 KV commands under `spike:preview:s2:`.
+- Total for this deployment: 24 KV commands (12 at build, 2 for `/`, 10 for `/spike/s2`), against 500K per month. Keys written: `spike:preview:edition:regen`, `spike:preview:edition:ts`, `spike:preview:s2:regen`, `spike:preview:s2:ts`. They stay until the Plan 21-06 cleanup.
+- The reading calls were `vercel curl` only (4 on `/`, 7 on `/spike/s2` including the verify call), plus the unauthenticated probe.
