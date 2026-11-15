@@ -211,6 +211,47 @@ Notes for Phase 23 from ok mode:
 - The edition callback ran 5 times in one preview build, so a KV call inside it costs 5 round trips per build. The product's `budget {` lines report `kvCmd` 0 for these runs: the spike's KV calls are outside the product's own counter, so they are counted in "Spike's own writes" below.
 - The warm KV call took 6 to 56 ms from iad1; the cold first call 177 to 206 ms.
 
+### S2 with KV failure injected (badtoken, badhost, blackhole)
+
+- Date (UTC): 2026-11-15, deployments 14:45 to 14:47, readings 14:47 to 15:05. Vantage: preview (Vercel, iad1). Next 16.4.1, spike commit 785e2c3 (the same code as ok mode; only `SPIKE_KV_MODE` differs, passed by `--build-env` and `--env`)
+- Deployments, all READY, preview, Vercel Authentication on, each answering the unauthenticated probe with a 302 to https://vercel.com/ before its first route request:
+
+| Mode | Deployment ID | Probe (UTC) | First route request (UTC) |
+| --- | --- | --- | --- |
+| badtoken | dpl_9SdYsd2xumMPqPDz7yfHA8PcVT79 (`https://havadis-news-jv9bvlp0y-mfkocalars-projects.vercel.app`) | 14:46:08 | 14:47:42 |
+| badhost | dpl_HtNYBZn2BVjoNPL9ULwF1ShTx9C8 (`https://havadis-news-euqrvinel-mfkocalars-projects.vercel.app`) | 14:46:41 | 14:47:44 |
+| blackhole | dpl_EzxQnwgkx2QvYVQaawbc6jbZwPBp (`https://havadis-news-27yeb3wv4-mfkocalars-projects.vercel.app`) | 14:47:21 | 14:47:48 |
+
+The failure fixtures are fixed fake literals in spike code: the token `spike-invalid-token`, the host `https://spike-nonexistent.invalid` and the address `https://10.255.255.1`. The three `/` ISR windows ran side by side: reading 1 on all three at 14:47:42 to 14:47:48, reading 2 at 15:04:04 to 15:04:07 (16 min 22 s after reading 1), reading 3 at 15:05:10 to 15:05:13.
+
+Per-mode results:
+
+| Mode | Deployment state | `/` build-log edition lines (5 runs, class and ms) | `/` ISR window (x-vercel-cache, age) | `/` runtime line (the one regeneration) | /spike/s2 kv | errorClass | /spike/s2 ms |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| badtoken | READY | `kv=failed class=auth`, 81 to 183 ms | PRERENDER 0, STALE 982, HIT 61 (reset) | `15:04:10.068Z kv=failed class=auth mode=badtoken n=0 ms=110` | failed | auth | 155 (build), 90, 109 |
+| badhost | READY | `kv=failed class=network`, 13 to 39 ms | PRERENDER 0, STALE 980, HIT 61 (reset) | `15:04:11.036Z kv=failed class=network mode=badhost n=0 ms=17` | failed | network | 199 (build) |
+| blackhole | READY | `kv=failed class=timeout`, 1,501 to 1,504 ms | PRERENDER 0, STALE 978, HIT 60 (reset) | `15:04:13.853Z kv=failed class=timeout mode=blackhole n=0 ms=1505` | failed | timeout | 1500 (build) |
+
+All three: `/` and `/spike/s2` are static in the build route table (`/` 15m, `/spike/s2` 2m, same rows as ok mode), the build's `Generating static pages` step reached 28/28, and the HTML size of `/` changed on the regeneration (332,959 to 312,661 bytes on all three), so each page really was regenerated with KV failing. `x-nextjs-prerender` was 1 on every `/` reading. Each runtime query (`vercel logs runtime --environment preview --deployment <id> --since 25m --json --query "spike s2 edition"`) returned exactly one `kv=failed` line, with the class that mode predicts.
+
+Blackhole build cost: the edition callback ran 5 times at build and each waited for the 1.5 s client timeout (1,501 to 1,504 ms), so there was no hang. The build's static-page step took 13.9 s against 8.5 s (ok), 8.8 s (badtoken) and 8.5 s (badhost), about 5 s longer, not 1.5 s, because the 5 waits add up (partly overlapped). The total "Build Completed" figure is noisier (22 s ok, 16 s badtoken, 16 s badhost, 21 s blackhole) and is not used. At runtime the one regeneration of `/` paid the 1.5 s timeout once (ms=1505).
+
+Shared cache entry across deployments (measured, not predicted). The `/spike/s2` callback has the same source text and key (`spike-s2-v1`) in every deployment, so the four previews share one `unstable_cache` entry. The HIT readings show it: at 14:50:49 the badhost deployment and at 14:50:51 the blackhole deployment served a body with `"mode":"badtoken"` written at 14:50:21 by the badtoken deployment's regeneration, and the plan's own verify call on the blackhole deployment (15:06:31) got the same badtoken body. So for `/spike/s2` only the build-time body and the readings before the first cross-deployment regeneration are own-mode evidence (the table's `/spike/s2` column uses only those). The plan's greps for `"kv":"failed"` pass on that foreign body, so they show only that a failed value was served. This does not touch the `/` verdicts: each deployment's own runtime log shows its own `/` callback ran once in its own mode (the three regenerations began within 3 s of each other, while the shared entry was stale). Whether a preview shares its Runtime Cache entries with production for the edition key was not measured.
+
+Classification caveat: `errorClass` is decided by error name only. `@upstash/redis` 1.41.0 drops the HTTP status: a rejected request arrives as `UpstashError` with no status field, so the auth class is "the store answered with an error". A bad token and an exhausted quota would look the same by name. The SDK's fetch `TypeError` maps to network and the abort `TimeoutError` to timeout.
+
+**S2 verdict (SC1): a KV call inside the edition callback keeps `/` static at build and on ISR regeneration, also with KV failing (bad token, unresolvable host, black-holed address).**
+
+Basis: build time and ISR regeneration on `/` are measured directly in all four modes (ok, badtoken, badhost, blackhole): READY build, `/` static in the route table, PRERENDER then STALE after the window then HIT with age reset (ok mode also shows an early HIT), and one runtime edition line per regeneration. `/spike/s2` is a 120 s companion on the same `cachedSnapshot` seam, and no claim rests on it alone. The local build with no KV env at all gives the same result.
+
+Phase 23 implications:
+
+1. A fail-open try/catch is required inside `produceEdition` around every KV call, covering client construction. With it, all three failure modes left the build green and `/` static. This spike never tested a throwing KV call, so the cold-build failure it would cause rests on `snapshot.ts` item 7(3), not on a measurement here.
+2. The KV-down path must also cover over-quota (an undocumented Free-plan behaviour, F16). The SDK reports any non-2xx answer as the same `UpstashError` without a status, so if Phase 23 needs to tell an auth fault from over-quota it needs the status from its own fetch wrapper.
+3. Keep the 1.5 s client timeout. A black-holed store adds about 1.5 s to a regeneration and about 5 s to a build (5 callback runs), where an unbounded call could stall both.
+4. The edition callback runs several times per build (5 on the preview, 10 locally), so a KV call inside it costs that many round trips at build time, and the product's `kvCmd` counter must count each one.
+5. Runtime Cache entries with the same key and callback source are shared across deployments of the project. Phase 23 must not assume a deployment's callback runs on its own regeneration, and any KV key must carry the environment (as the spike's `spike:<VERCEL_ENV>:` prefix does).
+
 ## Marketplace env scoping
 
 Vantage: dashboard through `vercel env ls` on 2026-11-15 (names, types and environments only; values show as Hidden and were never read).
@@ -234,6 +275,9 @@ Every spike deployment and regeneration is counted here so Plans 21-06 and 21-07
 | dpl_C64KnfaffJ3mQ6xtuHek3TD1fxZ3 | s4 | 2026-11-15 13:57 | 26 static pages generated (the build log's own count: `/`, `/about`, `/feeds`, `/feed.xml`, `/feed.json`, the `/feed/[name]` paths and `/_not-found`); `/spike/s4` is dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1, each reporting `rcW` 1 (render `rcR` 4) and `kvCmd` 0 | none |
 | dpl_2xexgZwb35NrMwCRTaXEbRS16JJn | s1 and s3 (one deployment serves both labels) | 2026-11-15 14:02 | 27 static pages generated (the build log's own count; adds `/spike/s1`); `/spike/s3` and `/spike/s4` are dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1 (same counts as the s4 build), plus the s1 build generation: 1 outer-run, 2 inner-run nested, 1 inner-run control | none |
 | dpl_Dg56rHQMmtQUyvcJxpGrNiJjiC4w | s2-ok | 2026-11-15 14:25 | 28 static pages generated (the build log's own count; adds `/spike/s2`); `/spike/s3` and `/spike/s4` are dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1 (9 budget lines, same counts as the earlier previews; the product's `kvCmd` still reads 0), plus 5 edition-callback KV calls and 1 `/spike/s2` KV generation | 12 commands at build (6 regenerations of 2 commands: INCR and SET) |
+| dpl_9SdYsd2xumMPqPDz7yfHA8PcVT79 | s2-badtoken | 2026-11-15 14:45 | 28 static pages generated (build log count); `/spike/s3` and `/spike/s4` are dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1 (9 budget lines), plus 5 edition-callback KV attempts and 1 `/spike/s2` attempt, all `kv=failed class=auth` | none: each attempt sent 1 INCR with an invalid token, which the store rejected, so no key was written |
+| dpl_HtNYBZn2BVjoNPL9ULwF1ShTx9C8 | s2-badhost | 2026-11-15 14:46 | 28 static pages generated | same 9 budget lines, plus 5 edition-callback attempts and 1 `/spike/s2` attempt, all `kv=failed class=network` | none: the host does not resolve, nothing reached the store |
+| dpl_EzxQnwgkx2QvYVQaawbc6jbZwPBp | s2-blackhole | 2026-11-15 14:47 | 28 static pages generated | same 9 budget lines, plus 5 edition-callback attempts and 1 `/spike/s2` attempt, all `kv=failed class=timeout` at about 1,500 ms | none: the address is non-routable, nothing reached the store |
 
 Request-time writes by `/spike/s4`: none to any cache. The route is force-dynamic and fetches the EPSS file at most twice per call (one cancelled header read for the hop trace, one streamed read through the wrapper), plus one wrapper call for the cyentia start URL whose body is cancelled. It was called twice on the preview for the measurement, once more by the task's own verify command, and once on the local build, so the full file was streamed four times in total (one over the plan's limit of three, caused by the verify call; noted as a deviation in the SUMMARY).
 
@@ -250,3 +294,11 @@ Request-time writes on dpl_Dg56rHQMmtQUyvcJxpGrNiJjiC4w (s2-ok, Plan 21-05):
 - `/spike/s2` regenerated 4 times in the readings (n=2 to 5, 14:28:59 to 14:36:08) and once more after the verify call at 14:44:05 (n=6, not observed): 5 regenerations, 10 KV commands under `spike:preview:s2:`.
 - Total for this deployment: 24 KV commands (12 at build, 2 for `/`, 10 for `/spike/s2`), against 500K per month. Keys written: `spike:preview:edition:regen`, `spike:preview:edition:ts`, `spike:preview:s2:regen`, `spike:preview:s2:ts`. They stay until the Plan 21-06 cleanup.
 - The reading calls were `vercel curl` only (4 on `/`, 7 on `/spike/s2` including the verify call), plus the unauthenticated probe.
+
+Request-time writes on the three failure-mode deployments (Plan 21-05 Task 3):
+
+- `/` regenerated once at runtime on each (15:04:10, 15:04:11 and 15:04:13Z): 26 write units each by the plan's model (not read from the dashboard), plus 1 KV attempt each, none of which stored a key.
+- `/spike/s2` regenerations are not counted per deployment, because its `unstable_cache` entry is shared across the four previews (see the S2 entry): the `/spike/s2` callback logs nothing, so how many callbacks ran per deployment was not counted. Each callback that ran was 1 failed KV attempt and no key.
+- No Upstash key was written by these three deployments. The only keys this plan wrote are the four from s2-ok above.
+- Reading calls were `vercel curl` only: 3 on `/` and 3 on `/spike/s2` per deployment (the blackhole deployment had 1 more on `/spike/s2` from the verify call), plus the unauthenticated probe.
+- Total spike deployments by this plan: 4, all approved at the gate=21-05 reconfirm (s2-ok, s2-badtoken, s2-badhost, s2-blackhole). The harness label was not approved and was not deployed. Six spike deployments are listed in all, out of Hobby's 100 per day.
