@@ -390,3 +390,25 @@ Which meter `unstable_cache` bills to: not determinable from this reading. The p
 Spike's own writes subtracted (modelled from the "Spike's own writes" list above, not read from the dashboard): seven spike deployments each prerendered 26 to 28 static pages at build (193 page writes in total: 26 + 27 + 28 x 5; the harness deployment's 28 is included), plus 4 runtime `/` regenerations at 26 write units each by the plan's model (104), plus the s1 deployment's up to 16 `unstable_cache` entries and 4 ISR page writes (20), plus about 63 build-time producer entries (9 budget lines x 7 deployments, `rcW` 1 each). That is about 380 write units in 8 KB units by the plan's model, under 1% of the 41K reading. ISR Writes net of the spike: about 40.6K for the cycle, produced by the product's own deployments and regenerations. The resulting share of the allotment cannot be given because no allotment was provided. The model counts every prerendered page as one ISR write, which the plan did not verify; the dashboard rows carry no per-deployment split.
 
 Environment scoping decision (D-06): production_only_later = yes. The user wants Preview removed from the Upstash store's project connection. It was not removed in Plan 21-06, because the CVSS sample and the Plan 21-07 cleanup may still need previews. It is carried to Plan 21-07 as a user action after the spike cleanup, to be followed by `vercel env ls` (names only) to confirm no Preview row remains for the KV variables.
+
+## CVE Program CVSS coverage (D-11)
+
+Population change: D-11 edition pool plus a cvelistV5 deltaLog fill, approved by the user on 2026-11-16.
+
+Vantage: laptop (a plain run of `spike/cvss-sample.ts`, node 26.3.1, on 2026-11-16 at about 20:25 UTC). Coverage is a property of the CVE Program records, not of the egress path, so a laptop reading is valid for it. The script made 50 sequential requests to the CVE Program API with a 200 ms pause and the repo user agent, plus one fetch of the cvelistV5 `deltaLog.json`.
+
+Pool definition: the edition's CVE IDs accumulated hourly from `/feed.json` across 2026-11-15T13:52:39Z to 2026-11-16T14:52:39Z (26 polls, all ok, all answered STALE), N_ed = 5 distinct IDs. That is below the 45 needed for an edition-only pool by rule, so the choice was the user's at the operator session 2 checkpoint: `cvss_pool=edition+deltalog`. The fill is 45 IDs from `new[]` entries of the deltaLog whose fetchTime falls in the 72 h before the run, minus the edition IDs, sorted ascending and picked at index floor(i x count / 45). That is a different population: all newly published CVEs, not the ones the edition shows.
+
+| Population | k / N | Share |
+| --- | --- | --- |
+| Edition (all 5 distinct IDs) | 5 / 5 | 100% |
+| deltaLog fill (45 CVEs published in the last 72 h) | 38 / 45 | 84.4% |
+| Combined | 43 / 50 | 86.0% |
+
+Scored means `containers.cna.metrics[]`, or the one `containers.adp[]` entry whose `providerMetadata.orgId` is the CISA-ADP org id, has a key matching `^cvssV`. Other ADP containers do not count.
+
+Split of the 50: CNA-scored 40 (5 edition, 35 fill), CISA-ADP-only 3 (fill), no CVSS 7 (fill), unresolved (non-200) 0. Versions seen, counted once per CVE in the container that scored it (a CVE can carry several): cvssV3_1 in 32, cvssV4_0 in 23, cvssV3_0 in 3, cvssV2_0 in 3.
+
+D-11 branch on the approved pool (strict integer rule, decision request due when 100 x k < 70 x N): 100 x 43 = 4300 against 70 x 50 = 3500, so no decision request (86% is at or above 70%). The edition-only subset is 5/5 (500 against 350, also no request). The research prior (F12: 93-94%) was a prior; the measured combined share is 86.0%, lower than the prior, and the shortfall sits in the fill (7 of 45 with no CVSS at all, plus 3 that only CISA-ADP scored). New CVEs from the last 72 h are plausibly less often scored than the ones the edition shows, but this run did not test that, and with 5 edition CVEs the edition-only figure carries a very wide margin.
+
+Note for ENR-12: CVSS v4.0 is common in CNA data (23 of 50 CVEs here), so the display must not assume v3.1. The SSVC record request (`cveRecordUrl`) already returns the same record, so CVSS needs no extra request.
