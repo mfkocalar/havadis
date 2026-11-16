@@ -18,9 +18,9 @@ Vantage for this section: dashboard and CLI readings reported by the user in Pla
 | Project function region | iad1 (`serverlessFunctionRegion`, and the build log line "Running build in Washington, D.C., USA (East) – iad1") | dashboard API and preview build log |
 | Upstash | Integration resource `upstash-kv-aqua-horizon`, product Upstash for Redis, connected to project havadis-news for Production and Preview (user report, agrees with `vercel env ls`) | dashboard |
 | Upstash env var names | KV_REST_API_URL, KV_REST_API_TOKEN, KV_REST_API_READ_ONLY_TOKEN, KV_URL, REDIS_URL, all Secret, on Preview and Production. Values were never read | dashboard |
-| Upstash store creation date, store region, plan | Not recorded in Plan 21-02: the user did not confirm the store region and the CLI cannot read it. Open item, to be filled by the Plan 21-05 or 21-06 checkpoint | not measured |
+| Upstash store creation date, store region, plan | Plan 21-02 did not record these. Filled by the user in the Plan 21-06 operator session 2 (2026-11-16, as shown in the Upstash console): plan Free Tier, cloud AWS, region N. Virginia, USA (us-east-1), database type shown as "global". Creation date: not provided by the user | dashboard (user report) |
 | Cron jobs configured | 0 (user report; `vercel crons ls` printed "No cron jobs found") | dashboard and CLI |
-| Hobby cron job limit and minimum interval | Docs value only: 100 cron jobs per project, minimum interval once per day on Hobby, scheduling precision per hour (RESEARCH F15). The dashboard text was not read in Plan 21-02 and stays unverified | docs |
+| Hobby cron job limit and minimum interval | Docs value only: 100 cron jobs per project, minimum interval once per day on Hobby, scheduling precision per hour (RESEARCH F15). The Cron Jobs page was checked in Plan 21-06 operator session 2: it is empty (0 jobs) and shows no limit text, so the limit stays an unverified docs value | docs (dashboard page shows no limit) |
 | Next.js version Vercel builds | 16.4.1 (Turbopack), from the build log of the S4 preview ("Detected Next.js version: 16.4.1"). The main checkout's node_modules hold 16.4.6, so the spike worktree runs its own `npm ci` from the lockfile | preview build log |
 | Node on the preview | v24.22.3 (reported by the S4 route). Laptop: v26.3.1 | preview and laptop |
 
@@ -264,7 +264,7 @@ Vantage: dashboard through `vercel env ls` on 2026-11-15 (names, types and envir
 | KV_URL | Secret | Preview, Production |
 | REDIS_URL | Secret | Preview, Production |
 
-Answer to the Production-only question (D-06): the Marketplace integration injected the variables into Preview as well as Production (created 2 days before the check, all five alike). A preview can therefore reach the store: the ok-mode preview above wrote `spike:preview:` keys and read the counter back (INCR returned 1 to 6). The user reported in Plan 21-02 that one resource (`upstash-kv-aqua-horizon`) is connected to both environments, so this is the production-intended store, not a separate one. Restricting the variables to Production is a setting the user can change later; this plan did not change it. Until then every preview deployment can read and write the same store, which is why all spike keys sit under `spike:<VERCEL_ENV>:` and the Plan 21-06 cleanup deletes `spike:*`.
+Answer to the Production-only question (D-06): the Marketplace integration injected the variables into Preview as well as Production (created 2 days before the check, all five alike). A preview can therefore reach the store: the ok-mode preview above wrote `spike:preview:` keys and read the counter back (INCR returned 1 to 6). The user reported in Plan 21-02 that one resource (`upstash-kv-aqua-horizon`) is connected to both environments, so this is the production-intended store, not a separate one. Restricting the variables to Production is a setting the user can change later; Plan 21-05 did not change it. Until then every preview deployment can read and write the same store, which is why all spike keys sit under `spike:<VERCEL_ENV>:` and the Plan 21-06 cleanup deletes `spike:*`.
 
 ## Spike's own writes
 
@@ -312,7 +312,7 @@ Request-time writes on dpl_GwvgDKPQKXJwPibHJ5rWNS9xPgni (shapes harness, Plan 21
 
 ## Upstash command count per batched call
 
-Vantage: preview (harness self-test) for the route behaviour; the measured counts come from the Upstash console counter as the user reads it (vantage: dashboard) after the Task 2 reading and are not in this entry yet.
+Vantage: preview (harness self-test) for the route behaviour; the measured counts come from the Upstash console counter as the user reads it (vantage: dashboard) after the Task 2 reading and are in the measured section below. Counts from the console were typed in by the user; the harness did not read them.
 
 Harness: route `/spike/shapes` on dpl_GwvgDKPQKXJwPibHJ5rWNS9xPgni (spike branch only, never merged), operator script `spike/shapes.sh` (idle reading of 120 s, then one 50-rep run per shape with 90 s of counter lag wait, drift correction from the idle reading, then cleanup). Every key sits under `spike:<VERCEL_ENV>:shapes:` and the route can touch nothing else (D-06).
 
@@ -334,4 +334,59 @@ Over-quota behaviour on Free: undocumented, not tested (it would spend the 500K 
 
 Self-test result (vantage: preview): all seven shapes returned `ok: true` at `reps=1`; `shape=bogus` and `reps=51` returned 400; cleanup returned `remaining` 0.
 
-The measured counts and the verdict on the 4-command layout are added after the Task 2 counter reading.
+### Measured counts (operator session 2, 2026-11-16)
+
+Vantage: dashboard (the Upstash console Commands counter, as the user typed it at each prompt of `spike/shapes.sh`, 50 reps per shape, 90 s counter-lag wait between shapes). The `IDLE_DELTA` line was not pasted; the drift column is 0 for every shape, so the idle reading is recorded as "not pasted, drift column 0" and the corrected column equals the raw one.
+
+Raw counter readings as typed: 109, 159, 1209, 2309, 2459, 2409, 2459, 3459. The final reading was first typed as 2459 and corrected by the user to 3459 after the console refreshed late (it had not updated yet when read). The user confirmed the other readings are what the console showed.
+
+| Shape | before | after | delta | measured per call (delta / 50) | drift | corrected per call | predicted (F16) | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| mget20 | 109 | 159 | 50 | 1.00 | 0 | 1.00 | 1 (predicted) | measured |
+| pipe20 | 159 | 1209 | 1050 | 21.00 | 0 | 21.00 | 20 (predicted) | measured |
+| multi20 | 1209 | 2309 | 1100 | 22.00 | 0 | 22.00 | 22 (predicted) | measured |
+| hset20 | 2309 | 2459 | 150 | not individually measured | 0 | not individually measured | 1 (predicted, A4) | not measured, see below |
+| hgetall | 2459 | 2409 | -50 | not individually measured | 0 | not individually measured | 1 (predicted) | not measured, see below |
+| mset20 | 2409 | 2459 | 50 | not individually measured | 0 | not individually measured | 1 (predicted) | not measured, see below |
+| promiseall20 | 2459 | 3459 | 1000 | 20.00 | 0 | 20.00 | 20 (predicted) | measured |
+
+The deltas in the three not-measured rows are the raw arithmetic of the typed readings and are not measurements. The counter went down between readings 5 and 6 (2459 then 2409), which a monotonic counter cannot do, so the console display was lagging or inconsistent during those shapes. Per-shape counts for hset20, hgetall and mset20 are therefore not recorded; their predictions (1 each) stay labelled predicted. The only figure available for them is combined: readings 4 and 7 (2309 and 2459) give 150 for the three shapes together over 50 reps, 3.00 per rep triple, which equals the predicted sum of 1 + 1 + 1. The split between the three is unverified. The four last shapes together (2309 to 3459) are 1150, equal to the predicted 50 + 50 + 50 + 1000. A re-run of those three shapes (the harness deployment stays until Plan 21-07) is possible if a later plan needs the per-shape counts.
+
+Method and granularity: the console counter was read by hand at each prompt, with a 90 s wait after each shape for counter lag (A11, assumed). Counter granularity at 50 reps is 0.02 commands per call. pipe20 measured 21.00, one above the predicted 20: each pipeline of 20 GETs counted 21 commands. That one extra command per pipeline is measured but not explained here (for example a per-pipeline overhead command); the console does not break commands down by type.
+
+Verdict on the Phase 23 layout (one HGETALL, one HSET, one MGET, one MSET): measured mget20 is 1.00. The three other shapes are measured only as a combined 3.00 per rep triple. The combined figure is 4.00 commands per regeneration, equal to the predicted 4, so the layout holds on the combined count. It is a verdict on the sum only: neither hset20 (the A4 assumption that a 20-pair HSET counts as one) nor hgetall nor mset20 is confirmed alone, so Phase 23 should not rely on the per-shape split. Two further facts for Phase 23: a pipeline is billed per command plus one (21 for 20 GETs), and a `Promise.all` of 20 GETs through the SDK counts 20 (no saving from auto-pipelining, measured 20.00).
+
+## Runtime Cache write share (Usage page)
+
+Vantage: dashboard, the Usage page values pasted by the user on 2026-11-16 (Plan 21-06 operator session 2). The user gave values only. No allotments, no billing cycle dates and no Observability view or migration banner were given, so those are recorded as "not provided".
+
+No Data Cache row and no Runtime Cache row exists on the Usage page. The only cache rows present are ISR Reads and ISR Writes.
+
+| Usage row (label as the user gave it) | Value, current cycle | Allotment |
+| --- | --- | --- |
+| Fast Data Transfer | 206.1 MB | not provided |
+| Fast Origin Transfer | 627.3 MB | not provided |
+| CDN Requests | 7K | not provided |
+| CDN Request CPU Duration | 4s | not provided |
+| ISR Reads | 30K | not provided |
+| ISR Writes | 41K | not provided |
+| Function Invocations | 1.4K | not provided |
+| Function Duration | 0 GB-Hrs | not provided |
+| Fluid Provisioned Memory | 3.0 GB-Hrs | not provided |
+| Fluid Active CPU | 51m 59s | not provided |
+| Build CPU Minutes | 40m | not provided |
+| Build Minutes | 0s | not provided |
+| Deployment Storage | 57 MB | not provided |
+| Functions Storage | 29.04 MB | not provided |
+| Web Analytics Events | 17 | not provided |
+| Cron Job Invocations | 0 | not provided |
+| Global Config Reads/Writes | 0 | not provided |
+| Observability Events | 0 | not provided |
+
+Every other row is 0. Last-24 h figures, billing cycle dates, the Observability default view (Data Cache or Runtime Cache) and the Data Cache to Runtime Cache migration status: not provided (A5 stays open).
+
+Which meter `unstable_cache` bills to: not determinable from this reading. The page has no Runtime Cache or Data Cache row, so the write share has to be derived from what is present, ISR Writes (41K). Whether `unstable_cache` writes are inside ISR Writes, billed to a meter the page does not list, or not shown at all is unverified. The budget table in Plan 21-07 must treat ISR Writes as the only write meter with a reading and should say that this is a stand-in, not a confirmed binding.
+
+Spike's own writes subtracted (modelled from the "Spike's own writes" list above, not read from the dashboard): seven spike deployments each prerendered 26 to 28 static pages at build (193 page writes in total: 26 + 27 + 28 x 5; the harness deployment's 28 is included), plus 4 runtime `/` regenerations at 26 write units each by the plan's model (104), plus the s1 deployment's up to 16 `unstable_cache` entries and 4 ISR page writes (20), plus about 63 build-time producer entries (9 budget lines x 7 deployments, `rcW` 1 each). That is about 380 write units in 8 KB units by the plan's model, under 1% of the 41K reading. ISR Writes net of the spike: about 40.6K for the cycle, produced by the product's own deployments and regenerations. The resulting share of the allotment cannot be given because no allotment was provided. The model counts every prerendered page as one ISR write, which the plan did not verify; the dashboard rows carry no per-deployment split.
+
+Environment scoping decision (D-06): production_only_later = yes. The user wants Preview removed from the Upstash store's project connection. It was not removed in Plan 21-06, because the CVSS sample and the Plan 21-07 cleanup may still need previews. It is carried to Plan 21-07 as a user action after the spike cleanup, to be followed by `vercel env ls` (names only) to confirm no Preview row remains for the KV variables.
