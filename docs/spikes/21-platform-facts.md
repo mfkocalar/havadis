@@ -6,7 +6,7 @@ Rule: every entry names its vantage point, one of preview (a Vercel preview depl
 
 Spike code lives on branch `spike/21-platform-facts` in the separate git worktree `/Users/mkh/CyberSecurity/havadis-spike-21`, created from `origin/main` (f403978). It is never merged and never pushed, and no spike route or dependency exists on `feat/public-product-v1` or `main`. The previews are CLI deployments (`vercel deploy --yes`) behind Vercel Authentication, reached only through `vercel curl`. Plan 21-07 removes them after the user approves its guard table.
 
-Entries added by Plan 21-04: Setup facts, S4, S1, S3, Spike's own writes. Plan 21-05 adds S2 and environment scoping, Plan 21-06 adds the Upstash command shapes, the CVSS coverage and the Usage share, and Plan 21-07 adds the summary table.
+Entries added by Plan 21-04: Setup facts, S4, S1, S3, Spike's own writes. Plan 21-05 adds S2 and environment scoping, Plan 21-06 adds the Upstash command shapes (harness and predictions now, measured columns after the operator reading), the CVSS coverage and the Usage share, and Plan 21-07 adds the summary table.
 
 ## Setup facts
 
@@ -278,6 +278,7 @@ Every spike deployment and regeneration is counted here so Plans 21-06 and 21-07
 | dpl_9SdYsd2xumMPqPDz7yfHA8PcVT79 | s2-badtoken | 2026-11-15 14:45 | 28 static pages generated (build log count); `/spike/s3` and `/spike/s4` are dynamic | edition 5, kev 1, ssvc 1, epss 1, render 1 (9 budget lines), plus 5 edition-callback KV attempts and 1 `/spike/s2` attempt, all `kv=failed class=auth` | none: each attempt sent 1 INCR with an invalid token, which the store rejected, so no key was written |
 | dpl_HtNYBZn2BVjoNPL9ULwF1ShTx9C8 | s2-badhost | 2026-11-15 14:46 | 28 static pages generated | same 9 budget lines, plus 5 edition-callback attempts and 1 `/spike/s2` attempt, all `kv=failed class=network` | none: the host does not resolve, nothing reached the store |
 | dpl_EzxQnwgkx2QvYVQaawbc6jbZwPBp | s2-blackhole | 2026-11-15 14:47 | 28 static pages generated | same 9 budget lines, plus 5 edition-callback attempts and 1 `/spike/s2` attempt, all `kv=failed class=timeout` at about 1,500 ms | none: the address is non-routable, nothing reached the store |
+| dpl_GwvgDKPQKXJwPibHJ5rWNS9xPgni | shapes harness (ok mode) | 2026-11-16 15:00 | 28 static pages generated (build log count); adds `/spike/shapes` as a dynamic route | edition 5 callbacks (the log shows `spike s2 edition kv=ok n=7` to `n=11`), kev 1, epss 1, render 1; the product's `kvCmd` reads 0 | about 12 commands at build by the same structure as s2-ok (5 edition-callback regenerations and 1 `/spike/s2` generation, 2 commands each; counted from log lines, not read from the console), plus the self-test commands below; all keys removed by the cleanup call |
 
 Request-time writes by `/spike/s4`: none to any cache. The route is force-dynamic and fetches the EPSS file at most twice per call (one cancelled header read for the hop trace, one streamed read through the wrapper), plus one wrapper call for the cyentia start URL whose body is cancelled. It was called twice on the preview for the measurement, once more by the task's own verify command, and once on the local build, so the full file was streamed four times in total (one over the plan's limit of three, caused by the verify call; noted as a deviation in the SUMMARY).
 
@@ -302,3 +303,35 @@ Request-time writes on the three failure-mode deployments (Plan 21-05 Task 3):
 - No Upstash key was written by these three deployments. The only keys this plan wrote are the four from s2-ok above.
 - Reading calls were `vercel curl` only: 3 on `/` and 3 on `/spike/s2` per deployment (the blackhole deployment had 1 more on `/spike/s2` from the verify call), plus the unauthenticated probe.
 - Total spike deployments by this plan: 4, all approved at the gate=21-05 reconfirm (s2-ok, s2-badtoken, s2-badhost, s2-blackhole). The harness label was not approved and was not deployed. Six spike deployments are listed in all, out of Hobby's 100 per day.
+
+Request-time writes on dpl_GwvgDKPQKXJwPibHJ5rWNS9xPgni (shapes harness, Plan 21-06 Task 1):
+
+- Deployed at 2026-11-16 15:00Z after the gate=21-06 approval line (15:00:28Z, `approved=harness count=1`). The unauthenticated probe at 15:01:19Z answered 302 to `https://vercel.com/sso-api` (Vercel Authentication) before any request to `/spike/shapes`.
+- Self-test, all through `vercel curl`: seven shapes at `reps=1` (by F16's predictions 66 commands in total: 1, 20, 22, 1, 1, 1, 20), `shape=bogus` and `reps=51` (both rejected with 400 before any KV client was built, so 0 commands), and one cleanup call (SCAN, DEL and a second SCAN of `spike:*`, a handful of commands that the SCAN and DEL count does not predict). The cleanup returned `remaining` 0, which also removed the four Plan 21-05 S2 keys and the keys the build wrote.
+- Total spike deployments by this plan: 1, approved at the gate=21-06 line. Seven spike deployments are listed in all, out of Hobby's 100 per day.
+
+## Upstash command count per batched call
+
+Vantage: preview (harness self-test) for the route behaviour; the measured counts come from the Upstash console counter as the user reads it (vantage: dashboard) after the Task 2 reading and are not in this entry yet.
+
+Harness: route `/spike/shapes` on dpl_GwvgDKPQKXJwPibHJ5rWNS9xPgni (spike branch only, never merged), operator script `spike/shapes.sh` (idle reading of 120 s, then one 50-rep run per shape with 90 s of counter lag wait, drift correction from the idle reading, then cleanup). Every key sits under `spike:<VERCEL_ENV>:shapes:` and the route can touch nothing else (D-06).
+
+Predicted counts (F16 of the research; these are predictions, not measurements):
+
+| Shape | Predicted commands per call | Basis |
+| --- | --- | --- |
+| mget20 | 1 | MGET of many keys counts as one command (predicted) |
+| pipe20 | 20 | each command in a pipeline is billed individually (predicted) |
+| multi20 | 22 | a transaction of N counts N + 2 (predicted) |
+| hset20 | 1 | one HSET with 20 field/value pairs, assumed to count as one (A4, predicted, the least certain) |
+| hgetall | 1 | predicted |
+| mset20 | 1 | one per call (predicted) |
+| promiseall20 | 20 | the SDK auto-pipelines, each command still counts one (predicted) |
+
+Per-regeneration layout from STACK.md (the 4-command layout): one HGETALL, one HSET, one MGET and one MSET are 4 commands if the predictions hold.
+
+Over-quota behaviour on Free: undocumented, not tested (it would spend the 500K quota).
+
+Self-test result (vantage: preview): all seven shapes returned `ok: true` at `reps=1`; `shape=bogus` and `reps=51` returned 400; cleanup returned `remaining` 0.
+
+The measured counts and the verdict on the 4-command layout are added after the Task 2 counter reading.
