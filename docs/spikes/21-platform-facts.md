@@ -412,3 +412,20 @@ Split of the 50: CNA-scored 40 (5 edition, 35 fill), CISA-ADP-only 3 (fill), no 
 D-11 branch on the approved pool (strict integer rule, decision request due when 100 x k < 70 x N): 100 x 43 = 4300 against 70 x 50 = 3500, so no decision request (86% is at or above 70%). The edition-only subset is 5/5 (500 against 350, also no request). The research prior (F12: 93-94%) was a prior; the measured combined share is 86.0%, lower than the prior, and the shortfall sits in the fill (7 of 45 with no CVSS at all, plus 3 that only CISA-ADP scored). New CVEs from the last 72 h are plausibly less often scored than the ones the edition shows, but this run did not test that, and with 5 edition CVEs the edition-only figure carries a very wide margin.
 
 Note for ENR-12: CVSS v4.0 is common in CNA data (23 of 50 CVEs here), so the display must not assume v3.1. The SSVC record request (`cveRecordUrl`) already returns the same record, so CVSS needs no extra request.
+
+## Summary of PLAT-03 facts
+
+One row per fact, taken from the entries above. A verdict is the measured result, with the vantage it was measured from. Dates are UTC.
+
+| Fact | Verdict | Vantage | Date |
+| --- | --- | --- | --- |
+| S1: nested `unstable_cache` | bypass (D-12): the second nested call never hit the first one's result; a bypassed nested call still writes an entry. Local and preview agree. The design never relies on nested caching | preview and local build | 2026-11-15 |
+| S2 (ok): live KV call inside the edition callback | static preserved: the call runs at build and on every ISR regeneration of `/`, which stays static with its 900 s window | preview | 2026-11-15 |
+| S2 (failure): the same call with a bad token, an unresolvable host and a black-holed address | static preserved in all three: builds READY, `/` static, error classes auth, network and timeout (about 1,500 ms), no hang | preview | 2026-11-15 |
+| S3: `cache: "no-store"` conditional GET | observable with raw fetch (EPSS both validators and KEV If-Modified-Since answer 304; KEV If-None-Match and the CVE record answer 200); not through `fetchWithValidatedRedirect`, which throws on a 304 | preview and local build (CVE record: laptop) | 2026-11-15 |
+| S4: EPSS bulk file | passes `fetchWithValidatedRedirect` from the `epss.empiricalsecurity.com` start URL (1 hop, 2,849,232 bytes, 406,615 data rows); fails on the `epss.cyentia.com` start URL | preview | 2026-11-15 |
+| CVSS coverage (D-11) | 43 of 50 (86.0%) on the user-approved edition plus deltaLog pool (edition 5/5, fill 38/45); no decision request | laptop | 2026-11-16 |
+| Upstash commands per batched call | mget20 1.00, pipe20 21.00, multi20 22.00, promiseall20 20.00 measured; hset20, hgetall and mset20 measured only as a combined 3.00 per rep triple (the 4-call layout holds on the sum, 4.00) | dashboard (Upstash console counter as read by the user) with the preview harness | 2026-11-16 |
+| Runtime Cache write share | not determinable from the Usage page (no Runtime Cache or Data Cache row; ISR Writes 41K is a stand-in, A5 open); log-derived 904.6 units per day, 13.6% of 200,000 per month, edition 82.5% / kev 7.1% / ssvc 0.0% / epss 10.4% | dashboard and production logs | 2026-11-16 |
+| Hobby cron limit | unverified docs value (100 jobs per project, minimum interval once per day on Hobby); the Cron Jobs page shows 0 jobs and no limit text | docs (dashboard shows no limit) | 2026-11-16 |
+| Marketplace env scoping | the five KV variables are on Preview and Production, so a preview reaches the store; production_only_later = yes (the user removes Preview after the spike cleanup) | dashboard (`vercel env ls`, names only) | 2026-11-15 |
