@@ -147,11 +147,15 @@ The status column is computed in exact integer arithmetic. OVER-60 means the pro
 
 Put to the user at the Plan 21-07 decision checkpoint; none of these changes ROADMAP.md or REQUIREMENTS.md by itself.
 
+Answered 2026-11-16: `enr13=move-26 cvss=n/a upstash=defer-to-phase-23 remove=approve-by-id:7`. The ENR-13 move to Phase 26 is routed through /gsd-phase before Phase 23 is planned; nothing in ROADMAP.md changed here. The seven spike previews were removed by deployment ID.
+
 1. **ENR-13 placement (D-10).** Recommendation: move ENR-13 to Phase 26, next to the other signals. Reasons, all measured here: the write meter is at 13.6%; SSVC writes are 0.0% of write units, so ENR-13 would remove about 0 units; the writes meter reaches its 60% tripwire only if the edition grows to about 5 times its measured size, which Phases 24 to 26 (about 2 times, projected) do not reach on this base. The Phase 23 KV store is still needed for the edition body and the conditional GET work; this only concerns where the SSVC move sits. The pressing meter is compose CPU (CPU-1), not writes. Options: keep-23, move-26, or lever:<your lever>.
 2. **CVSS (D-11).** The sample is 43 of 50 (86.0%) on the pool the user approved (edition plus deltaLog fill; the edition-only subset is 5/5), so 100 x 43 = 4,300 is at or above 70 x 50 = 3,500: no decision request. cvss=n/a.
 3. **Upstash and SC4 (D-07).** Answer one of `upstash=accept-deviation`, `upstash=defer-to-phase-23` (adds a `Carried to Phase 23` line: Phase 23 logs kvCmd, which closes the Upstash part of SC4) or `upstash=reject:<alternative>` (stops Phase 21 close-out and routes back to the planner). Whatever the answer: SC4: partly met — Upstash not log-recomputable in Phase 21 by design (D-07).
 4. **Spike removal (D-05).** Approve or hold removal of the seven spike previews in the guard table (kept in the plan evidence, not in this document).
 5. **D-09 stopgap.** Not offered: stopgap not applied, projected month-end 34.1% <= 100%.
+
+**Carried to Phase 23.** Phase 23 adds kvCmd logging to its KV calls, so the Upstash commands meter becomes recomputable from Vercel logs; that closes the Upstash part of SC4. Until then the Upstash console Commands counter is the re-check path.
 
 ## How to recompute
 
