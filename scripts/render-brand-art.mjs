@@ -11,7 +11,8 @@
  *     node scripts/render-brand-art.mjs og
  *
  * Targets:
- *   og   src/app/opengraph-image.png, the 1200x630 share image.
+ *   og     src/app/opengraph-image.png, the 1200x630 share image.
+ *   icons  src/app/apple-icon.png (180x180).
  *
  * Re-render when the production hostname changes: the host line
  * ("havadis-news.vercel.app") is baked into the PNG. Barlow and JetBrains Mono
@@ -40,14 +41,19 @@ const TAGLINE = "A source-independent security newspaper for practitioners.";
 const HOST_BASELINE_Y = 538;
 
 // Brand mark on the 512 grid (UI-SPEC "Brand mark and icon set"), full-bleed.
-const BRAND_TILE_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112" viewBox="0 0 512 512">
+function brandSvg(size) {
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#1c1917"/>
   <rect x="160" y="144" width="48" height="224" fill="#f2f0e9"/>
   <rect x="304" y="144" width="48" height="224" fill="#f2f0e9"/>
   <rect x="208" y="232" width="96" height="48" fill="#f2f0e9"/>
   <circle cx="392" cy="136" r="28" fill="#f87171"/>
 </svg>`;
+}
+const BRAND_TILE_SVG = brandSvg(112);
+
+const APPLE_ICON_OUT = path.join(REPO_ROOT, "src/app/apple-icon.png");
 
 function ogHtml() {
   return `<!doctype html>
@@ -149,7 +155,41 @@ async function renderOg() {
   }
 }
 
-const TARGETS = { og: renderOg };
+/** Screenshot an SVG at size x size (CSS px, scale 1, light scheme) to a PNG buffer. */
+async function svgToPng(browser, svg, size) {
+  const context = await browser.newContext({
+    viewport: { width: size, height: size },
+    deviceScaleFactor: 1,
+    colorScheme: "light",
+  });
+  try {
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html><head><style>html,body{margin:0;padding:0}svg{display:block}</style></head><body>${svg}</body></html>`,
+    );
+    return await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: size, height: size } });
+  } finally {
+    await context.close();
+  }
+}
+
+async function writeOut(file, buffer) {
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, buffer);
+  console.log(`WROTE ${path.relative(REPO_ROOT, file)} ${buffer.length}`);
+}
+
+async function renderIcons() {
+  const chromium = await loadChromium();
+  const browser = await chromium.launch();
+  try {
+    await writeOut(APPLE_ICON_OUT, await svgToPng(browser, brandSvg(180), 180));
+  } finally {
+    await browser.close();
+  }
+}
+
+const TARGETS = { og: renderOg, icons: renderIcons };
 const target = process.argv[2];
 if (!target || !Object.hasOwn(TARGETS, target)) {
   console.error(`Usage: node scripts/render-brand-art.mjs <${Object.keys(TARGETS).join("|")}>`);

@@ -204,3 +204,45 @@ for (const row of TITLE_TABLE.filter((r) => r.page !== "_not-found")) {
     assert.equal(ogDescription, row.description);
   });
 }
+
+// Icon set (UX-06 icon half; D-19, D-21). Every raster is committed, none is rendered at build time.
+const ICON_SVG = path.join(SRC, "app/icon.svg");
+const APPLE_ICON = path.join(SRC, "app/apple-icon.png");
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+function pngSize(png: Buffer): { width: number; height: number } {
+  assert.deepEqual([...png.subarray(0, 8)], PNG_SIGNATURE);
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+}
+
+function linkTag(html: string, rel: string, hrefStart: string): string | undefined {
+  return openingTags(html, "link").find(
+    (tag) => attrValue(tag, "rel") === rel && (attrValue(tag, "href") ?? "").startsWith(hrefStart),
+  );
+}
+
+test("index.html links the SVG icon and the apple touch icon", () => {
+  const html = builtHtml("index");
+  const svg = linkTag(html, "icon", "/icon.svg");
+  assert.ok(svg, 'rel="icon" link to /icon.svg must be present');
+  assert.equal(attrValue(svg, "type"), "image/svg+xml");
+  assert.equal(attrValue(svg, "sizes"), "any");
+  const apple = linkTag(html, "apple-touch-icon", "/apple-icon.png");
+  assert.ok(apple, 'rel="apple-touch-icon" link to /apple-icon.png must be present');
+  assert.equal(attrValue(apple, "sizes"), "180x180");
+});
+
+test("apple-icon.png is a committed 180x180 PNG", () => {
+  assert.deepEqual(pngSize(readFileSync(APPLE_ICON)), { width: 180, height: 180 });
+});
+
+test("icon.svg holds only rects and an inline style on the 32 grid (T-22-21)", () => {
+  const svg = readFileSync(ICON_SVG, "utf8");
+  assert.ok(svg.includes('viewBox="0 0 32 32"'));
+  assert.ok(/@media\s*\(prefers-color-scheme:\s*dark\)/.test(svg), "dark-scheme rule must be present");
+  assert.ok(!/<script\b/i.test(svg), "no script element");
+  assert.ok(!/\bhref\s*=/i.test(svg) && !/xlink:href/i.test(svg), "no href or xlink:href attribute");
+  assert.ok(!/url\(/i.test(svg), "no url() reference");
+  assert.ok(!/<(circle|ellipse)\b/i.test(svg), "no dot shape");
+});
