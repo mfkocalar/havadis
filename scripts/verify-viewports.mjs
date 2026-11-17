@@ -9,19 +9,19 @@
  * focus never hidden under the strip or rail (WCAG 2.2 SC 2.4.11), relative "Updated" text after hydration (D-13), zero network
  * requests while filtering and expanding (FILTER-01), and a clean console.
  *
- * Playwright is AD HOC. It is never a dependency of this project and must
- * never appear in package.json or package-lock.json:
+ * Playwright 1.65.0 is an exact-pinned devDependency (D-05). Install the
+ * browser once with:
  *
- *     npm install --no-save playwright@1.63.0
+ *     npx playwright install --only-shell chromium
  *
- * (If Chromium is reported missing: `npx playwright install chromium`.)
+ * CI runs the same check in the `viewports` job.
  *
  * This file lives in scripts/, not test/, on purpose: Node's default
  * `node --test` glob runs every .js / .mjs / .ts file under any test/
  * directory, so a file there would be executed by `npm test`.
  *
  * Usage:
- *     npm run build && node scripts/verify-viewports.mjs
+ *     npm run build:fixture && npm run verify:viewports
  *
  * Environment: VIEWPORT_PORT overrides the port (default 3200). The server
  * binds 127.0.0.1 only.
@@ -32,7 +32,7 @@
  *
  * Exit codes: 0 everything passed AND the checks were actually performed
  * (prints VIEWPORTS_OK), 1 at least one check failed (prints VIEWPORTS_FAILED
- * <count>), 2 Playwright is not installed. A build that renders the empty
+ * <count>), 2 Playwright is missing from node_modules. A build that renders the empty
  * state is a failure, not a pass: no layout check can run against it, and a
  * green result would be a false green. The same holds for an expander that was
  * never exercised, unless --allow-no-expander is given.
@@ -96,8 +96,8 @@ try {
   playwright = await import("playwright");
 } catch {
   console.error(
-    "Playwright is not installed. Install it ad hoc (never as a dependency):\n" +
-      "    npm install --no-save playwright@1.63.0",
+    "Playwright is not installed: run npm ci (playwright 1.65.0 is a pinned devDependency), " +
+      "then npx playwright install --only-shell chromium.",
   );
   process.exit(2);
 }
@@ -159,6 +159,9 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     colorScheme: "light",
     ...ctxExtra,
   });
+  await context.route("**/_vercel/insights/**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+  );
   const page = await context.newPage();
   const problems = [];
   page.on("console", (msg) => {
@@ -435,6 +438,9 @@ async function screenshots(browser, dir) {
         hasTouch: cfg.hasTouch ?? false,
         colorScheme: scheme,
       });
+      await context.route("**/_vercel/insights/**", (route) =>
+        route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+      );
       const page = await context.newPage();
       await page.goto(BASE_URL, { waitUntil: "networkidle" });
       await page.screenshot({ path: path.join(dir, `${cfg.name}-${scheme}.png`), fullPage: true });
