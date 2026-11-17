@@ -8,6 +8,8 @@
  * from 1024px (D-11), tap-target sizes, sticky strip height and pinning,
  * focus never hidden under the strip or rail (WCAG 2.2 SC 2.4.11), relative "Updated" text after hydration (D-13), zero network
  * requests while filtering and expanding (FILTER-01), and a clean console.
+ * Every interactive element is also held to 24 px (TAP_TARGET_SEL, D-07), and
+ * /about, /feeds and an unknown URL (404) get a shorter pass at the same widths.
  *
  * Playwright 1.65.0 is an exact-pinned devDependency (D-05). Install the
  * browser once with:
@@ -485,6 +487,74 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
   await context.close();
 }
 
+/**
+ * Shell-page pass (D-07, UI-SPEC "Tap targets"): /about, /feeds and one
+ * unknown URL at every width. The unknown URL must answer 404; only its own
+ * document-404 console line is tolerated, never any other console error.
+ */
+const SHELL_PAGES = [
+  { path: "/about", status: 200 },
+  { path: "/feeds", status: 200 },
+  { path: "/no-such-page-22", status: 404 },
+];
+
+async function runShellPage(browser, cfg, shell) {
+  const { width, height } = cfg;
+  const label = `${cfg.name} ${shell.path}`;
+  const context = await browser.newContext({
+    viewport: { width, height },
+    deviceScaleFactor: cfg.deviceScaleFactor ?? 1,
+    isMobile: cfg.isMobile ?? false,
+    hasTouch: cfg.hasTouch ?? false,
+    colorScheme: "light",
+  });
+  await context.route("**/_vercel/insights/**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+  );
+  const page = await context.newPage();
+  const problems = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") problems.push({ text: msg.text(), kind: "console.error" });
+  });
+  page.on("pageerror", (err) => problems.push({ text: err.message, kind: "pageerror" }));
+
+  const res = await page.goto(new URL(shell.path, BASE_URL).href, { waitUntil: "networkidle" });
+  const status = res?.status();
+
+  await check(label, "shell-status", async () =>
+    status === shell.status ? null : `expected ${shell.status}, got ${status}`,
+  );
+  await check(label, "shell-overflow", async () => {
+    const r = await page.evaluate(() => ({
+      sw: document.documentElement.scrollWidth,
+      iw: window.innerWidth,
+    }));
+    if (r.iw !== width) return `layout viewport widened to ${r.iw} (device width ${width})`;
+    return r.sw <= width ? null : `scrollWidth ${r.sw} > device width ${width}`;
+  });
+  await check(label, "shell-tap-targets", () => smallTargets(page));
+  await check(label, "shell-console-clean", async () => {
+    let dropped = false;
+    const left = problems.filter((p) => {
+      if (
+        !dropped &&
+        shell.status === 404 &&
+        status === 404 &&
+        p.kind === "console.error" &&
+        p.text.startsWith("Failed to load resource") &&
+        p.text.includes("404")
+      ) {
+        dropped = true;
+        return false;
+      }
+      return true;
+    });
+    return left.length ? left.map((p) => `${p.kind}: ${p.text}`).join(" | ") : null;
+  });
+
+  await context.close();
+}
+
 async function screenshots(browser, dir) {
   for (const cfg of CONFIGS.filter((c) => SCREENSHOT_CONFIGS.has(c.name))) {
     for (const scheme of ["light", "dark"]) {
@@ -514,6 +584,9 @@ try {
     for (const cfg of CONFIGS) {
       console.log(`--- ${cfg.name} (${cfg.width}x${cfg.height}) ---`);
       await runConfig(browser, cfg);
+    }
+    for (const cfg of CONFIGS) {
+      for (const shell of SHELL_PAGES) await runShellPage(browser, cfg, shell);
     }
     const dir = await mkdtemp(path.join(tmpdir(), "havadis-viewports-"));
     await screenshots(browser, dir);
