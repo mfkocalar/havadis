@@ -1,5 +1,7 @@
 import { withBudgetLine } from "../budgetLine.ts";
+import { fixtureEditionEnabled } from "../config/fixtureMode.ts";
 import { CVE_ID_SHAPE } from "../cveChips.ts";
+import { fixtureKevMap } from "../fixture/enrichment.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
 import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
 import type { KevEntry, KevMap } from "../types.ts";
@@ -144,6 +146,10 @@ export function parseKev(
  * It passes no `revalidate`: it runs inside a cached callback, where Next
  * forces every fetch uncached, so the 1.78 MB raw body never reaches the Data
  * Cache (RESEARCH Pitfall 3); only the slim map does.
+ *
+ * Cut point (Phase 22, D-01): when the caller injected neither `url` nor
+ * `fetcher`, the fixture switch returns the committed `fixtureKevMap(now)`
+ * with no request and no budget line.
  */
 export async function produceKev(
   now: number,
@@ -156,6 +162,9 @@ export async function produceKev(
     maxSlimBytes?: number;
   } = {}
 ): Promise<KevMap> {
+  if (deps.url === undefined && deps.fetcher === undefined && fixtureEditionEnabled()) {
+    return fixtureKevMap(now);
+  }
   return withBudgetLine("kev", async () => {
     const result = await boundedFetchJson(
       deps.url ?? KEV_URL,
