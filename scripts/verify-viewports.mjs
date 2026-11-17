@@ -56,6 +56,10 @@ const SECTION_SEL = "section[data-section]";
 const BAR_SEL = "[data-filter-bar]";
 const PILL_SEL = "button[data-filter-pill]";
 const EXPANDER_SEL = "button[data-expander]";
+// The 24 px rule (D-07, MOB-02) applies to exactly this list. No inline-link
+// or heading/paragraph exemption: a redesign must not exempt a row silently.
+const TAP_TARGET_SEL = "a, button, summary, input, select, [role=button]";
+const TAP_MIN = 24;
 const UPDATED_RE = /^Updated (just now|\d+m ago|\d+h ago)$/;
 
 const MOBILE = { deviceScaleFactor: 3, isMobile: true, hasTouch: true };
@@ -149,6 +153,24 @@ const wrapperHiddenFlags = (page) =>
 const pillPressedFlags = (page) =>
   page.$$eval(PILL_SEL, (els) => els.map((el) => el.getAttribute("aria-pressed")));
 
+/** The D-07 rule: every visible TAP_TARGET_SEL element is at least 24 x 24 in its own box. */
+async function smallTargets(page) {
+  const bad = await page.$$eval(
+    TAP_TARGET_SEL,
+    (els, min) =>
+      els
+        .filter((el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden")
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.height < min - 0.01 || r.width < min - 0.01)
+        .map(
+          ({ el, r }) =>
+            `${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}" ${Math.round(r.width * 10) / 10}x${Math.round(r.height * 10) / 10}`,
+        ),
+    TAP_MIN,
+  );
+  return bad.length ? `${bad.length} interactive element(s) under ${TAP_MIN}px: ${bad.slice(0, 5).join(" | ")}` : null;
+}
+
 async function runConfig(browser, cfg, ctxExtra = {}) {
   const { name, width, height } = cfg;
   const context = await browser.newContext({
@@ -186,7 +208,7 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
       (await page.locator(BAR_SEL).count()) === 0 ? null : "filter bar rendered in the empty state",
     );
     for (const c of [
-      "no-horizontal-overflow", "row-columns", "pill-row", "tap-targets", "bar-height",
+      "no-horizontal-overflow", "row-columns", "pill-row", "tap-targets", "title-clamp", "bar-height",
       "sticky", "focus-not-obscured", "hydrated-updated", "filter-zero-network",
       "expander-zero-network",
     ]) {
@@ -264,7 +286,37 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     const badExps = exps.filter((h) => h < 44 - 0.01);
     if (badPills.length) return `pill heights [${pills.join(",")}] below ${pillMin}`;
     if (badExps.length) return `expander heights [${exps.join(",")}] below 44`;
-    return null;
+    return smallTargets(page);
+  });
+
+  // d2. title clamp: the element carrying the three-line clamp must not be
+  // taller than three of its own line heights.
+  await check(name, "title-clamp", async () => {
+    const r = await page.evaluate(() => {
+      const titles = [...document.querySelectorAll("article h3")].filter(
+        (h) => h.getClientRects().length > 0,
+      );
+      const bad = [];
+      let checked = 0;
+      for (const h of titles) {
+        const clamp = [h, ...h.querySelectorAll("a")].find(
+          (el) => getComputedStyle(el).webkitLineClamp === "3",
+        );
+        if (!clamp) {
+          bad.push(`no element with line-clamp 3: ${h.textContent.slice(0, 30)}`);
+          continue;
+        }
+        checked += 1;
+        const cs = getComputedStyle(clamp);
+        const lh = parseFloat(cs.lineHeight);
+        if (clamp.clientHeight > 3 * lh + 1) {
+          bad.push(`${clamp.clientHeight}px > 3 x ${lh}px: ${h.textContent.slice(0, 30)}`);
+        }
+      }
+      return { bad, checked, n: titles.length };
+    });
+    if (r.n === 0) return "no visible article titles";
+    return r.bad.length ? `${r.bad.length} unclamped: ${r.bad.slice(0, 3).join(" | ")}` : null;
   });
 
   // e. bar height below 1024 (it must fit the 6rem scroll-padding-top); from
@@ -416,7 +468,12 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     const r = await page.evaluate(() => {
       document.querySelectorAll("[data-overflow]").forEach((el) => el.removeAttribute("hidden"));
       const titles = [...document.querySelectorAll("article h3")];
-      const clamped = titles.filter((h) => h.scrollHeight - h.clientHeight > 1).length;
+      const clampEl = (h) =>
+        [h, ...h.querySelectorAll("a")].find((el) => getComputedStyle(el).webkitLineClamp === "3") ?? h;
+      const clamped = titles.filter((h) => {
+        const el = clampEl(h);
+        return el.scrollHeight - el.clientHeight > 1;
+      }).length;
       return { clamped, n: titles.length };
     });
     console.log(`TITLE_CLAMP_RATE ${name} ${r.clamped}/${r.n}`);

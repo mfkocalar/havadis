@@ -48,7 +48,7 @@ const CHIP_CLASSES =
   "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xs px-3.5 text-sm font-semibold whitespace-nowrap md:min-h-9";
 
 const TEXT_BUTTON_CLASSES =
-  "rounded-xs font-semibold text-stone-800 underline decoration-stone-400 underline-offset-4 hover:decoration-stone-950 dark:text-stone-200 dark:decoration-stone-600 dark:hover:decoration-stone-100";
+  "inline-flex min-h-6 items-center rounded-xs font-semibold text-stone-800 underline decoration-stone-400 underline-offset-4 hover:decoration-stone-950 dark:text-stone-200 dark:decoration-stone-600 dark:hover:decoration-stone-100";
 
 function chipState(pressed: boolean) {
   return pressed ? PILL_PRESSED_CLASSES : [PILL_UNPRESSED_CLASSES, NEUTRAL_CONTROL_CLASSES];
