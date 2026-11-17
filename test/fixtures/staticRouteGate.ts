@@ -12,7 +12,20 @@
  */
 
 export type PrerenderManifest = {
-  routes: Record<string, { initialRevalidateSeconds?: number | false; compute?: string }>;
+  routes: Record<
+    string,
+    { initialRevalidateSeconds?: number | false; compute?: string; srcRoute?: string }
+  >;
+};
+
+export type RouteInventoryInput = {
+  /** The hand-written expectation table (test/fixtures/routeTable.ts). */
+  table: Readonly<Record<string, number | false>>;
+  prerender: PrerenderManifest;
+  /** .next/app-path-routes-manifest.json: internal app path to route pattern. */
+  appPathRoutes: Record<string, string>;
+  /** Route patterns found by scanning page and route files under src/app. */
+  fileRoutes: readonly string[];
 };
 
 export type SourceStamp = { path: string; mtimeMs: number };
@@ -41,6 +54,45 @@ export function assertStaticRoute(
       `"${route}" initialRevalidateSeconds is ${String(entry.initialRevalidateSeconds)}, expected ${String(seconds)}`
     );
   }
+}
+
+/**
+ * The UX-07 route inventory: every route the build produced is compared with
+ * the hand-written table. Returns a sorted problem list; an empty list means
+ * the inventory passes. Table keys match srcRoute values by exact string
+ * equality, so "/feed/[slug]" never satisfies "/feed/[name]".
+ */
+export function routeInventoryProblems(input: RouteInventoryInput): string[] {
+  const { table, prerender } = input;
+  const problems: string[] = [];
+
+  const builtRoutes = new Set<string>();
+  for (const [route, entry] of Object.entries(prerender.routes)) {
+    builtRoutes.add(entry.srcRoute ?? route);
+  }
+
+  for (const route of builtRoutes) {
+    if (!Object.hasOwn(table, route)) {
+      problems.push(`route "${route}" is built but has no row in test/fixtures/routeTable.ts`);
+    }
+  }
+  for (const route of Object.keys(table)) {
+    if (!builtRoutes.has(route)) {
+      problems.push(`table row "${route}" has no prerendered route`);
+    }
+  }
+
+  for (const [route, entry] of Object.entries(prerender.routes)) {
+    const key = entry.srcRoute ?? route;
+    if (!Object.hasOwn(table, key)) continue;
+    try {
+      assertStaticRoute(prerender, route, table[key]);
+    } catch (error) {
+      problems.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  return problems.sort();
 }
 
 /**

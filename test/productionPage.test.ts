@@ -10,9 +10,11 @@ import { FEED_VARIANTS, feedPath } from "../src/lib/feeds/buildFeed.ts";
 import {
   assertStaticRoute,
   findStaleSources,
+  routeInventoryProblems,
   type PrerenderManifest,
   type SourceStamp,
 } from "./fixtures/staticRouteGate.ts";
+import { ROUTE_TABLE } from "./fixtures/routeTable.ts";
 
 /**
  * Drives a real `next start` production server and asserts the public
@@ -494,6 +496,27 @@ test("the front page is still statically prerendered with the 900-second revalid
   const manifestPath = path.join(process.cwd(), ".next", "prerender-manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PrerenderManifest;
   assertStaticRoute(manifest, "/", 900);
+});
+
+test("every route in the app has a row in the gate table and matches it (UX-07)", () => {
+  const nextDir = path.join(process.cwd(), ".next");
+  const prerender = JSON.parse(
+    readFileSync(path.join(nextDir, "prerender-manifest.json"), "utf8")
+  ) as PrerenderManifest;
+  const appPathRoutes = JSON.parse(
+    readFileSync(path.join(nextDir, "app-path-routes-manifest.json"), "utf8")
+  ) as Record<string, string>;
+  const problems = routeInventoryProblems({
+    table: ROUTE_TABLE,
+    prerender,
+    appPathRoutes,
+    fileRoutes: [],
+  });
+  assert.deepStrictEqual(
+    problems,
+    [],
+    "route inventory mismatch: add or fix the row in test/fixtures/routeTable.ts"
+  );
 });
 
 // Feeds read the shared snapshot (08-CONTEXT D-25) and rely on ISR for the

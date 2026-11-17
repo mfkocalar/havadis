@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   assertStaticRoute,
   findStaleSources,
+  routeInventoryProblems,
   type PrerenderManifest,
 } from "./fixtures/staticRouteGate.ts";
 
@@ -115,4 +116,21 @@ test("findStaleSources returns strictly newer sources sorted by path", () => {
 
 test("findStaleSources returns an empty list for no files", () => {
   assert.deepStrictEqual(findStaleSources(1000, []), []);
+});
+
+test("routeInventoryProblems names a built route that has no table row", () => {
+  const prerender: PrerenderManifest = {
+    routes: {
+      "/": { initialRevalidateSeconds: 900, compute: "static", srcRoute: "/" },
+      "/sources": { initialRevalidateSeconds: false, compute: "static", srcRoute: "/sources" },
+    },
+  };
+  const problems = routeInventoryProblems({
+    table: { "/": 900 },
+    prerender,
+    appPathRoutes: {},
+    fileRoutes: [],
+  });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /"\/sources"/);
 });
