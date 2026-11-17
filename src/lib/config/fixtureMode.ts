@@ -39,7 +39,7 @@ export const FIXTURE_GUARD_MESSAGE =
  * False unless `HAVADIS_FIXTURE_EDITION` is exactly "1". When it is, true only
  * in an allowed environment; otherwise throws `FIXTURE_GUARD_MESSAGE`.
  */
-export function fixtureEditionEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+export function fixtureEditionEnabled(env: Record<string, string | undefined> = process.env): boolean {
   if (env[FIXTURE_SWITCH] !== "1") return false;
   if (env.GITHUB_ACTIONS === "true" || env[FIXTURE_LOCAL_OPT_IN] === "1") return true;
   throw new Error(FIXTURE_GUARD_MESSAGE);
@@ -49,6 +49,6 @@ export function fixtureEditionEnabled(env: NodeJS.ProcessEnv = process.env): boo
  * `key` plus `FIXTURE_KEY_SUFFIX` in fixture mode, `key` unchanged otherwise.
  * A disallowed switch throws here too, through `fixtureEditionEnabled`.
  */
-export function fixtureCacheKey(key: string, env: NodeJS.ProcessEnv = process.env): string {
+export function fixtureCacheKey(key: string, env: Record<string, string | undefined> = process.env): string {
   return fixtureEditionEnabled(env) ? key + FIXTURE_KEY_SUFFIX : key;
 }

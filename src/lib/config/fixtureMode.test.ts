@@ -13,10 +13,13 @@ import {
  * passes its own env object, so process.env is never mutated here.
  */
 
+// Not NodeJS.ProcessEnv: next/types makes NODE_ENV required there, which fails the build type-check.
+type Env = Record<string, string | undefined>;
+
 const SWITCH = "HAVADIS_FIXTURE_EDITION";
 const LOCAL = "HAVADIS_FIXTURE_LOCAL";
 
-const allowed: Array<[string, NodeJS.ProcessEnv]> = [
+const allowed: Array<[string, Env]> = [
   ["switch 1 with GITHUB_ACTIONS true", { [SWITCH]: "1", GITHUB_ACTIONS: "true" }],
   ["switch 1 with HAVADIS_FIXTURE_LOCAL 1", { [SWITCH]: "1", [LOCAL]: "1" }],
   [
@@ -25,13 +28,13 @@ const allowed: Array<[string, NodeJS.ProcessEnv]> = [
   ],
 ];
 
-const off: Array<[string, NodeJS.ProcessEnv]> = [
+const off: Array<[string, Env]> = [
   ["switch unset", {}],
   ["switch 0", { [SWITCH]: "0" }],
   ["switch true", { [SWITCH]: "true" }],
 ];
 
-const throwing: Array<[string, NodeJS.ProcessEnv]> = [
+const throwing: Array<[string, Env]> = [
   ["switch alone", { [SWITCH]: "1" }],
   ["CI 1", { [SWITCH]: "1", CI: "1" }],
   ["VERCEL 1", { [SWITCH]: "1", VERCEL: "1" }],
