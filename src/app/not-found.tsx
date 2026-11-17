@@ -12,10 +12,10 @@ const ACTION =
   "inline-flex h-11 min-w-11 items-center justify-center rounded-control bg-ink px-6 text-body font-semibold text-ground transition-colors duration-150 hover:bg-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink motion-reduce:transition-none";
 
 /**
- * Branded 404 inside the site layout (UX-01, D-13). Static: it reads no
- * params, search params, headers, cookies or pathname, so the requested path
- * (attacker-chosen text) is never rendered and the route stays prerendered.
- * Next sends the 404 status and the noindex robots tag itself.
+ * Branded 404 inside the site layout (UX-01, D-13). Static: it reads nothing
+ * from the request, so the requested path (attacker-chosen text) is never
+ * rendered and the route stays prerendered. Next sends the 404 status and the
+ * noindex robots tag itself.
  */
 export default function NotFound() {
   return (
