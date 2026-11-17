@@ -145,13 +145,15 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 E2E=1 node --test src/lib/pipeline/frontpage.e2e.test.ts
 ```
 
-Responsive layout is checked at six widths (360, 390, 768, 1024, 1280, 1440px) with an ad hoc Playwright script. Playwright is intentionally not a project dependency:
+Responsive layout is checked at six widths (360, 390, 768, 1024, 1280, 1440px) with Playwright. Playwright 1.65.0 is a pinned devDependency; install the browser once with `npx playwright install --only-shell chromium`. `npm run build:fixture` builds from the committed fixture edition (clean `.next`, no upstream request), and `npm run verify:viewports` runs the six-width check against it:
 
 ```bash
-npm install --no-save playwright@1.63.0
-npm run build
-node scripts/verify-viewports.mjs
+npx playwright install --only-shell chromium
+npm run build:fixture
+npm run verify:viewports
 ```
+
+`HAVADIS_FIXTURE_EDITION=1` is honoured only in GitHub Actions or with `HAVADIS_FIXTURE_LOCAL=1`, which only the local npm scripts set, and is refused everywhere else (Vercel included). Never put either variable in a `.env` file or in the Vercel project settings.
 
 
 ## Design
