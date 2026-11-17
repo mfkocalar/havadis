@@ -26,6 +26,8 @@ export const metadata: Metadata = {
   title: "Havadis — Security News, Aggregated",
   description:
     "Havadis is a public, source-independent security newspaper for security experts, aggregating current cybersecurity coverage into one fast front page.",
+  // No url here: a layout-level og:url would be inherited by every page.
+  openGraph: { siteName: "Havadis", type: "website" },
   // Feed autodiscovery: readers and agents given the site URL find the feeds.
   alternates: {
     types: {

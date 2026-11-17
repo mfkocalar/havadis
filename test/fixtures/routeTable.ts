@@ -25,4 +25,5 @@ export const ROUTE_TABLE: Readonly<Record<string, RouteExpectation>> = {
   "/_not-found": false,
   "/_global-error": false,
   "/favicon.ico": false,
+  "/opengraph-image.png": false,
 };
