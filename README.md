@@ -139,19 +139,21 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 
 ### Testing
 
-`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/` or `next.config.ts` is newer than `.next/BUILD_ID`. Enrichment tests run against a local fixture server on 127.0.0.1 and never call CISA, FIRST or MITRE. Live-network end-to-end tests are opt-in:
+`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/`, any file under `public/`, `next.config.ts`, `package.json`, `package-lock.json`, `tsconfig.json` or `postcss.config.mjs` is newer than `.next/BUILD_ID`. The route inventory fails when a built route, or a page or route file under `src/app`, has no row in `test/fixtures/routeTable.ts`. Enrichment tests run against a local fixture server on 127.0.0.1 and never call CISA, FIRST or MITRE. Live-network end-to-end tests are opt-in:
 
 ```bash
 E2E=1 node --test src/lib/pipeline/frontpage.e2e.test.ts
 ```
 
-Responsive layout is checked at six widths (360, 390, 768, 1024, 1280, 1440px) with an ad hoc Playwright script. Playwright is intentionally not a project dependency:
+Responsive layout is checked at six widths (360, 390, 768, 1024, 1280, 1440px) with Playwright. Playwright 1.65.0 is a pinned devDependency; install the browser once with `npx playwright install --only-shell chromium`. `npm run build:fixture` builds from the committed fixture edition (clean `.next`, no upstream request), and `npm run verify:viewports` runs the six-width check against it:
 
 ```bash
-npm install --no-save playwright@1.63.0
-npm run build
-node scripts/verify-viewports.mjs
+npx playwright install --only-shell chromium
+npm run build:fixture
+npm run verify:viewports
 ```
+
+`HAVADIS_FIXTURE_EDITION=1` is honoured only in GitHub Actions or with `HAVADIS_FIXTURE_LOCAL=1`, which only the local npm scripts set, and is refused everywhere else (Vercel included). Never put either variable in a `.env` file or in the Vercel project settings.
 
 
 ## Design
@@ -168,7 +170,7 @@ Vercel regenerates an expired page only when a request arrives, and Hobby's own 
 
 The monitor is a manual dependency outside this repository: keep it enabled, or the front page refreshes only on reader requests. GitHub also disables scheduled workflows in a public repository after 60 days without repository activity; re-enable the workflow on the Actions tab if that happens. A failed request is retried within the run and leaves a warning on every run, but the job fails only for a run that starts in the first five minutes of a UTC hour. During an outage, that sends at most about one failure email an hour, because GitHub's schedule delay can move a run into or out of that window.
 
-Set `SITE_URL=https://havadis-news.vercel.app` in the Vercel project's environment variables for Production and Preview; without it, feed and metadata links point at `http://localhost:4000`. The workflow's `SITE_URL` and the crawler's contact URL (`src/lib/config/crawler.ts`) name the same host, and `npm test` checks that they match, so update all three if the domain changes.
+Set `SITE_URL=https://havadis-news.vercel.app` in the Vercel project's environment variables for Production and Preview; without it a production build fails (`siteUrl()` refuses to emit localhost URLs), and a preview falls back to `http://localhost:4000` links. The warm-up workflow's `SITE_URL`, the job-level `SITE_URL` in `.github/workflows/ci.yml`, the crawler's contact URL (`src/lib/config/crawler.ts`) and the host line baked into `src/app/opengraph-image.png` (re-render with `node scripts/render-brand-art.mjs og`) name the same host, and `npm test` checks that the workflow and the contact URL match, so update all of them if the domain changes.
 
 
 ## Contributing

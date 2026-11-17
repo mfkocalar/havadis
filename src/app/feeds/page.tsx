@@ -3,7 +3,7 @@ import { siteUrl } from "@/lib/config/site";
 import { FEED_VARIANTS, feedPath } from "@/lib/feeds/buildFeed";
 
 export const metadata: Metadata = {
-  title: "Feeds — Havadis",
+  title: "Feeds",
   description: "RSS and JSON Feed endpoints for connecting services and agents to Havadis.",
 };
 
@@ -62,7 +62,7 @@ export default function FeedsPage() {
                     <td key={format} className="px-4 py-2.5">
                       <a
                         href={feedPath(variant, format)}
-                        className="rounded-xs font-mono text-[0.85em] text-stone-800 underline decoration-stone-400 underline-offset-4 hover:decoration-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:text-stone-200 dark:decoration-stone-600 dark:focus-visible:outline-stone-100"
+                        className="inline-flex min-h-6 items-center rounded-xs font-mono text-[0.85em] text-stone-800 underline decoration-stone-400 underline-offset-4 hover:decoration-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:text-stone-200 dark:decoration-stone-600 dark:focus-visible:outline-stone-100"
                       >
                         {feedPath(variant, format)}
                       </a>

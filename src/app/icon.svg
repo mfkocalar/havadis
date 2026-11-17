@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <style>
+    .tile { fill: #1c1917; }
+    .h { fill: #f2f0e9; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #f5f5f4; }
+      .h { fill: #1c1917; }
+    }
+  </style>
+  <rect class="tile" width="32" height="32" rx="7"/>
+  <rect class="h" x="10" y="9" width="3" height="14"/>
+  <rect class="h" x="19" y="9" width="3" height="14"/>
+  <rect class="h" x="13" y="14.5" width="6" height="3"/>
+</svg>

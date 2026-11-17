@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
+import { fixtureEditionEnabled } from "../config/fixtureMode.ts";
 import { SOURCES } from "../config/sources.ts";
+import { fixtureArticles } from "../fixture/edition.ts";
 import type { Article, SectionedFrontPageResult } from "../types.ts";
 import { classify } from "./classify.ts";
 import { dedupe } from "./dedupe.ts";
@@ -84,8 +86,14 @@ export function composeFrontPage(
  * propagated here — a failure yields zero articles for that source and
  * the page renders CONTEXT.md D-03's quiet empty-state message, the same
  * treatment as a genuinely empty lookback window.
+ *
+ * Cut point (Phase 22, D-01): behind the fixture switch it composes the
+ * committed fixture stories and makes no feed request. It sits outside the
+ * try, so a disallowed switch throws out of here instead of becoming an error
+ * result.
  */
 export async function getFrontPage(now: number = Date.now()): Promise<SectionedFrontPageResult> {
+  if (fixtureEditionEnabled()) return composeFrontPage(fixtureArticles(now), now);
   try {
     return composeFrontPage(await fanOut(SOURCES, withSourceWindow(fetchSource, now)), now);
   } catch (err) {

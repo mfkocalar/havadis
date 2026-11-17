@@ -1,5 +1,7 @@
 import { withBudgetLine } from "../budgetLine.ts";
+import { fixtureEditionEnabled } from "../config/fixtureMode.ts";
 import { CVE_ID_SHAPE } from "../cveChips.ts";
+import { fixtureEpssStates } from "../fixture/enrichment.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
 import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
 import type { EpssState } from "../types.ts";
@@ -148,12 +150,19 @@ export type EpssDeps = {
  * own IDs. Resolves to a state for every valid unique input ID: `scored`,
  * `no-row` (only from a consistent answer), or `unavailable` (failed, timed
  * out, inconsistent, malformed, oversized, or past the per-edition cap).
- * Never throws.
+ * Never throws, except that a disallowed fixture switch throws its guard error.
+ *
+ * Cut point (Phase 22, D-01): when the caller injected neither `url` nor
+ * `fetcher`, the fixture switch returns `fixtureEpssStates(ids)` with no
+ * request and no budget line.
  */
 export async function fetchEpss(
   ids: readonly string[],
   deps: EpssDeps = {}
 ): Promise<Record<string, EpssState>> {
+  if (deps.url === undefined && deps.fetcher === undefined && fixtureEditionEnabled()) {
+    return fixtureEpssStates(ids);
+  }
   // Closure counters for the budget line; the body below never rejects.
   let requested = 0;
   let issued = 0;

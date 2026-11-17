@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { renderReadOps, withBudgetLine } from "./budgetLine.ts";
+import { fixtureCacheKey } from "./config/fixtureMode.ts";
 import { EDITION_CACHE_KEY, produceEdition, type OkEdition } from "./edition.ts";
 import {
   KEV_REVALIDATE_SECONDS,
@@ -88,6 +89,10 @@ import type { CacheableSsvcState, EnrichmentSnapshot, KevRead } from "./types.ts
  *    ssvc (numbers and the state enum only, never a CVE ID) and a cache hit
  *    logs nothing, so the re-fetch count is the number of p=ssvc lines in the
  *    production logs (src/lib/budgetLine.ts).
+ * 11. In fixture mode (Phase 22) every key gets the -fixture suffix, applied in
+ *    `cachedSnapshot` and `cachedLookup`, so a fixture entry can never be
+ *    served under a live key (or the reverse) in `.next/cache` or a shared
+ *    Runtime Cache; `npm run build:fixture` also starts from an empty `.next`.
  */
 
 /** The shared cache window, and so the route's ISR window, in seconds. */
@@ -110,7 +115,7 @@ export function cachedSnapshot<T>(
   produce: () => Promise<T>,
   opts: { revalidate?: number; tags?: string[] } = {}
 ): () => Promise<T> {
-  return unstable_cache(produce, [key], {
+  return unstable_cache(produce, [fixtureCacheKey(key)], {
     revalidate: opts.revalidate ?? SNAPSHOT_REVALIDATE_SECONDS,
     tags: opts.tags ?? [SNAPSHOT_TAG],
   });
@@ -182,7 +187,7 @@ export function cachedLookup<A extends string[], T>(
   produce: (...args: A) => Promise<T>,
   opts: { revalidate: number; tags: string[] }
 ): (...args: A) => Promise<T> {
-  return unstable_cache(produce, [key], opts);
+  return unstable_cache(produce, [fixtureCacheKey(key)], opts);
 }
 
 /**

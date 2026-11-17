@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "next dev -p 4000",
     "build": "next build",
+    "build:fixture": "rm -rf .next && HAVADIS_FIXTURE_EDITION=1 HAVADIS_FIXTURE_LOCAL=1 next build",
+    "verify:viewports": "HAVADIS_FIXTURE_EDITION=1 HAVADIS_FIXTURE_LOCAL=1 node scripts/verify-viewports.mjs",
     "start": "next start -p 4000",
     "lint": "eslint",
     "test": "node --experimental-strip-types --test"
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "playwright": "1.65.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -23,9 +23,14 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: "Havadis — Security News, Aggregated",
+  title: {
+    default: "Havadis: daily security news for practitioners",
+    template: "%s · Havadis",
+  },
   description:
-    "Havadis is a public, source-independent security newspaper for security experts, aggregating current cybersecurity coverage into one fast front page.",
+    "A public security newspaper for practitioners. Current cybersecurity coverage from curated sources, grouped by section and ranked by urgency.",
+  // No url here: a layout-level og:url would be inherited by every page.
+  openGraph: { siteName: "Havadis", type: "website" },
   // Feed autodiscovery: readers and agents given the site URL find the feeds.
   alternates: {
     types: {
@@ -36,10 +41,10 @@ export const metadata: Metadata = {
 };
 
 const FOOTER_LINK =
-  "rounded-xs font-semibold text-stone-900 underline decoration-stone-400 underline-offset-4 hover:decoration-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:text-stone-100 dark:decoration-stone-600 dark:hover:decoration-stone-100 dark:focus-visible:outline-stone-100";
+  "inline-flex min-h-6 items-center rounded-xs font-semibold text-stone-900 underline decoration-stone-400 underline-offset-4 hover:decoration-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-950 dark:text-stone-100 dark:decoration-stone-600 dark:hover:decoration-stone-100 dark:focus-visible:outline-stone-100";
 
 const HEADER_LINK =
-  "rounded-xs text-stone-200 underline decoration-stone-600 underline-offset-4 hover:text-white hover:decoration-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500";
+  "inline-flex min-h-6 items-center rounded-xs text-stone-200 underline decoration-stone-600 underline-offset-4 hover:text-white hover:decoration-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

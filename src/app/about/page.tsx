@@ -4,7 +4,7 @@ import { SOURCES } from "@/lib/config/sources";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "@/lib/config/crawler";
 
 export const metadata: Metadata = {
-  title: "About Havadis",
+  title: "About",
   description:
     "Havadis is a public security news aggregator; this page describes its HavadisBot crawler and how to contact or opt out.",
 };
@@ -52,7 +52,7 @@ export default function AboutPage() {
         A publisher can ask to be removed, or anyone can report a problem, through{" "}
         <a
           href={CRAWLER_CONTACT_CHANNEL_URL}
-          className={`${LINK} ${HEADING}`}
+          className={`${LINK} py-1 ${HEADING}`}
         >
           {CRAWLER_CONTACT_CHANNEL_URL}
         </a>
@@ -62,7 +62,7 @@ export default function AboutPage() {
       <p className="mt-10">
         <Link
           href="/"
-          className={`${LINK} font-semibold ${HEADING}`}
+          className={`${LINK} inline-flex min-h-6 items-center font-semibold ${HEADING}`}
         >
           Back to the front page
         </Link>

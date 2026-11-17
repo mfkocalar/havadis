@@ -56,6 +56,12 @@
         ],
         "createdAt": "2026-10-28T09:44:22.399Z",
         "reason": "Claude: decision-round sketch predating DESIGN.md; not shipped UI"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "roboto",
+        "createdAt": "2026-11-17T14:06:54.692Z",
+        "reason": "22-UI-SPEC prescribes this exact system font stack for global-error.tsx (no web font available without the root layout); UI-SPEC approved 2026-11-17"
       }
     ]
   }

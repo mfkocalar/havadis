@@ -1,5 +1,7 @@
 import { withBudgetLine } from "../budgetLine.ts";
+import { fixtureEditionEnabled } from "../config/fixtureMode.ts";
 import { CVE_ID_SHAPE, planCveChips } from "../cveChips.ts";
+import { fixtureSsvcState } from "../fixture/enrichment.ts";
 import { boundedFetchJson } from "../pipeline/boundedFetch.ts";
 import type { fetchWithValidatedRedirect } from "../pipeline/fetchWithValidatedRedirect.ts";
 import type {
@@ -171,12 +173,19 @@ export type SsvcFetchDeps = {
  * second cache entry. A 404 is read too (`acceptStatuses`): the exact
  * `CVE_RECORD_DNE` body is `not-assessed`, any other 404 throws. The ID is checked against `CVE_ID_SHAPE` before any
  * request, so it can never alter the URL path (SSRF).
+ *
+ * Cut point (Phase 22, D-01): after the ID check, when the caller injected
+ * neither `url` nor `fetcher`, the fixture switch returns
+ * `fixtureSsvcState(id)` with no request.
  */
 export async function produceSsvc(
   id: string,
   deps: SsvcFetchDeps = {}
 ): Promise<CacheableSsvcState> {
   if (typeof id !== "string" || !CVE_ID_SHAPE.test(id)) throw new Error("ssvc: invalid id");
+  if (deps.url === undefined && deps.fetcher === undefined && fixtureEditionEnabled()) {
+    return fixtureSsvcState(id);
+  }
   const res = await boundedFetchJson(
     cveRecordUrl(id, deps.url ?? SSVC_RECORD_URL_BASE),
     {

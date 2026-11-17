@@ -113,14 +113,16 @@ export function ArticleCard({
            * level (D-16), so the title sits one level down to keep a valid
            * document outline (WCAG 1.3.1). Three-line clamp (D-08): a guard
            * for the longest titles on narrow screens; the full string stays
-           * in the DOM and the accessibility tree.
+           * in the DOM and the accessibility tree. The clamp sits on the link,
+           * not the h3, so the link box is at least 24 px tall (D-07); no
+           * `block`, because line-clamp already sets display: -webkit-box.
            */}
-          <h3 id={titleId} className="line-clamp-3 text-[1.0625rem] leading-snug font-semibold break-words text-pretty text-stone-950 dark:text-stone-50">
+          <h3 id={titleId} className="text-[1.0625rem] leading-snug font-semibold break-words text-pretty text-stone-950 dark:text-stone-50">
             <a
               href={article.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="decoration-orange-500 decoration-2 underline-offset-4 outline-none hover:underline focus-visible:underline"
+              className="w-fit max-w-full leading-6 line-clamp-3 decoration-orange-500 decoration-2 underline-offset-4 outline-none hover:underline focus-visible:underline"
             >
               {article.title}
             </a>

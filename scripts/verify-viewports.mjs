@@ -8,20 +8,22 @@
  * from 1024px (D-11), tap-target sizes, sticky strip height and pinning,
  * focus never hidden under the strip or rail (WCAG 2.2 SC 2.4.11), relative "Updated" text after hydration (D-13), zero network
  * requests while filtering and expanding (FILTER-01), and a clean console.
+ * Every interactive element is also held to 24 px (TAP_TARGET_SEL, D-07), and
+ * /about, /feeds and an unknown URL (404) get a shorter pass at the same widths.
  *
- * Playwright is AD HOC. It is never a dependency of this project and must
- * never appear in package.json or package-lock.json:
+ * Playwright 1.65.0 is an exact-pinned devDependency (D-05). Install the
+ * browser once with:
  *
- *     npm install --no-save playwright@1.63.0
+ *     npx playwright install --only-shell chromium
  *
- * (If Chromium is reported missing: `npx playwright install chromium`.)
+ * CI runs the same check in the `viewports` job.
  *
  * This file lives in scripts/, not test/, on purpose: Node's default
  * `node --test` glob runs every .js / .mjs / .ts file under any test/
  * directory, so a file there would be executed by `npm test`.
  *
  * Usage:
- *     npm run build && node scripts/verify-viewports.mjs
+ *     npm run build:fixture && npm run verify:viewports
  *
  * Environment: VIEWPORT_PORT overrides the port (default 3200). The server
  * binds 127.0.0.1 only.
@@ -32,7 +34,7 @@
  *
  * Exit codes: 0 everything passed AND the checks were actually performed
  * (prints VIEWPORTS_OK), 1 at least one check failed (prints VIEWPORTS_FAILED
- * <count>), 2 Playwright is not installed. A build that renders the empty
+ * <count>), 2 Playwright is missing from node_modules. A build that renders the empty
  * state is a failure, not a pass: no layout check can run against it, and a
  * green result would be a false green. The same holds for an expander that was
  * never exercised, unless --allow-no-expander is given.
@@ -56,6 +58,10 @@ const SECTION_SEL = "section[data-section]";
 const BAR_SEL = "[data-filter-bar]";
 const PILL_SEL = "button[data-filter-pill]";
 const EXPANDER_SEL = "button[data-expander]";
+// The 24 px rule (D-07, MOB-02) applies to exactly this list. No inline-link
+// or heading/paragraph exemption: a redesign must not exempt a row silently.
+const TAP_TARGET_SEL = "a, button, summary, input, select, [role=button]";
+const TAP_MIN = 24;
 const UPDATED_RE = /^Updated (just now|\d+m ago|\d+h ago)$/;
 
 const MOBILE = { deviceScaleFactor: 3, isMobile: true, hasTouch: true };
@@ -96,8 +102,8 @@ try {
   playwright = await import("playwright");
 } catch {
   console.error(
-    "Playwright is not installed. Install it ad hoc (never as a dependency):\n" +
-      "    npm install --no-save playwright@1.63.0",
+    "Playwright is not installed: run npm ci (playwright 1.65.0 is a pinned devDependency), " +
+      "then npx playwright install --only-shell chromium.",
   );
   process.exit(2);
 }
@@ -149,6 +155,24 @@ const wrapperHiddenFlags = (page) =>
 const pillPressedFlags = (page) =>
   page.$$eval(PILL_SEL, (els) => els.map((el) => el.getAttribute("aria-pressed")));
 
+/** The D-07 rule: every visible TAP_TARGET_SEL element is at least 24 x 24 in its own box. */
+async function smallTargets(page) {
+  const bad = await page.$$eval(
+    TAP_TARGET_SEL,
+    (els, min) =>
+      els
+        .filter((el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden")
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.height < min - 0.01 || r.width < min - 0.01)
+        .map(
+          ({ el, r }) =>
+            `${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}" ${Math.round(r.width * 10) / 10}x${Math.round(r.height * 10) / 10}`,
+        ),
+    TAP_MIN,
+  );
+  return bad.length ? `${bad.length} interactive element(s) under ${TAP_MIN}px: ${bad.slice(0, 5).join(" | ")}` : null;
+}
+
 async function runConfig(browser, cfg, ctxExtra = {}) {
   const { name, width, height } = cfg;
   const context = await browser.newContext({
@@ -159,6 +183,9 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     colorScheme: "light",
     ...ctxExtra,
   });
+  await context.route("**/_vercel/insights/**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+  );
   const page = await context.newPage();
   const problems = [];
   page.on("console", (msg) => {
@@ -183,7 +210,7 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
       (await page.locator(BAR_SEL).count()) === 0 ? null : "filter bar rendered in the empty state",
     );
     for (const c of [
-      "no-horizontal-overflow", "row-columns", "pill-row", "tap-targets", "bar-height",
+      "no-horizontal-overflow", "row-columns", "pill-row", "tap-targets", "title-clamp", "bar-height",
       "sticky", "focus-not-obscured", "hydrated-updated", "filter-zero-network",
       "expander-zero-network",
     ]) {
@@ -261,7 +288,37 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     const badExps = exps.filter((h) => h < 44 - 0.01);
     if (badPills.length) return `pill heights [${pills.join(",")}] below ${pillMin}`;
     if (badExps.length) return `expander heights [${exps.join(",")}] below 44`;
-    return null;
+    return smallTargets(page);
+  });
+
+  // d2. title clamp: the element carrying the three-line clamp must not be
+  // taller than three of its own line heights.
+  await check(name, "title-clamp", async () => {
+    const r = await page.evaluate(() => {
+      const titles = [...document.querySelectorAll("article h3")].filter(
+        (h) => h.getClientRects().length > 0,
+      );
+      const bad = [];
+      let checked = 0;
+      for (const h of titles) {
+        const clamp = [h, ...h.querySelectorAll("a")].find(
+          (el) => getComputedStyle(el).webkitLineClamp === "3",
+        );
+        if (!clamp) {
+          bad.push(`no element with line-clamp 3: ${h.textContent.slice(0, 30)}`);
+          continue;
+        }
+        checked += 1;
+        const cs = getComputedStyle(clamp);
+        const lh = parseFloat(cs.lineHeight);
+        if (clamp.clientHeight > 3 * lh + 1) {
+          bad.push(`${clamp.clientHeight}px > 3 x ${lh}px: ${h.textContent.slice(0, 30)}`);
+        }
+      }
+      return { bad, checked, n: titles.length };
+    });
+    if (r.n === 0) return "no visible article titles";
+    return r.bad.length ? `${r.bad.length} unclamped: ${r.bad.slice(0, 3).join(" | ")}` : null;
   });
 
   // e. bar height below 1024 (it must fit the 6rem scroll-padding-top); from
@@ -413,7 +470,12 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
     const r = await page.evaluate(() => {
       document.querySelectorAll("[data-overflow]").forEach((el) => el.removeAttribute("hidden"));
       const titles = [...document.querySelectorAll("article h3")];
-      const clamped = titles.filter((h) => h.scrollHeight - h.clientHeight > 1).length;
+      const clampEl = (h) =>
+        [h, ...h.querySelectorAll("a")].find((el) => getComputedStyle(el).webkitLineClamp === "3") ?? h;
+      const clamped = titles.filter((h) => {
+        const el = clampEl(h);
+        return el.scrollHeight - el.clientHeight > 1;
+      }).length;
       return { clamped, n: titles.length };
     });
     console.log(`TITLE_CLAMP_RATE ${name} ${r.clamped}/${r.n}`);
@@ -421,6 +483,74 @@ async function runConfig(browser, cfg, ctxExtra = {}) {
 
   // k. console clean
   await check(name, "console-clean", async () => (problems.length ? problems.join(" | ") : null));
+
+  await context.close();
+}
+
+/**
+ * Shell-page pass (D-07, UI-SPEC "Tap targets"): /about, /feeds and one
+ * unknown URL at every width. The unknown URL must answer 404; only its own
+ * document-404 console line is tolerated, never any other console error.
+ */
+const SHELL_PAGES = [
+  { path: "/about", status: 200 },
+  { path: "/feeds", status: 200 },
+  { path: "/no-such-page-22", status: 404 },
+];
+
+async function runShellPage(browser, cfg, shell) {
+  const { width, height } = cfg;
+  const label = `${cfg.name} ${shell.path}`;
+  const context = await browser.newContext({
+    viewport: { width, height },
+    deviceScaleFactor: cfg.deviceScaleFactor ?? 1,
+    isMobile: cfg.isMobile ?? false,
+    hasTouch: cfg.hasTouch ?? false,
+    colorScheme: "light",
+  });
+  await context.route("**/_vercel/insights/**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+  );
+  const page = await context.newPage();
+  const problems = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") problems.push({ text: msg.text(), kind: "console.error" });
+  });
+  page.on("pageerror", (err) => problems.push({ text: err.message, kind: "pageerror" }));
+
+  const res = await page.goto(new URL(shell.path, BASE_URL).href, { waitUntil: "networkidle" });
+  const status = res?.status();
+
+  await check(label, "shell-status", async () =>
+    status === shell.status ? null : `expected ${shell.status}, got ${status}`,
+  );
+  await check(label, "shell-overflow", async () => {
+    const r = await page.evaluate(() => ({
+      sw: document.documentElement.scrollWidth,
+      iw: window.innerWidth,
+    }));
+    if (r.iw !== width) return `layout viewport widened to ${r.iw} (device width ${width})`;
+    return r.sw <= width ? null : `scrollWidth ${r.sw} > device width ${width}`;
+  });
+  await check(label, "shell-tap-targets", () => smallTargets(page));
+  await check(label, "shell-console-clean", async () => {
+    let dropped = false;
+    const left = problems.filter((p) => {
+      if (
+        !dropped &&
+        shell.status === 404 &&
+        status === 404 &&
+        p.kind === "console.error" &&
+        p.text.startsWith("Failed to load resource") &&
+        p.text.includes("404")
+      ) {
+        dropped = true;
+        return false;
+      }
+      return true;
+    });
+    return left.length ? left.map((p) => `${p.kind}: ${p.text}`).join(" | ") : null;
+  });
 
   await context.close();
 }
@@ -435,6 +565,9 @@ async function screenshots(browser, dir) {
         hasTouch: cfg.hasTouch ?? false,
         colorScheme: scheme,
       });
+      await context.route("**/_vercel/insights/**", (route) =>
+        route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+      );
       const page = await context.newPage();
       await page.goto(BASE_URL, { waitUntil: "networkidle" });
       await page.screenshot({ path: path.join(dir, `${cfg.name}-${scheme}.png`), fullPage: true });
@@ -451,6 +584,9 @@ try {
     for (const cfg of CONFIGS) {
       console.log(`--- ${cfg.name} (${cfg.width}x${cfg.height}) ---`);
       await runConfig(browser, cfg);
+    }
+    for (const cfg of CONFIGS) {
+      for (const shell of SHELL_PAGES) await runShellPage(browser, cfg, shell);
     }
     const dir = await mkdtemp(path.join(tmpdir(), "havadis-viewports-"));
     await screenshots(browser, dir);
