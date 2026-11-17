@@ -587,6 +587,35 @@ test("/about is prerendered as a static route", () => {
   assert.equal(route.compute, "static");
 });
 
+test("an unknown URL returns 404 with the branded not-found page (UX-01)", async () => {
+  const probe = "no-such-page-22";
+  for (const route of [`/${probe}`, "/feed/zzz.xml"]) {
+    const res = await fetch(`${BASE_URL}${route}`);
+    assert.equal(res.status, 404, `${route} must be a real 404, not a soft 404`);
+    assert.match(res.headers.get("content-type") ?? "", /^text\/html/, route);
+    const body = await res.text();
+    assert.ok(body.includes("noindex"), `${route} must carry noindex`);
+    const main = mainHtml(body);
+    assert.ok(main.includes("Page not found"), `${route}: heading`);
+    assert.ok(
+      main.includes("This address does not lead anywhere on Havadis. The front page has today&#x27;s security news.") ||
+        main.includes("This address does not lead anywhere on Havadis. The front page has today's security news."),
+      `${route}: body sentence`
+    );
+    const back = openingTags(main, "a").filter((tag) => attrValue(tag, "href") === "/");
+    assert.equal(back.length, 1, `${route}: one link to /`);
+    assert.match(main, /<a\b[^>]*href="\/"[^>]*>Back to the front page<\/a>/, route);
+    if (route === `/${probe}`) {
+      assert.ok(!main.includes(probe), "the requested path is never echoed into main");
+    }
+  }
+
+  const manifest = JSON.parse(
+    readFileSync(path.join(process.cwd(), ".next", "prerender-manifest.json"), "utf8")
+  ) as { routes: Record<string, { initialStatus?: number }> };
+  assert.equal(manifest.routes["/_not-found"]?.initialStatus, 404);
+});
+
 // ENR-03 / ENR-04 / ENR-05, Phase 7. These four tests read whatever the live
 // build rendered, so they never require a KEV CVE to be in today's news; they
 // record what they saw through t.diagnostic.

@@ -1,19 +1,50 @@
 @import "tailwindcss";
 
 /*
- * Hazard-placard palette: a warm vinyl ground and asphalt dark ground, ink
- * from Tailwind's warm `stone` scale, and colour reserved for what it means
- * (section class, importance, exploitation signal). `--background` is read by
- * the contrast tests, so keep each value a six-digit hex.
+ * Warm vinyl ground and asphalt dark ground with ink from Tailwind's warm
+ * `stone` scale. The ground and ink stay; the other roles (surface, muted and
+ * subtle ink, edge, rule, accent) come from the Phase 22 UI-SPEC, and accent
+ * is reserved for importance. Legacy front-page hues remain until Phase 27.
+ * `--background` is read by the contrast tests, so keep each value a
+ * six-digit hex.
  */
 :root {
   --background: #f2f0e9;
   --foreground: #1c1917;
+  --surface: #e7e5e4;
+  --ink-muted: #44403c;
+  --ink-subtle: #57534e;
+  --edge: #78716c;
+  --rule: #d6d3d1;
+  --accent: #b42318;
+  --accent-on: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-ground: var(--background);
+  --color-ink: var(--foreground);
+  --color-surface: var(--surface);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-edge: var(--edge);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-on: var(--accent-on);
+
+  --text-meta: 0.875rem;
+  --text-meta--line-height: 1.25rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-heading: 1.25rem;
+  --text-heading--line-height: 1.5rem;
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+
+  --radius-control: 0.25rem;
+  --radius-panel: 0.5rem;
+
   --font-sans: var(--font-barlow);
   --font-display: var(--font-barlow-condensed);
   --font-mono: var(--font-jetbrains-mono);
@@ -23,6 +54,13 @@
   :root {
     --background: #151311;
     --foreground: #f5f5f4;
+    --surface: #292524;
+    --ink-muted: #d6d3d1;
+    --ink-subtle: #a8a29e;
+    --edge: #78716c;
+    --rule: #44403c;
+    --accent: #f87171;
+    --accent-on: #151311;
   }
 }
 
