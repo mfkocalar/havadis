@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getFrontPageData } from "@/lib/snapshot";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FrontPageFilter, SectionCount, SectionVisibility } from "@/components/FrontPageFilter";
@@ -9,6 +10,12 @@ import { TriageToolbar, type TriageArticle } from "@/components/TriageToolbar";
 import { enrichmentNotice } from "@/lib/enrichment/enrich";
 import { planSectionCap } from "@/lib/planSectionCap";
 import { articleCountLabel, type FilterPill } from "@/lib/sectionFilter";
+
+export const metadata: Metadata = {
+  title: { absolute: "Havadis: daily security news for practitioners" },
+  description:
+    "A public security newspaper for practitioners. Current cybersecurity coverage from curated sources, grouped by section and ranked by urgency.",
+};
 
 /**
  * One column of manifest rows at every width: each row keeps its fields in

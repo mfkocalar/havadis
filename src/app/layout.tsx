@@ -23,9 +23,12 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: "Havadis — Security News, Aggregated",
+  title: {
+    default: "Havadis: daily security news for practitioners",
+    template: "%s · Havadis",
+  },
   description:
-    "Havadis is a public, source-independent security newspaper for security experts, aggregating current cybersecurity coverage into one fast front page.",
+    "A public security newspaper for practitioners. Current cybersecurity coverage from curated sources, grouped by section and ranked by urgency.",
   // No url here: a layout-level og:url would be inherited by every page.
   openGraph: { siteName: "Havadis", type: "website" },
   // Feed autodiscovery: readers and agents given the site URL find the feeds.

@@ -150,3 +150,57 @@ test("no runtime image function exists under src (D-17)", () => {
     }
   }
 });
+
+const HOME_DESCRIPTION =
+  "A public security newspaper for practitioners. Current cybersecurity coverage from curated sources, grouped by section and ranked by urgency.";
+
+const TITLE_TABLE = [
+  { page: "index", title: "Havadis: daily security news for practitioners", description: HOME_DESCRIPTION },
+  {
+    page: "about",
+    title: "About · Havadis",
+    description:
+      "Havadis is a public security news aggregator; this page describes its HavadisBot crawler and how to contact or opt out.",
+  },
+  {
+    page: "feeds",
+    title: "Feeds · Havadis",
+    description: "RSS and JSON Feed endpoints for connecting services and agents to Havadis.",
+  },
+  {
+    page: "_not-found",
+    title: "Page not found · Havadis",
+    description: "This page does not exist. Go back to the Havadis front page.",
+  },
+] as const;
+
+function titleText(html: string): string {
+  const m = html.match(/<title>([^<]*)<\/title>/);
+  return m ? decodeEntities(m[1]) : "";
+}
+
+for (const row of TITLE_TABLE) {
+  test(`${row.page}.html: exact title and description (UX-06)`, () => {
+    const html = builtHtml(row.page);
+    const title = titleText(html);
+    const description = metaContent(html, "description") ?? "";
+    assert.equal(title, row.title);
+    assert.equal(description, row.description);
+    assert.ok(title.length > 0 && title.length <= 60, `title length ${title.length}`);
+    assert.ok(description.length > 0 && description.length <= 160, `description length ${description.length}`);
+    assert.equal(title.split("Havadis").length - 1, 1, "site name appears once");
+  });
+}
+
+for (const row of TITLE_TABLE.filter((r) => r.page !== "_not-found")) {
+  test(`${row.page}.html: og:title and og:description follow the page`, () => {
+    const html = builtHtml(row.page);
+    const ogTitle = metaContent(html, "og:title");
+    const ogDescription = metaContent(html, "og:description");
+    assert.ok(ogTitle, "og:title must be present");
+    assert.ok(ogDescription, "og:description must be present");
+    const own = row.page === "about" ? "About" : row.page === "feeds" ? "Feeds" : "Havadis: daily security news";
+    assert.ok(ogTitle.includes(own), `og:title "${ogTitle}" must contain "${own}"`);
+    assert.equal(ogDescription, row.description);
+  });
+}

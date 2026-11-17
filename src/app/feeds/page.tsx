@@ -3,7 +3,7 @@ import { siteUrl } from "@/lib/config/site";
 import { FEED_VARIANTS, feedPath } from "@/lib/feeds/buildFeed";
 
 export const metadata: Metadata = {
-  title: "Feeds — Havadis",
+  title: "Feeds",
   description: "RSS and JSON Feed endpoints for connecting services and agents to Havadis.",
 };
 

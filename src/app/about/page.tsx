@@ -4,7 +4,7 @@ import { SOURCES } from "@/lib/config/sources";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "@/lib/config/crawler";
 
 export const metadata: Metadata = {
-  title: "About Havadis",
+  title: "About",
   description:
     "Havadis is a public security news aggregator; this page describes its HavadisBot crawler and how to contact or opt out.",
 };
