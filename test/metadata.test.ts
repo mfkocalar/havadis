@@ -246,3 +246,60 @@ test("icon.svg holds only rects and an inline style on the 32 grid (T-22-21)", (
   assert.ok(!/url\(/i.test(svg), "no url() reference");
   assert.ok(!/<(circle|ellipse)\b/i.test(svg), "no dot shape");
 });
+
+const FAVICON = path.join(SRC, "app/favicon.ico");
+const MANIFEST = path.join(SRC, "app/manifest.webmanifest");
+const PUBLIC_DIR = path.join(ROOT, "public");
+
+test("index.html links the manifest and the favicon", () => {
+  const html = builtHtml("index");
+  const manifest = linkTag(html, "manifest", "/manifest.webmanifest");
+  assert.ok(manifest, 'rel="manifest" link to /manifest.webmanifest must be present');
+  assert.ok(linkTag(html, "icon", "/favicon.ico"), 'rel="icon" link to /favicon.ico must be present');
+});
+
+test("manifest.webmanifest is the pinned static JSON with two icons in order (T-22-22)", () => {
+  const manifest = JSON.parse(readFileSync(MANIFEST, "utf8")) as Record<string, unknown>;
+  assert.equal(manifest.name, "Havadis");
+  assert.equal(manifest.short_name, "Havadis");
+  assert.equal(manifest.description, metaContent(builtHtml("index"), "description"));
+  assert.equal(manifest.description, HOME_DESCRIPTION);
+  assert.equal(manifest.start_url, "/");
+  assert.equal(manifest.display, "browser");
+  assert.equal(manifest.background_color, "#f2f0e9");
+  assert.equal(manifest.theme_color, "#0c0a09");
+  const icons = manifest.icons as { src: string; sizes: string; type: string; purpose: string }[];
+  assert.equal(icons.length, 2);
+  assert.deepEqual(
+    icons.map((i) => [i.src, i.sizes]),
+    [
+      ["/icon-192.png", "192x192"],
+      ["/icon-512.png", "512x512"],
+    ],
+  );
+  for (const icon of icons) {
+    assert.equal(icon.type, "image/png");
+    assert.equal(icon.purpose, "any");
+    const file = path.join(PUBLIC_DIR, icon.src.replace(/^\//, ""));
+    const { width, height } = pngSize(readFileSync(file));
+    assert.equal(`${width}x${height}`, icon.sizes, `${icon.src} IHDR must match sizes`);
+  }
+});
+
+test("favicon.ico holds PNG frames of 16, 32 and 48 px", () => {
+  const ico = readFileSync(FAVICON);
+  assert.equal(ico.readUInt16LE(0), 0, "reserved");
+  assert.equal(ico.readUInt16LE(2), 1, "type is icon");
+  assert.equal(ico.readUInt16LE(4), 3, "three frames");
+  const sizes = [16, 32, 48];
+  sizes.forEach((size, i) => {
+    const entry = 6 + 16 * i;
+    assert.equal(ico.readUInt8(entry), size, `frame ${i} width`);
+    assert.equal(ico.readUInt8(entry + 1), size, `frame ${i} height`);
+    const length = ico.readUInt32LE(entry + 8);
+    const offset = ico.readUInt32LE(entry + 12);
+    if (i === 0) assert.equal(offset, 54, "first frame starts after the directory");
+    const frame = ico.subarray(offset, offset + length);
+    assert.deepEqual(pngSize(frame), { width: size, height: size }, `frame ${i} IHDR`);
+  });
+});

@@ -12,7 +12,8 @@
  *
  * Targets:
  *   og     src/app/opengraph-image.png, the 1200x630 share image.
- *   icons  src/app/apple-icon.png (180x180).
+ *   icons  src/app/apple-icon.png (180x180), public/icon-192.png, public/icon-512.png
+ *          and src/app/favicon.ico (16, 32 and 48 px frames of the light icon.svg art).
  *
  * Re-render when the production hostname changes: the host line
  * ("havadis-news.vercel.app") is baked into the PNG. Barlow and JetBrains Mono
@@ -24,7 +25,7 @@
  * under test/.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -54,6 +55,11 @@ function brandSvg(size) {
 const BRAND_TILE_SVG = brandSvg(112);
 
 const APPLE_ICON_OUT = path.join(REPO_ROOT, "src/app/apple-icon.png");
+const ICON_192_OUT = path.join(REPO_ROOT, "public/icon-192.png");
+const ICON_512_OUT = path.join(REPO_ROOT, "public/icon-512.png");
+const ICON_SVG_SRC = path.join(REPO_ROOT, "src/app/icon.svg");
+const FAVICON_OUT = path.join(REPO_ROOT, "src/app/favicon.ico");
+const FAVICON_SIZES = [16, 32, 48];
 
 function ogHtml() {
   return `<!doctype html>
@@ -156,7 +162,7 @@ async function renderOg() {
 }
 
 /** Screenshot an SVG at size x size (CSS px, scale 1, light scheme) to a PNG buffer. */
-async function svgToPng(browser, svg, size) {
+async function svgToPng(browser, svg, size, { transparent = false } = {}) {
   const context = await browser.newContext({
     viewport: { width: size, height: size },
     deviceScaleFactor: 1,
@@ -167,7 +173,11 @@ async function svgToPng(browser, svg, size) {
     await page.setContent(
       `<!doctype html><html><head><style>html,body{margin:0;padding:0}svg{display:block}</style></head><body>${svg}</body></html>`,
     );
-    return await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: size, height: size } });
+    return await page.screenshot({
+      type: "png",
+      clip: { x: 0, y: 0, width: size, height: size },
+      omitBackground: transparent,
+    });
   } finally {
     await context.close();
   }
@@ -179,11 +189,50 @@ async function writeOut(file, buffer) {
   console.log(`WROTE ${path.relative(REPO_ROOT, file)} ${buffer.length}`);
 }
 
+/**
+ * ICO container with PNG-compressed frames: 6-byte header (reserved 0, type 1,
+ * count), one 16-byte entry per frame (width, height, colour count 0, reserved
+ * 0, planes 1, bit count 32, data size, data offset), then the PNG data.
+ */
+function buildIco(frames) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(frames.length, 4);
+  let offset = 6 + 16 * frames.length;
+  const entries = frames.map(({ size, png }) => {
+    const entry = Buffer.alloc(16);
+    entry.writeUInt8(size, 0);
+    entry.writeUInt8(size, 1);
+    entry.writeUInt8(0, 2);
+    entry.writeUInt8(0, 3);
+    entry.writeUInt16LE(1, 4);
+    entry.writeUInt16LE(32, 6);
+    entry.writeUInt32LE(png.length, 8);
+    entry.writeUInt32LE(offset, 12);
+    offset += png.length;
+    return entry;
+  });
+  return Buffer.concat([header, ...entries, ...frames.map((f) => f.png)]);
+}
+
 async function renderIcons() {
   const chromium = await loadChromium();
   const browser = await chromium.launch();
   try {
     await writeOut(APPLE_ICON_OUT, await svgToPng(browser, brandSvg(180), 180));
+    await writeOut(ICON_192_OUT, await svgToPng(browser, brandSvg(192), 192));
+    await writeOut(ICON_512_OUT, await svgToPng(browser, brandSvg(512), 512));
+
+    // Favicon frames reuse the committed 32-grid art (light scheme, no dot),
+    // transparent outside the rounded tile.
+    const iconSvg = await readFile(ICON_SVG_SRC, "utf8");
+    const frames = [];
+    for (const size of FAVICON_SIZES) {
+      const sized = iconSvg.replace('width="32" height="32"', `width="${size}" height="${size}"`);
+      frames.push({ size, png: await svgToPng(browser, sized, size, { transparent: true }) });
+    }
+    await writeOut(FAVICON_OUT, buildIco(frames));
   } finally {
     await browser.close();
   }

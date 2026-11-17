@@ -28,4 +28,5 @@ export const ROUTE_TABLE: Readonly<Record<string, RouteExpectation>> = {
   "/opengraph-image.png": false,
   "/icon.svg": false,
   "/apple-icon.png": false,
+  "/manifest.webmanifest": false,
 };
