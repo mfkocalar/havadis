@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import {
   assertStaticRoute,
   findStaleSources,
+  isBuildInput,
   routeInventoryProblems,
+  routePatternFromAppFile,
   type PrerenderManifest,
+  type RouteInventoryInput,
 } from "./fixtures/staticRouteGate.ts";
 
 /**
@@ -118,19 +121,180 @@ test("findStaleSources returns an empty list for no files", () => {
   assert.deepStrictEqual(findStaleSources(1000, []), []);
 });
 
-test("routeInventoryProblems names a built route that has no table row", () => {
-  const prerender: PrerenderManifest = {
-    routes: {
-      "/": { initialRevalidateSeconds: 900, compute: "static", srcRoute: "/" },
-      "/sources": { initialRevalidateSeconds: false, compute: "static", srcRoute: "/sources" },
+/** A healthy three-route inventory; each negative test below breaks one thing. */
+function healthyInventory(): RouteInventoryInput {
+  return {
+    table: { "/": 900, "/about": false, "/feed/[name]": 900 },
+    prerender: {
+      routes: {
+        "/": { initialRevalidateSeconds: 900, compute: "static", srcRoute: "/" },
+        "/about": { initialRevalidateSeconds: false, compute: "static", srcRoute: "/about" },
+        "/feed/a.xml": {
+          initialRevalidateSeconds: 900,
+          compute: "static",
+          srcRoute: "/feed/[name]",
+        },
+      },
     },
+    appPathRoutes: {
+      "/page": "/",
+      "/about/page": "/about",
+      "/feed/[name]/route": "/feed/[name]",
+    },
+    fileRoutes: ["/", "/about", "/feed/[name]"],
   };
-  const problems = routeInventoryProblems({
-    table: { "/": 900 },
-    prerender,
-    appPathRoutes: {},
-    fileRoutes: [],
+}
+
+test("routeInventoryProblems accepts a healthy inventory", () => {
+  assert.deepStrictEqual(routeInventoryProblems(healthyInventory()), []);
+});
+
+test("routeInventoryProblems names a built route that has no table row", () => {
+  const input = healthyInventory();
+  input.prerender.routes["/sources"] = {
+    initialRevalidateSeconds: false,
+    compute: "static",
+    srcRoute: "/sources",
+  };
+  assert.deepStrictEqual(routeInventoryProblems(input), [
+    'route "/sources" is built but has no row in test/fixtures/routeTable.ts',
+  ]);
+});
+
+test("routeInventoryProblems names a table row that has no built route", () => {
+  const input = healthyInventory();
+  input.table = { ...input.table, "/gone": false };
+  const problems = routeInventoryProblems(input);
+  assert.ok(problems.includes('table row "/gone" has no prerendered route'));
+  assert.ok(problems.includes('table row "/gone" is not an app route'));
+});
+
+test("routeInventoryProblems fails a route that is an app route but not prerendered (dynamic)", () => {
+  const input = healthyInventory();
+  input.appPathRoutes["/live/page"] = "/live";
+  assert.deepStrictEqual(routeInventoryProblems(input), [
+    'route "/live" is in app-path-routes-manifest.json but not prerendered (dynamic)',
+  ]);
+});
+
+for (const seconds of [899, 901]) {
+  test(`routeInventoryProblems fails a window of ${seconds} against a row of 900`, () => {
+    const input = healthyInventory();
+    input.prerender.routes["/"].initialRevalidateSeconds = seconds;
+    assert.deepStrictEqual(routeInventoryProblems(input), [
+      `"/" initialRevalidateSeconds is ${seconds}, expected 900`,
+    ]);
   });
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /"\/sources"/);
+}
+
+test("routeInventoryProblems fails a route whose compute is dynamic", () => {
+  const input = healthyInventory();
+  input.prerender.routes["/about"].compute = "dynamic";
+  assert.deepStrictEqual(routeInventoryProblems(input), [
+    '"/about" compute is dynamic, expected "static"',
+  ]);
+});
+
+test("routeInventoryProblems names a page file that has no table row", () => {
+  const input = healthyInventory();
+  input.fileRoutes = [...input.fileRoutes, "/sources"];
+  assert.deepStrictEqual(routeInventoryProblems(input), [
+    'file route "/sources" has no row in test/fixtures/routeTable.ts',
+  ]);
+});
+
+test("routeInventoryProblems fails instead of passing on an empty prerender manifest", () => {
+  const input = healthyInventory();
+  input.prerender = { routes: {} };
+  assert.ok(routeInventoryProblems(input).includes("prerender manifest has no routes"));
+});
+
+test("routeInventoryProblems fails instead of passing on an empty app-path-routes manifest", () => {
+  const input = healthyInventory();
+  input.appPathRoutes = {};
+  assert.ok(routeInventoryProblems(input).includes("app-path-routes-manifest.json has no routes"));
+});
+
+test("routeInventoryProblems fails instead of passing when no route files were found", () => {
+  const input = healthyInventory();
+  input.fileRoutes = [];
+  assert.deepStrictEqual(routeInventoryProblems(input), [
+    "no page or route files found under src/app",
+  ]);
+});
+
+test("routeInventoryProblems matches table keys exactly: /feed/[slug] does not satisfy /feed/[name]", () => {
+  const input = healthyInventory();
+  delete (input.table as Record<string, number | false>)["/feed/[name]"];
+  (input.table as Record<string, number | false>)["/feed/[slug]"] = 900;
+  const problems = routeInventoryProblems(input);
+  assert.ok(
+    problems.includes('route "/feed/[name]" is built but has no row in test/fixtures/routeTable.ts')
+  );
+  assert.ok(problems.includes('table row "/feed/[slug]" has no prerendered route'));
+});
+
+test("routeInventoryProblems returns the same sorted list however the input is ordered", () => {
+  const input = healthyInventory();
+  input.fileRoutes = ["/zeta", "/alpha", ...input.fileRoutes];
+  const problems = routeInventoryProblems(input);
+  assert.deepStrictEqual(problems, [
+    'file route "/alpha" has no row in test/fixtures/routeTable.ts',
+    'file route "/zeta" has no row in test/fixtures/routeTable.ts',
+  ]);
+  assert.deepStrictEqual(problems, [...problems].sort());
+});
+
+test("routePatternFromAppFile maps the six current page and route files", () => {
+  const cases: Array<[string, string]> = [
+    ["src/app/page.tsx", "/"],
+    ["src/app/about/page.tsx", "/about"],
+    ["src/app/feeds/page.tsx", "/feeds"],
+    ["src/app/feed.xml/route.ts", "/feed.xml"],
+    ["src/app/feed.json/route.ts", "/feed.json"],
+    ["src/app/feed/[name]/route.ts", "/feed/[name]"],
+  ];
+  for (const [file, route] of cases) assert.equal(routePatternFromAppFile(file), route, file);
+});
+
+test("routePatternFromAppFile accepts a backslash separator", () => {
+  assert.equal(routePatternFromAppFile("src\\app\\feed\\[name]\\route.ts"), "/feed/[name]");
+});
+
+test("routePatternFromAppFile returns null for files that are not pages or routes", () => {
+  for (const file of [
+    "src/app/layout.tsx",
+    "src/app/not-found.tsx",
+    "src/app/icon.svg",
+    "src/app/globals.css",
+    "src/lib/page.tsx",
+  ]) {
+    assert.equal(routePatternFromAppFile(file), null, file);
+  }
+});
+
+test("isBuildInput is true for every build input named in D-11", () => {
+  for (const file of [
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "postcss.config.mjs",
+    "next.config.ts",
+    "public/icon-192.png",
+    "src/app/page.tsx",
+  ]) {
+    assert.equal(isBuildInput(file), true, file);
+  }
+});
+
+test("isBuildInput is false for tests, docs and scripts", () => {
+  for (const file of [
+    "src/lib/edition.test.ts",
+    "README.md",
+    "test/productionPage.test.ts",
+    "scripts/verify-viewports.mjs",
+    ".planning/STATE.md",
+  ]) {
+    assert.equal(isBuildInput(file), false, file);
+  }
 });

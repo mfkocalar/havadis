@@ -2,15 +2,18 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { SECTION_DISPLAY_ORDER } from "../src/lib/config/sections.ts";
 import { SOURCE_TYPE_LABEL } from "../src/lib/config/sourceTypes.ts";
 import { CRAWLER_CONTACT_CHANNEL_URL, USER_AGENT } from "../src/lib/config/crawler.ts";
 import { FEED_VARIANTS, feedPath } from "../src/lib/feeds/buildFeed.ts";
 import {
+  BUILD_INPUT_ROOT_FILES,
   assertStaticRoute,
   findStaleSources,
+  isBuildInput,
   routeInventoryProblems,
+  routePatternFromAppFile,
   type PrerenderManifest,
   type SourceStamp,
 } from "./fixtures/staticRouteGate.ts";
@@ -460,24 +463,38 @@ test("sections of 9 or more articles show exactly 6 cards before a hidden overfl
 });
 
 /**
- * Every file the production build is made from: all non-test files under src/
- * plus next.config.ts. Test files are excluded so editing a test never demands
- * a rebuild.
+ * Every file the production build is made from (D-11, closing Phase 6 review
+ * WR-01): non-test files under src/, every file under public/ when it exists,
+ * and the root config and dependency files. Test files are excluded so editing a
+ * test never demands a rebuild; isBuildInput owns that rule.
  */
 function nonTestSourceStamps(): SourceStamp[] {
   const root = process.cwd();
   const stamps: SourceStamp[] = [];
-  for (const entry of readdirSync(path.join(root, "src"), { recursive: true })) {
-    const rel = path.join("src", String(entry));
-    const stat = statSync(path.join(root, rel));
-    if (!stat.isFile() || rel.endsWith(".test.ts")) continue;
-    stamps.push({ path: rel.split(path.sep).join("/"), mtimeMs: stat.mtimeMs });
+  const addTree = (dir: string) => {
+    if (!existsSync(path.join(root, dir))) return;
+    for (const entry of readdirSync(path.join(root, dir), { recursive: true })) {
+      const rel = path.join(dir, String(entry)).split(path.sep).join("/");
+      const stat = statSync(path.join(root, rel));
+      if (stat.isFile() && isBuildInput(rel)) stamps.push({ path: rel, mtimeMs: stat.mtimeMs });
+    }
+  };
+  addTree("src");
+  addTree("public");
+  for (const file of BUILD_INPUT_ROOT_FILES) {
+    stamps.push({ path: file, mtimeMs: statSync(path.join(root, file)).mtimeMs });
   }
-  stamps.push({
-    path: "next.config.ts",
-    mtimeMs: statSync(path.join(root, "next.config.ts")).mtimeMs,
-  });
   return stamps;
+}
+
+/** Route patterns of every page and route file under src/app. */
+function appFileRoutes(): string[] {
+  const routes: string[] = [];
+  for (const entry of readdirSync(path.join(process.cwd(), "src", "app"), { recursive: true })) {
+    const route = routePatternFromAppFile(path.join("src", "app", String(entry)));
+    if (route !== null) routes.push(route);
+  }
+  return routes;
 }
 
 test("the front page is still statically prerendered with the 900-second revalidation window", () => {
@@ -510,13 +527,21 @@ test("every route in the app has a row in the gate table and matches it (UX-07)"
     table: ROUTE_TABLE,
     prerender,
     appPathRoutes,
-    fileRoutes: [],
+    fileRoutes: appFileRoutes(),
   });
   assert.deepStrictEqual(
     problems,
     [],
     "route inventory mismatch: add or fix the row in test/fixtures/routeTable.ts"
   );
+
+  // generateStaticParams skips the "all" variant, which is served by /feed.xml
+  // and /feed.json, so the dynamic route expands to one xml and one json page
+  // for every other variant.
+  const expanded = Object.values(prerender.routes).filter(
+    (entry) => entry.srcRoute === "/feed/[name]"
+  );
+  assert.equal(expanded.length, (FEED_VARIANTS.length - 1) * 2);
 });
 
 // Feeds read the shared snapshot (08-CONTEXT D-25) and rely on ISR for the

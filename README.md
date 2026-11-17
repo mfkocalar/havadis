@@ -139,7 +139,7 @@ Failure policy, one sentence each. Edition: the last good edition is kept, and a
 
 ### Testing
 
-`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/` or `next.config.ts` is newer than `.next/BUILD_ID`. Enrichment tests run against a local fixture server on 127.0.0.1 and never call CISA, FIRST or MITRE. Live-network end-to-end tests are opt-in:
+`npm test` runs hermetic tests plus production-build tests that read the last build in `.next`, so run `npm run build && npm test`. The static-route gate fails when `/` is no longer prerendered with a 900-second window, and fails with a stale-build message when any non-test file under `src/`, any file under `public/`, `next.config.ts`, `package.json`, `package-lock.json`, `tsconfig.json` or `postcss.config.mjs` is newer than `.next/BUILD_ID`. The route inventory fails when a built route, or a page or route file under `src/app`, has no row in `test/fixtures/routeTable.ts`. Enrichment tests run against a local fixture server on 127.0.0.1 and never call CISA, FIRST or MITRE. Live-network end-to-end tests are opt-in:
 
 ```bash
 E2E=1 node --test src/lib/pipeline/frontpage.e2e.test.ts
