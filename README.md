@@ -170,7 +170,7 @@ Vercel regenerates an expired page only when a request arrives, and Hobby's own 
 
 The monitor is a manual dependency outside this repository: keep it enabled, or the front page refreshes only on reader requests. GitHub also disables scheduled workflows in a public repository after 60 days without repository activity; re-enable the workflow on the Actions tab if that happens. A failed request is retried within the run and leaves a warning on every run, but the job fails only for a run that starts in the first five minutes of a UTC hour. During an outage, that sends at most about one failure email an hour, because GitHub's schedule delay can move a run into or out of that window.
 
-Set `SITE_URL=https://havadis-news.vercel.app` in the Vercel project's environment variables for Production and Preview; without it, feed and metadata links point at `http://localhost:4000`. The workflow's `SITE_URL` and the crawler's contact URL (`src/lib/config/crawler.ts`) name the same host, and `npm test` checks that they match, so update all three if the domain changes.
+Set `SITE_URL=https://havadis-news.vercel.app` in the Vercel project's environment variables for Production and Preview; without it a production build fails (`siteUrl()` refuses to emit localhost URLs), and a preview falls back to `http://localhost:4000` links. The warm-up workflow's `SITE_URL`, the job-level `SITE_URL` in `.github/workflows/ci.yml`, the crawler's contact URL (`src/lib/config/crawler.ts`) and the host line baked into `src/app/opengraph-image.png` (re-render with `node scripts/render-brand-art.mjs og`) name the same host, and `npm test` checks that the workflow and the contact URL match, so update all of them if the domain changes.
 
 
 ## Contributing
